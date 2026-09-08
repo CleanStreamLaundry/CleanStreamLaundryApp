@@ -38,5 +38,17 @@ void main() {
       expect(parser.getNayaxUniQr(), uniQr);
       expect(parser.getMachineToken(), isNull);
     });
+
+    test("extracts a 16-digit Nayax terminal QR", () {
+      final parser = QrScannerParser("4434331126150568");
+      expect(parser.getNayaxTerminalId(), "4434331126150568");
+      expect(parser.getMachineToken(), isNull);
+      expect(parser.getNayaxUniQr(), isNull);
+    });
+
+    test("rejects an incomplete numeric terminal QR", () {
+      final parser = QrScannerParser("150568");
+      expect(parser.getNayaxTerminalId(), isNull);
+    });
   });
 }

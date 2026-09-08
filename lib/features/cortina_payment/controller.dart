@@ -12,6 +12,7 @@ enum CortinaPaymentOutcome { success, pending, refunded, failed, canceled }
 
 class CortinaPaymentController extends ChangeNotifier {
   final String? machineToken;
+  final String? terminalId;
   final String? uniQr;
   final CortinaVendService vendService;
   final AuthService authService;
@@ -22,6 +23,7 @@ class CortinaPaymentController extends ChangeNotifier {
 
   CortinaPaymentController({
     required this.machineToken,
+    required this.terminalId,
     required this.uniQr,
     CortinaVendService? vendService,
     AuthService? authService,
@@ -75,7 +77,11 @@ class CortinaPaymentController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
-      quote = await vendService.quote(machineToken: machineToken, uniQr: uniQr);
+      quote = await vendService.quote(
+        machineToken: machineToken,
+        terminalId: terminalId,
+        uniQr: uniQr,
+      );
       amountCents = quote!.isDryer
           ? quote!.dryerDefaultCents
           : quote!.amountCents;
@@ -109,17 +115,18 @@ class CortinaPaymentController extends ChangeNotifier {
     return _runPayment(() async {
       final session = await vendService.createCardPayment(
         machineToken: machineToken,
+        terminalId: terminalId,
         uniQr: uniQr,
         amountCents: amountCents,
         clientRequestId: _cardRequestId ??= const Uuid().v4(),
       );
       await presentPaymentSheet(session.clientSecret);
-      return _poll(
-        CortinaVendReference(
-          sessionId: session.sessionId,
-          accessToken: session.accessToken,
-        ),
+      final reference = CortinaVendReference(
+        sessionId: session.sessionId,
+        accessToken: session.accessToken,
       );
+      await vendService.confirmCardPayment(reference);
+      return _poll(reference);
     });
   }
 
@@ -128,6 +135,7 @@ class CortinaPaymentController extends ChangeNotifier {
     return _runPayment(() async {
       final reference = await vendService.payWithWallet(
         machineToken: machineToken,
+        terminalId: terminalId,
         uniQr: uniQr,
         amountCents: amountCents,
         clientRequestId: _walletRequestId ??= const Uuid().v4(),

@@ -35,27 +35,40 @@ class SupabaseCortinaVendService implements CortinaVendService {
     return result;
   }
 
-  Map<String, dynamic> _selector(String? machineToken, String? uniQr) => {
+  Map<String, dynamic> _selector(
+    String? machineToken,
+    String? terminalId,
+    String? uniQr,
+  ) => {
     if (machineToken != null && machineToken.isNotEmpty)
       'machineToken': machineToken,
+    if (terminalId != null && terminalId.isNotEmpty) 'terminalId': terminalId,
     if (uniQr != null && uniQr.isNotEmpty) 'uniQr': uniQr,
   };
 
   @override
-  Future<CortinaQuote> quote({String? machineToken, String? uniQr}) async {
-    final data = await _invoke('quote', _selector(machineToken, uniQr));
+  Future<CortinaQuote> quote({
+    String? machineToken,
+    String? terminalId,
+    String? uniQr,
+  }) async {
+    final data = await _invoke(
+      'quote',
+      _selector(machineToken, terminalId, uniQr),
+    );
     return CortinaQuote.fromJson(data);
   }
 
   @override
   Future<CortinaCardSession> createCardPayment({
     String? machineToken,
+    String? terminalId,
     String? uniQr,
     required int amountCents,
     required String clientRequestId,
   }) async {
     final data = await _invoke('card', {
-      ..._selector(machineToken, uniQr),
+      ..._selector(machineToken, terminalId, uniQr),
       'amountCents': amountCents,
       'channel': 'app',
       'clientRequestId': clientRequestId,
@@ -66,17 +79,26 @@ class SupabaseCortinaVendService implements CortinaVendService {
   @override
   Future<CortinaVendReference> payWithWallet({
     String? machineToken,
+    String? terminalId,
     String? uniQr,
     required int amountCents,
     required String clientRequestId,
   }) async {
     final data = await _invoke('wallet', {
-      ..._selector(machineToken, uniQr),
+      ..._selector(machineToken, terminalId, uniQr),
       'amountCents': amountCents,
       'channel': 'app',
       'clientRequestId': clientRequestId,
     });
     return CortinaVendReference.fromJson(data);
+  }
+
+  @override
+  Future<void> confirmCardPayment(CortinaVendReference reference) async {
+    await _invoke('confirm', {
+      'sessionId': reference.sessionId,
+      'accessToken': reference.accessToken,
+    });
   }
 
   @override

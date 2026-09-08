@@ -8,9 +8,10 @@ The code is implemented but intentionally does not enable or deploy production v
 - `cortina-vend`, `nayax-sale-end-sandbox`, `nayax-sale-end`, and the Cortina-aware `stripeWebhook` are deployed.
 - The web preview is configured as the temporary payment origin and return URL.
 - Live quote and callback smoke tests pass. Existing machine mappings remain disabled and require review.
-- The database currently contains one 12 kg washer at its preserved $2.00 price. There is no dryer machine row yet.
+- The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
-- The current washer row has no Terminal ID or UniQR, no pulse-line mapping, and is still marked for review, so it cannot start a hardware vend yet.
+- The sandbox washer is mapped to test device 150568 on pulse line 1, has passed QR lookup and Stripe payment testing, and is enabled for the next hardware Start test.
+- The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate now matches the first configured Nayax price point at $4.00 and has not yet been charged in a follow-up test.
 
 ## 1. Nayax
 
@@ -21,7 +22,7 @@ The Clean Stream Start endpoints are configured as:
 
 The URL digests stored in Supabase were verified against these exact endpoints. Nayax's token ID identifies the credential in their system; Static QR `Start` sends the secret token value and does not send the token ID.
 
-The remaining machine-specific configuration is:
+The remaining machine-specific configuration for each additional device is:
 
 - `TerminalId` or full `UniQR` for each device
 - `PulseLineNumber` for each connected washer and dryer
@@ -34,7 +35,7 @@ Ask Nayax to register these callback bases and append the documented routes:
 
 Confirm callback authentication and whether Nayax requires fixed IP allowlisting, VPN, or mTLS.
 
-Nayax's June 15 email confirms that the two sandbox devices were initially configured with five demo prices, while the platform supports up to six options. The June 29 email confirms the dryer can retain a multi-price configuration and the washer should use a single-price configuration. For Pulse 1-6 / Pulse Line configurations, the StaticQR documentation requires `PulseLineNumber` starting at 1 instead of a product `Code`. Do not enable either device until one serial is assigned as the washer, the other as the dryer, and the final six dryer amount/pulse-line/time mappings replace the demo values.
+Nayax's June 15 email confirms that the two sandbox devices were initially configured with five demo prices, while the platform supports up to six options. The June 29 email confirms the dryer can retain a multi-price configuration and the washer should use a single-price configuration. For Pulse 1-6 / Pulse Line configurations, the StaticQR documentation requires `PulseLineNumber` starting at 1 instead of a product `Code`. Keep additional devices disabled until one serial is assigned as the washer, the other as the dryer, and the final six dryer amount/pulse-line/time mappings replace the demo values. Test device 150568 is the temporary sandbox washer used for the current live test.
 
 For a custom Clean Stream QR, obtain the Nayax UniQRCode hash assigned to the virtual machine and retain the full `https://qr.nayax.com/v1/...` UniQR value for the Start request. The QR may direct to Clean Stream while using the hash as the public machine selector.
 
@@ -82,7 +83,7 @@ Deploy the migration before any function. Do not enable a machine until its migr
 
 In the web location administration page:
 
-1. Review each migrated washer size tier or add the intended per-location tiers.
+1. Review each migrated washer size tier or add the intended per-location tiers. The current 12 kg sandbox tier is $4.00.
 2. Confirm each washer uses the correct tier. Changing a tier updates future quotes and the compatibility `Machines.Price`; existing vend sessions retain their quoted cents.
 3. Open the payment setup action for each machine.
 4. Enter `TerminalId` or `UniQR`, pulse line, and sandbox environment.

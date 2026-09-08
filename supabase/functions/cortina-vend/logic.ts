@@ -8,6 +8,7 @@ import {
   getOptionalUserId,
   HttpError,
   jsonResponse,
+  markCortinaCardPaid,
   resolveQuote,
   sha256,
   startCortinaVend,
@@ -61,6 +62,7 @@ export async function handleQuote(req: Request, deps: CortinaDeps): Promise<Resp
   const body = await bodyFrom(req);
   return jsonResponse(await resolveQuote(deps.admin, {
     machineToken: body.machineToken,
+    terminalId: body.terminalId,
     uniQr: body.uniQr,
   }));
 }
@@ -72,6 +74,7 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
 
   const quote = await resolveQuote(deps.admin, {
     machineToken: body.machineToken,
+    terminalId: body.terminalId,
     uniQr: body.uniQr,
   });
   const amount = validateVendAmount(quote, body.amountCents);
@@ -116,6 +119,8 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
       "https://cleanstreamlaundry.com/pay";
     const cancelSelector = body.machineToken
       ? `machine=${encodeURIComponent(String(body.machineToken))}`
+      : body.terminalId
+      ? `terminal=${encodeURIComponent(String(body.terminalId))}`
       : `uniqr=${encodeURIComponent(String(body.uniQr ?? ""))}`;
     const checkout = await deps.stripe.checkout.sessions.create({
       mode: "payment",
@@ -158,6 +163,7 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
 
   const quote = await resolveQuote(deps.admin, {
     machineToken: body.machineToken,
+    terminalId: body.terminalId,
     uniQr: body.uniQr,
   });
   const amount = validateVendAmount(quote, body.amountCents);
@@ -203,6 +209,68 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
     sessionId: created.session.id,
     accessToken: created.accessToken,
   });
+}
+
+export async function handleCardConfirm(
+  req: Request,
+  deps: CortinaDeps,
+): Promise<Response> {
+  const body = await bodyFrom(req);
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+  const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
+  if (!sessionId || !accessToken) {
+    throw new HttpError(400, "Missing session credentials", "missing_session");
+  }
+
+  const { data: session, error } = await deps.admin
+    .from("cortina_vend_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .eq("client_access_token_hash", await sha256(accessToken))
+    .maybeSingle();
+  if (error || !session) {
+    throw new HttpError(404, "Vend session not found", "session_not_found");
+  }
+  if (session.payment_method !== "card" || !session.stripe_payment_intent_id) {
+    throw new HttpError(409, "Card payment is unavailable", "payment_unavailable");
+  }
+  if (session.status !== "payment_pending") {
+    return jsonResponse({ status: session.status });
+  }
+
+  const intent = await deps.stripe.paymentIntents.retrieve(
+    session.stripe_payment_intent_id,
+  );
+  const amountCents = intent.amount_received || intent.amount;
+  if (
+    intent.status !== "succeeded" ||
+    intent.currency.toLowerCase() !== session.currency.toLowerCase() ||
+    amountCents !== session.amount_cents ||
+    intent.metadata?.purpose !== "cortina_vend" ||
+    intent.metadata?.cortina_session_id !== session.id ||
+    intent.metadata?.machine_id !== String(session.machine_id) ||
+    intent.metadata?.amount_cents !== String(session.amount_cents)
+  ) {
+    throw new HttpError(
+      409,
+      "Stripe has not confirmed this payment",
+      "payment_unconfirmed",
+    );
+  }
+
+  await markCortinaCardPaid(
+    {
+      eventId: `confirm:${intent.id}`,
+      sessionId: session.id,
+      amountCents,
+      paymentIntentId: intent.id,
+      chargeId: typeof intent.latest_charge === "string"
+        ? intent.latest_charge
+        : intent.latest_charge?.id ?? null,
+    },
+    deps,
+  );
+  return jsonResponse({ status: "paid" });
 }
 
 export async function handleStatus(req: Request, deps: CortinaDeps): Promise<Response> {
@@ -261,6 +329,8 @@ export async function handleCortinaVend(req: Request, deps: CortinaDeps): Promis
       return handleQuote(req, deps);
     case "card":
       return handleCard(req, deps);
+    case "confirm":
+      return handleCardConfirm(req, deps);
     case "wallet":
       return handleWallet(req, deps);
     case "status":

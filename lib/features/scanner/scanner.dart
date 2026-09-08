@@ -29,42 +29,54 @@ class _ScannerPageState extends State<ScannerPage> {
     super.dispose();
   }
 
-  Future<void> processNayaxCode(String? code) =>
-      _controller.processNayaxCode(
-        code,
-        onNavigate: (route) {
-          if (mounted) context.go(route);
-        },
-        onError: (title, message) {
-          if (mounted) {
-            statusDialog(context, title: title, message: message,
-                isSuccess: false);
-          }
-        },
-      );
+  Future<void> processNayaxCode(String? code) => _controller.processNayaxCode(
+    code,
+    onNavigate: (route) {
+      if (mounted) context.go(route);
+    },
+    onError: (title, message) {
+      if (mounted) {
+        statusDialog(context, title: title, message: message, isSuccess: false);
+      }
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
     return BasePage(
       body: Stack(
         children: [
-          MobileScanner(
-            controller: _controller.cameraController,
-            onDetect: (capture) => _controller.handleQRCode(
-              capture,
-              onNavigate: (route) {
-                if (mounted) context.go(route);
-              },
-              onError: (title, message) {
-                if (mounted) {
-                  statusDialog(context, title: title, message: message, isSuccess: false);
-                }
-              },
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final scanWindow = Rect.fromCenter(
+                center: constraints.biggest.center(Offset.zero),
+                width: 250,
+                height: 250,
+              );
+              return MobileScanner(
+                controller: _controller.cameraController,
+                scanWindow: scanWindow,
+                tapToFocus: true,
+                onDetect: (capture) => _controller.handleQRCode(
+                  capture,
+                  onNavigate: (route) {
+                    if (mounted) context.go(route);
+                  },
+                  onError: (title, message) async {
+                    if (mounted) {
+                      await statusDialog(
+                        context,
+                        title: title,
+                        message: message,
+                        isSuccess: false,
+                      );
+                    }
+                  },
+                ),
+              );
+            },
           ),
-          ScannerOverlay(
-            onCancel: () => context.go('/startPage'),
-          ),
+          ScannerOverlay(onCancel: () => context.go('/startPage')),
         ],
       ),
     );

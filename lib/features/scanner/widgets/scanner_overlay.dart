@@ -17,7 +17,7 @@ class ScannerOverlay extends StatelessWidget {
             color: Colors.black54,
             padding: const EdgeInsets.all(16),
             child: const Text(
-              'Point camera at nayax QR code',
+              'Center the machine QR code',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 18,

@@ -1,12 +1,17 @@
 class QrScannerParser {
   Uri? _uri;
   String? _nayaxID;
+  String? _nayaxTerminalId;
   String? _machineToken;
   String? _nayaxUniQr;
 
   QrScannerParser(String url) {
     try {
-      _uri = Uri.parse(url);
+      final value = url.trim();
+      if (RegExp(r'^\d{16}$').hasMatch(value)) {
+        _nayaxTerminalId = value;
+      }
+      _uri = Uri.parse(value);
       _parseUrl();
     } catch (e) {
       _uri = null;
@@ -28,6 +33,8 @@ class QrScannerParser {
   }
 
   String? getMachineToken() => _machineToken;
+
+  String? getNayaxTerminalId() => _nayaxTerminalId;
 
   String? getNayaxUniQr() => _nayaxUniQr;
 }

@@ -53,6 +53,7 @@ void main() {
 
   CortinaPaymentController controller() => CortinaPaymentController(
     machineToken: 'token-1',
+    terminalId: null,
     uniQr: null,
     vendService: vendService,
     authService: authService,
@@ -64,7 +65,11 @@ void main() {
 
   test('loads server quote and uses the default dryer amount', () async {
     when(
-      () => vendService.quote(machineToken: 'token-1', uniQr: null),
+      () => vendService.quote(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+      ),
     ).thenAnswer((_) async => dryerQuote);
 
     final subject = controller();
@@ -78,7 +83,11 @@ void main() {
 
   test('dryer selection accepts only configured time products', () async {
     when(
-      () => vendService.quote(machineToken: 'token-1', uniQr: null),
+      () => vendService.quote(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+      ),
     ).thenAnswer((_) async => dryerQuote);
     final subject = controller();
     await subject.init();
@@ -92,13 +101,60 @@ void main() {
     expect(subject.amountCents, 200);
   });
 
-  test('card payment completes after the webhook starts the machine', () async {
+  test(
+    'card payment completes after server verification starts the machine',
+    () async {
+      when(
+        () => vendService.quote(
+          machineToken: 'token-1',
+          terminalId: null,
+          uniQr: null,
+        ),
+      ).thenAnswer((_) async => dryerQuote);
+      when(
+        () => vendService.createCardPayment(
+          machineToken: 'token-1',
+          terminalId: null,
+          uniQr: null,
+          amountCents: 150,
+          clientRequestId: any(named: 'clientRequestId'),
+        ),
+      ).thenAnswer(
+        (_) async => const CortinaCardSession(
+          sessionId: 'session-1',
+          accessToken: 'access-1',
+          clientSecret: 'secret-1',
+        ),
+      );
+      when(
+        () => vendService.status(any()),
+      ).thenAnswer((_) async => const CortinaVendStatus(status: 'started'));
+      when(
+        () => vendService.confirmCardPayment(any()),
+      ).thenAnswer((_) async {});
+
+      final subject = controller();
+      await subject.init();
+      final outcome = await subject.payWithCard();
+
+      expect(outcome, CortinaPaymentOutcome.success);
+      expect(subject.paymentCompleted, isTrue);
+      verify(() => vendService.confirmCardPayment(any())).called(1);
+    },
+  );
+
+  test('card payment stops when Stripe confirmation fails', () async {
     when(
-      () => vendService.quote(machineToken: 'token-1', uniQr: null),
+      () => vendService.quote(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+      ),
     ).thenAnswer((_) async => dryerQuote);
     when(
       () => vendService.createCardPayment(
         machineToken: 'token-1',
+        terminalId: null,
         uniQr: null,
         amountCents: 150,
         clientRequestId: any(named: 'clientRequestId'),
@@ -111,21 +167,26 @@ void main() {
       ),
     );
     when(
-      () => vendService.status(any()),
-    ).thenAnswer((_) async => const CortinaVendStatus(status: 'started'));
+      () => vendService.confirmCardPayment(any()),
+    ).thenThrow(StateError('Stripe has not confirmed this payment'));
 
     final subject = controller();
     await subject.init();
     final outcome = await subject.payWithCard();
 
-    expect(outcome, CortinaPaymentOutcome.success);
-    expect(subject.paymentCompleted, isTrue);
+    expect(outcome, CortinaPaymentOutcome.failed);
+    expect(subject.errorMessage, 'Stripe has not confirmed this payment');
+    verifyNever(() => vendService.status(any()));
   });
 
   test('signed-in users receive their wallet balance', () async {
     when(() => authService.getCurrentUserId).thenReturn('user-1');
     when(
-      () => vendService.quote(machineToken: 'token-1', uniQr: null),
+      () => vendService.quote(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+      ),
     ).thenAnswer((_) async => dryerQuote);
     when(() => walletService.getBalance()).thenAnswer(
       (_) async => const WalletBalance(

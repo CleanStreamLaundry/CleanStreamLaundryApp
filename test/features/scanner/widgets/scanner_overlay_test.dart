@@ -17,7 +17,7 @@ void main() {
     group('Rendering', () {
       testWidgets('displays instruction text', (tester) async {
         await tester.pumpWidget(buildWidget());
-        expect(find.text('Point camera at nayax QR code'), findsOneWidget);
+        expect(find.text('Center the machine QR code'), findsOneWidget);
       });
 
       testWidgets('displays Cancel button', (tester) async {
@@ -36,7 +36,7 @@ void main() {
       testWidgets('Cancel button has red background', (tester) async {
         await tester.pumpWidget(buildWidget());
         final fab = tester.widget<FloatingActionButton>(
-          find.byType(FloatingActionButton),
+          find.widgetWithText(FloatingActionButton, 'Cancel'),
         );
         expect(fab.backgroundColor, Colors.red);
       });
@@ -64,7 +64,9 @@ void main() {
     });
 
     group('Interaction', () {
-      testWidgets('calls onCancel when Cancel button is tapped', (tester) async {
+      testWidgets('calls onCancel when Cancel button is tapped', (
+        tester,
+      ) async {
         var tapped = false;
         await tester.pumpWidget(buildWidget(onCancel: () => tapped = true));
 

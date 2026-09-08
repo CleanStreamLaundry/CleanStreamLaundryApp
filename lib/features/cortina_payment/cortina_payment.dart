@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 
 class CortinaPaymentPage extends StatefulWidget {
   final String? machineToken;
+  final String? terminalId;
   final String? uniQr;
 
   const CortinaPaymentPage({
     super.key,
     required this.machineToken,
+    required this.terminalId,
     required this.uniQr,
   });
 
@@ -26,6 +28,7 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
     super.initState();
     controller = CortinaPaymentController(
       machineToken: widget.machineToken,
+      terminalId: widget.terminalId,
       uniQr: widget.uniQr,
     )..addListener(_refresh);
     controller.init();

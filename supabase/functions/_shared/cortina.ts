@@ -170,17 +170,23 @@ export async function getOptionalUserId(
 
 export async function resolveQuote(
   admin: SupabaseClient,
-  selector: { machineToken?: unknown; uniQr?: unknown },
+  selector: { machineToken?: unknown; terminalId?: unknown; uniQr?: unknown },
 ): Promise<CortinaQuote> {
   const machineToken = textValue(selector.machineToken);
+  const terminalId = textValue(selector.terminalId);
   const uniQr = textValue(selector.uniQr);
-  if (!machineToken && !uniQr) {
+  if (!machineToken && !terminalId && !uniQr) {
     throw new HttpError(400, "Missing machine token", "missing_machine");
+  }
+  if (terminalId && !/^\d{16}$/.test(terminalId)) {
+    throw new HttpError(400, "Terminal ID is invalid", "invalid_terminal");
   }
 
   let configQuery = admin.from("cortina_machine_config").select("*");
   configQuery = machineToken
     ? configQuery.eq("public_machine_token", machineToken)
+    : terminalId
+    ? configQuery.eq("nayax_terminal_id", terminalId)
     : configQuery.eq("nayax_uniqr", uniQr!);
   const { data: config, error: configError } = await configQuery.maybeSingle();
 

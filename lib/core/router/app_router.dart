@@ -64,6 +64,7 @@ class RouterService {
           key: state.pageKey,
           child: CortinaPaymentPage(
             machineToken: state.uri.queryParameters['machine'],
+            terminalId: state.uri.queryParameters['terminal'],
             uniQr: state.uri.queryParameters['uniqr'],
           ),
           transitionDuration: Duration.zero,

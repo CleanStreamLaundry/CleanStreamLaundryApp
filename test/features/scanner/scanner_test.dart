@@ -15,7 +15,8 @@ void main() {
     mockMachineCommunicator = MockMachineCommunicationService();
     await GetIt.instance.reset();
     GetIt.instance.registerSingleton<MachineCommunicationService>(
-        mockMachineCommunicator);
+      mockMachineCommunicator,
+    );
   });
 
   tearDown(() async {
@@ -27,23 +28,16 @@ void main() {
       routerConfig: GoRouter(
         initialLocation: '/scanner',
         routes: [
-          GoRoute(
-            path: '/scanner',
-            builder: (_, __) => const ScannerPage(),
-          ),
+          GoRoute(path: '/scanner', builder: (_, __) => const ScannerPage()),
           GoRoute(
             path: '/startPage',
-            builder: (_, __) =>
-            const Scaffold(body: Text('Start Page')),
+            builder: (_, __) => const Scaffold(body: Text('Start Page')),
           ),
           GoRoute(
             path: '/paymentPage',
             builder: (_, __) => const Scaffold(
               body: Column(
-                children: [
-                  Text('Payment Page'),
-                  Text('Pay with Loyalty'),
-                ],
+                children: [Text('Payment Page'), Text('Pay with Loyalty')],
               ),
             ),
           ),
@@ -93,16 +87,18 @@ void main() {
       expect(container.constraints?.maxHeight, 250);
     });
 
-    testWidgets('MobileScanner has controller and onDetect callback',
-            (tester) async {
-          await tester.pumpWidget(createWidget());
-          await tester.pumpAndSettle();
+    testWidgets('MobileScanner has controller and onDetect callback', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createWidget());
+      await tester.pumpAndSettle();
 
-          final scanner =
-          tester.widget<MobileScanner>(find.byType(MobileScanner));
-          expect(scanner.controller, isNotNull);
-          expect(scanner.onDetect, isNotNull);
-        });
+      final scanner = tester.widget<MobileScanner>(find.byType(MobileScanner));
+      expect(scanner.controller, isNotNull);
+      expect(scanner.onDetect, isNotNull);
+      expect(scanner.tapToFocus, isTrue);
+      expect(scanner.scanWindow, isNotNull);
+    });
   });
 
   group('Navigation', () {
@@ -110,44 +106,47 @@ void main() {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(
-          find.widgetWithText(FloatingActionButton, 'Cancel'));
+      await tester.tap(find.widgetWithText(FloatingActionButton, 'Cancel'));
       await tester.pumpAndSettle();
 
       expect(find.text('Start Page'), findsOneWidget);
       expect(find.byType(ScannerPage), findsNothing);
     });
 
-    testWidgets('navigates to paymentPage when availability passes',
-            (tester) async {
-          when(() => mockMachineCommunicator.checkAvailability(any()))
-              .thenAnswer((_) async => 'pass');
+    testWidgets('navigates to paymentPage when availability passes', (
+      tester,
+    ) async {
+      when(
+        () => mockMachineCommunicator.checkAvailability(any()),
+      ).thenAnswer((_) async => 'pass');
 
-          await tester.pumpWidget(createWidget());
-          await tester.pumpAndSettle();
+      await tester.pumpWidget(createWidget());
+      await tester.pumpAndSettle();
 
-          final state = tester.state<State>(find.byType(ScannerPage));
-          await (state as dynamic).processNayaxCode('machine123');
-          await tester.pumpAndSettle();
+      final state = tester.state<State>(find.byType(ScannerPage));
+      await (state as dynamic).processNayaxCode('machine123');
+      await tester.pumpAndSettle();
 
-          expect(find.byType(ScannerPage), findsNothing);
-          expect(find.text('Pay with Loyalty'), findsOneWidget);
-        });
+      expect(find.byType(ScannerPage), findsNothing);
+      expect(find.text('Pay with Loyalty'), findsOneWidget);
+    });
 
-    testWidgets('stays on page and shows dialog when availability fails',
-            (tester) async {
-          when(() => mockMachineCommunicator.checkAvailability(any()))
-              .thenAnswer((_) async => 'fail');
+    testWidgets('stays on page and shows dialog when availability fails', (
+      tester,
+    ) async {
+      when(
+        () => mockMachineCommunicator.checkAvailability(any()),
+      ).thenAnswer((_) async => 'fail');
 
-          await tester.pumpWidget(createWidget());
-          await tester.pumpAndSettle();
+      await tester.pumpWidget(createWidget());
+      await tester.pumpAndSettle();
 
-          final state = tester.state<State>(find.byType(ScannerPage));
-          await (state as dynamic).processNayaxCode('machine123');
-          await tester.pumpAndSettle();
+      final state = tester.state<State>(find.byType(ScannerPage));
+      await (state as dynamic).processNayaxCode('machine123');
+      await tester.pumpAndSettle();
 
-          expect(find.text('Machine Unavailable'), findsOneWidget);
-        });
+      expect(find.text('Machine Unavailable'), findsOneWidget);
+    });
   });
 
   group('Lifecycle', () {
@@ -155,8 +154,7 @@ void main() {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(
-          find.widgetWithText(FloatingActionButton, 'Cancel'));
+      await tester.tap(find.widgetWithText(FloatingActionButton, 'Cancel'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ScannerPage), findsNothing);
