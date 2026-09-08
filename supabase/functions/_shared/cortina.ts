@@ -424,7 +424,6 @@ export async function startCortinaVend(
     const settings = nayaxSettings(config.environment);
     const product: Record<string, unknown> = {
       PulseLineNumber: session.pulse_line_number ?? config.pulse_line_number,
-      Price: session.amount_cents / 100,
     };
     const payload: Record<string, unknown> = {
       AppUserID: session.user_id ?? `guest-${session.id.slice(0, 30)}`,

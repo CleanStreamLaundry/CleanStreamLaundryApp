@@ -11,7 +11,8 @@ The code is implemented but intentionally does not enable or deploy production v
 - The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
 - The sandbox washer is mapped to test device 150568 on pulse line 1, has passed QR lookup and Stripe payment testing, and is enabled for the next hardware Start test.
-- The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate now matches the first configured Nayax price point at $4.00 and has not yet been charged in a follow-up test.
+- The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate was then aligned to the first configured Nayax price point at $4.00.
+- A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded. The deployed Start request now sends only the configured pulse line and has not yet been retested.
 
 ## 1. Nayax
 
@@ -21,6 +22,8 @@ The Clean Stream Start endpoints are configured as:
 - Production: `https://lynx.nayax.com/payment/v2/transactions/cortina/Clean%20Stream%20Laundry%20Solutions/start`
 
 The URL digests stored in Supabase were verified against these exact endpoints. Nayax's token ID identifies the credential in their system; Static QR `Start` sends the secret token value and does not send the token ID.
+
+The Start request selects the configured `PulseLineNumber` and does not repeat its price. Nayax uses the product-map price for that line, while the Sale callback must still match the amount already paid to Clean Stream before it is approved.
 
 The remaining machine-specific configuration for each additional device is:
 
