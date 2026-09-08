@@ -7,11 +7,13 @@ import {
   DRYER_OPTIONS,
   functionRoute,
   HttpError,
+  nayaxPriceFromCents,
   validateVendAmount,
 } from "../_shared/cortina.ts";
 
 const washerQuote = {
   machineId: 1,
+  publicMachineToken: "00000000-0000-4000-8000-000000000001",
   machineName: "Washer 1",
   machineType: "washer" as const,
   locationId: 1,
@@ -23,6 +25,7 @@ const washerQuote = {
 
 const dryerQuote = {
   machineId: 2,
+  publicMachineToken: "00000000-0000-4000-8000-000000000002",
   machineName: "Dryer 1",
   machineType: "dryer" as const,
   locationId: 1,
@@ -79,4 +82,10 @@ Deno.test("functionRoute resolves routed Edge Function paths", () => {
     functionRoute("https://example.supabase.co/functions/v1/cortina-vend/status"),
     "status",
   );
+});
+
+Deno.test("converts integer cents to the decimal Nayax product price", () => {
+  assertEquals(nayaxPriceFromCents(25), 0.25);
+  assertEquals(nayaxPriceFromCents(400), 4);
+  assertEquals(nayaxPriceFromCents(450), 4.5);
 });

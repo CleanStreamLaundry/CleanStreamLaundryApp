@@ -36,6 +36,7 @@ export type VendStatus =
 
 export interface CortinaQuote {
   machineId: number;
+  publicMachineToken: string;
   machineName: string;
   machineType: MachineType;
   locationId: number;
@@ -94,6 +95,10 @@ function numberValue(value: unknown): number | null {
 export function centsFromNayaxAmount(value: unknown): number | null {
   const amount = numberValue(value);
   return amount === null ? null : Math.round(amount * 100);
+}
+
+export function nayaxPriceFromCents(amountCents: number): number {
+  return amountCents / 100;
 }
 
 export function validateVendAmount(
@@ -238,6 +243,7 @@ export async function resolveQuote(
 
   return {
     machineId: machine.id,
+    publicMachineToken: String(config.public_machine_token),
     machineName: machine.Name ?? `Machine ${machine.id}`,
     machineType,
     locationId: machine.Location_ID,
@@ -424,6 +430,7 @@ export async function startCortinaVend(
     const settings = nayaxSettings(config.environment);
     const product: Record<string, unknown> = {
       PulseLineNumber: session.pulse_line_number ?? config.pulse_line_number,
+      Price: nayaxPriceFromCents(session.amount_cents),
     };
     const payload: Record<string, unknown> = {
       AppUserID: session.user_id ?? `guest-${session.id.slice(0, 30)}`,

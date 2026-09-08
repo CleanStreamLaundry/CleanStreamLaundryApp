@@ -6,14 +6,17 @@ The code is implemented but intentionally does not enable or deploy production v
 
 - The Cortina database migrations are applied to Clean Stream Supabase project `dnuuhupoxjtwqzaqylvb`.
 - `cortina-vend`, `nayax-sale-end-sandbox`, `nayax-sale-end`, and the Cortina-aware `stripeWebhook` are deployed.
-- The web preview is configured as the temporary payment origin and return URL.
-- Live quote and callback smoke tests pass. Existing machine mappings remain disabled and require review.
+- The web implementation is pushed on `CortinaQR`, but `cleanstreamlaundry.com` still points to the GoDaddy site. Vercel deployment and the domain cutover remain required for camera-app browser fallback and verified App Links.
+- Live quote and callback smoke tests pass. Only the sandbox `Washer 1` mapping is enabled; additional machines remain disabled until their rates and device mappings are reviewed.
 - The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
 - The sandbox washer is mapped to test device 150568 on pulse line 1, has passed QR lookup and Stripe payment testing, and is enabled for the next hardware Start test.
 - The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate was then aligned to the first configured Nayax price point at $4.00.
 - A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded.
-- A third $4.00 test used only `PulseLineNumber: 1` and was again declined with code 13. Clean Stream created a fresh PaymentIntent and automatically refunded it. The Nayax `Live Test` record currently reports `No device`, blank required pulse count and price fields, and `No products map`; finish that portal-side association before the next paid hardware test.
+- The Nayax `Live Test` virtual machine (`635642176`) is configured for one pulse at $4.00 on pulse line 1, with `Pay Now` as its display message. The settings are queued, but the record still reports `No device` and cannot collect them.
+- Device 150568 is hardware serial `4434331126150568`. That serial is not present in the Anderson Bee Clean, LLC device inventory, so it cannot yet be assigned to `Live Test`. Nayax must provision or transfer that exact device into the operator account before another paid hardware test.
+- A September 8 Stripe test sent the $4.00 product price and pulse line to Nayax. Nayax returned HTTP 200 with status code 13, and Clean Stream automatically refunded the card payment.
+- A $10 Stripe test wallet load completed successfully. A subsequent $4.00 loyalty vend was debited, received the same Nayax decline, and was automatically reversed; the test account returned to its $11.00 balance.
 
 ## 1. Nayax
 
@@ -24,7 +27,7 @@ The Clean Stream Start endpoints are configured as:
 
 The URL digests stored in Supabase were verified against these exact endpoints. Nayax's token ID identifies the credential in their system; Static QR `Start` sends the secret token value and does not send the token ID.
 
-The Start request selects the configured `PulseLineNumber` and does not repeat its price. Nayax uses the product-map price for that line, while the Sale callback must still match the amount already paid to Clean Stream before it is approved.
+The Start request sends exactly one product with the configured `PulseLineNumber` and the server-authoritative decimal `Price`. The Sale callback must still match the amount already paid to Clean Stream before it is approved.
 
 The remaining machine-specific configuration for each additional device is:
 
@@ -41,9 +44,9 @@ Confirm callback authentication and whether Nayax requires fixed IP allowlisting
 
 Nayax's June 15 email confirms that the two sandbox devices were initially configured with five demo prices, while the platform supports up to six options. The June 29 email confirms the dryer can retain a multi-price configuration and the washer should use a single-price configuration. For Pulse 1-6 / Pulse Line configurations, the StaticQR documentation requires `PulseLineNumber` starting at 1 instead of a product `Code`. Keep additional devices disabled until one serial is assigned as the washer, the other as the dryer, and the final six dryer amount/pulse-line/time mappings replace the demo values. Test device 150568 is the temporary sandbox washer used for the current live test.
 
-The read-only portal review found the `Live Test` machine record (`635642176`) but its Cortex overview reports `No device`, its Products tab reports `No products map`, and its Pulse Settings screen has no saved pulse count or price. Connect device 150568 to that machine record, use the washer single-price setup, and assign the matching product or pulse configuration in Nayax before another paid test. No Nayax portal values were changed during this review.
+The portal review found the `Live Test` machine record (`635642176`). Its pulse settings are now queued as one pulse at $4.00 on pulse line 1, but the Cortex overview still reports `No device`. Nayax must first provision or transfer hardware serial `4434331126150568` into Anderson Bee Clean, LLC. After it appears in inventory, assign that exact device to `Live Test`, confirm it is online, and allow it to collect the queued configuration. Do not substitute one of the other five unassigned devices.
 
-For a custom Clean Stream QR, obtain the Nayax UniQRCode hash assigned to the virtual machine and retain the full `https://qr.nayax.com/v1/...` UniQR value for the Start request. The QR may direct to Clean Stream while using the hash as the public machine selector.
+The custom Clean Stream QR uses the opaque `public_machine_token` and does not expose the terminal serial or UniQR. Store the Nayax UniQR separately when Nayax provides it so the backend can use it for Start without placing it in the Clean Stream URL.
 
 ## 2. Supabase secrets
 
@@ -111,7 +114,7 @@ The customer defaults to 30 minutes. The selected pulse line is stored with the 
 
 ## 6. Domain links
 
-Follow `CORTINA_DOMAIN_SETUP.md` in the web repository. Apple association data is ready for the current Team ID and bundle ID. Android remains blocked until the production release-certificate SHA-256 fingerprint is placed in `assetlinks.json`.
+Follow `CORTINA_DOMAIN_SETUP.md` in the web repository. Apple association data is ready for the current Team ID and bundle ID. Android `assetlinks.json` now includes the certificate for the connected debug build; add the Google Play App Signing SHA-256 certificate before production.
 
 The host must serve `/pay` as the React application and both `.well-known` files directly with HTTP 200, `application/json`, and no redirects.
 
