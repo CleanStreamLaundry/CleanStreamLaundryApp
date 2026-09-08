@@ -179,6 +179,45 @@ void main() {
     verifyNever(() => vendService.status(any()));
   });
 
+  test('a terminal card result creates a fresh payment on retry', () async {
+    final requestIds = <String>[];
+    when(
+      () => vendService.quote(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+      ),
+    ).thenAnswer((_) async => dryerQuote);
+    when(
+      () => vendService.createCardPayment(
+        machineToken: 'token-1',
+        terminalId: null,
+        uniQr: null,
+        amountCents: 150,
+        clientRequestId: any(named: 'clientRequestId'),
+      ),
+    ).thenAnswer((invocation) async {
+      requestIds.add(invocation.namedArguments[#clientRequestId] as String);
+      return const CortinaCardSession(
+        sessionId: 'session-1',
+        accessToken: 'access-1',
+        clientSecret: 'secret-1',
+      );
+    });
+    when(() => vendService.confirmCardPayment(any())).thenAnswer((_) async {});
+    when(
+      () => vendService.status(any()),
+    ).thenAnswer((_) async => const CortinaVendStatus(status: 'refunded'));
+
+    final subject = controller();
+    await subject.init();
+    await subject.payWithCard();
+    await subject.payWithCard();
+
+    expect(requestIds, hasLength(2));
+    expect(requestIds[1], isNot(requestIds[0]));
+  });
+
   test('signed-in users receive their wallet balance', () async {
     when(() => authService.getCurrentUserId).thenReturn('user-1');
     when(

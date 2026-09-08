@@ -126,7 +126,11 @@ class CortinaPaymentController extends ChangeNotifier {
         accessToken: session.accessToken,
       );
       await vendService.confirmCardPayment(reference);
-      return _poll(reference);
+      final outcome = await _poll(reference);
+      if (outcome != CortinaPaymentOutcome.pending) {
+        _cardRequestId = null;
+      }
+      return outcome;
     });
   }
 
@@ -140,7 +144,11 @@ class CortinaPaymentController extends ChangeNotifier {
         amountCents: amountCents,
         clientRequestId: _walletRequestId ??= const Uuid().v4(),
       );
-      return _poll(reference);
+      final outcome = await _poll(reference);
+      if (outcome != CortinaPaymentOutcome.pending) {
+        _walletRequestId = null;
+      }
+      return outcome;
     });
   }
 

@@ -12,7 +12,8 @@ The code is implemented but intentionally does not enable or deploy production v
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
 - The sandbox washer is mapped to test device 150568 on pulse line 1, has passed QR lookup and Stripe payment testing, and is enabled for the next hardware Start test.
 - The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate was then aligned to the first configured Nayax price point at $4.00.
-- A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded. The deployed Start request now sends only the configured pulse line and has not yet been retested.
+- A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded.
+- A third $4.00 test used only `PulseLineNumber: 1` and was again declined with code 13. Clean Stream created a fresh PaymentIntent and automatically refunded it. The Nayax `Live Test` record currently reports `No device`, blank required pulse count and price fields, and `No products map`; finish that portal-side association before the next paid hardware test.
 
 ## 1. Nayax
 
@@ -39,6 +40,8 @@ Ask Nayax to register these callback bases and append the documented routes:
 Confirm callback authentication and whether Nayax requires fixed IP allowlisting, VPN, or mTLS.
 
 Nayax's June 15 email confirms that the two sandbox devices were initially configured with five demo prices, while the platform supports up to six options. The June 29 email confirms the dryer can retain a multi-price configuration and the washer should use a single-price configuration. For Pulse 1-6 / Pulse Line configurations, the StaticQR documentation requires `PulseLineNumber` starting at 1 instead of a product `Code`. Keep additional devices disabled until one serial is assigned as the washer, the other as the dryer, and the final six dryer amount/pulse-line/time mappings replace the demo values. Test device 150568 is the temporary sandbox washer used for the current live test.
+
+The read-only portal review found the `Live Test` machine record (`635642176`) but its Cortex overview reports `No device`, its Products tab reports `No products map`, and its Pulse Settings screen has no saved pulse count or price. Connect device 150568 to that machine record, use the washer single-price setup, and assign the matching product or pulse configuration in Nayax before another paid test. No Nayax portal values were changed during this review.
 
 For a custom Clean Stream QR, obtain the Nayax UniQRCode hash assigned to the virtual machine and retain the full `https://qr.nayax.com/v1/...` UniQR value for the Start request. The QR may direct to Clean Stream while using the hash as the public machine selector.
 
