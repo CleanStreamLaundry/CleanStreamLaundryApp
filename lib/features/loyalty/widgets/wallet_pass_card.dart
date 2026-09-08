@@ -29,7 +29,7 @@ class WalletPassCard extends StatelessWidget {
             ? constraints.maxWidth
             : 360.0;
         final width = math.min(availableWidth, 500.0);
-        final height = (width * 0.46).clamp(158.0, 184.0).toDouble();
+        final height = (width * 0.48).clamp(164.0, 192.0).toDouble();
 
         return Center(
           child: SizedBox(

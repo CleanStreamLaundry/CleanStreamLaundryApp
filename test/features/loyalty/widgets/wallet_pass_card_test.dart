@@ -66,6 +66,27 @@ void main() {
       expect(find.text('Ready to use'), findsOneWidget);
     });
 
+    testWidgets('fits on a narrow phone without overflowing', (tester) async {
+      await tester.pumpWidget(
+        wrapWithRouter(
+          const Scaffold(
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: 328,
+                child: WalletPassCard(
+                  username: 'Test Username',
+                  balance: 12.50,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('does not render old credit-card cues', (tester) async {
       await tester.pumpWidget(
         wrapWithRouter(
