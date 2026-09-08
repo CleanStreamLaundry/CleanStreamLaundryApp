@@ -20,7 +20,7 @@ class DryerAmountSelector extends StatelessWidget {
       orElse: () => const CortinaDryerOption(minutes: 0, amountCents: 0),
     );
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
@@ -28,31 +28,28 @@ class DryerAmountSelector extends StatelessWidget {
       child: Column(
         children: [
           const Text(
-            'How much would you like to add?',
+            'Choose drying time',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 6),
           Text(
+            '${selected.minutes} minutes for '
             '\$${(amountCents / 100).toStringAsFixed(2)}',
             style: const TextStyle(
-              fontSize: 42,
-              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
               color: Color(0xFF2073A9),
             ),
           ),
-          Text(
-            '${selected.minutes} minutes',
-            style: const TextStyle(fontSize: 18),
-          ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           GridView.count(
-            crossAxisCount: 2,
+            crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childAspectRatio: 2.3,
+            childAspectRatio: 1.45,
             children: [
               for (final option in options)
                 OutlinedButton(
@@ -63,14 +60,14 @@ class DryerAmountSelector extends StatelessWidget {
                         : null,
                   ),
                   child: Text(
-                    '${option.minutes} min - '
+                    '${option.minutes} min\n'
                     '\$${(option.amountCents / 100).toStringAsFixed(2)}',
                     textAlign: TextAlign.center,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           const Text('\$0.25 per 5 minutes'),
         ],
       ),

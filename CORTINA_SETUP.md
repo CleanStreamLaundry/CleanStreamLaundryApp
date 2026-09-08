@@ -6,7 +6,9 @@ The code is implemented but intentionally does not enable or deploy production v
 
 - The Cortina database migrations are applied to Clean Stream Supabase project `dnuuhupoxjtwqzaqylvb`.
 - `cortina-vend`, `nayax-sale-end-sandbox`, `nayax-sale-end`, and the Cortina-aware `stripeWebhook` are deployed.
-- The web implementation is pushed on `CortinaQR`, but `cleanstreamlaundry.com` still points to the GoDaddy site. Vercel deployment and the domain cutover remain required for camera-app browser fallback and verified App Links.
+- The web implementation is deployed from `CortinaQR` to the Vercel project `clean-stream-web`. `cleanstreamlaundry.com` serves the Vercel application and `www.cleanstreamlaundry.com` redirects to the apex domain.
+- GoDaddy's apex A record points to Vercel at `216.198.79.1`. The Outlook/Microsoft mail, autodiscover, MX, TXT, SIP, and related DNS records were not changed.
+- The production `/pay` browser fallback and Android `assetlinks.json` return HTTP 200. The connected Samsung debug build verifies `cleanstreamlaundry.com` and opens the app directly from the production payment URL.
 - Live quote and callback smoke tests pass. Only the sandbox `Washer 1` mapping is enabled; additional machines remain disabled until their rates and device mappings are reviewed.
 - The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
@@ -114,9 +116,11 @@ The customer defaults to 30 minutes. The selected pulse line is stored with the 
 
 ## 6. Domain links
 
-Follow `CORTINA_DOMAIN_SETUP.md` in the web repository. Apple association data is ready for the current Team ID and bundle ID. Android `assetlinks.json` now includes the certificate for the connected debug build; add the Google Play App Signing SHA-256 certificate before production.
+The Vercel project `clean-stream-web` is live at `https://cleanstreamlaundry.com`. `www.cleanstreamlaundry.com` uses a permanent redirect to the apex domain. Follow `CORTINA_DOMAIN_SETUP.md` in the web repository for the recorded configuration.
 
-The host must serve `/pay` as the React application and both `.well-known` files directly with HTTP 200, `application/json`, and no redirects.
+Apple association data is ready for the current Team ID and bundle ID. Android `assetlinks.json` includes the certificate for the connected debug build, and Android verified App Links were confirmed on the Samsung. Add the Google Play App Signing SHA-256 certificate before the production app release.
+
+The host serves `/pay` as the React application and both `.well-known` files directly. Keep those files available with HTTP 200, `application/json`, and no redirects when future Vercel or domain settings change.
 
 ## 7. Certification
 

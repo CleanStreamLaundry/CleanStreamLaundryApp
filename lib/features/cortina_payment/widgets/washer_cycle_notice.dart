@@ -8,27 +8,44 @@ class WasherCycleNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFD6DCE1)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          const Icon(Icons.touch_app, size: 32, color: Color(0xFF2073A9)),
-          const SizedBox(width: 14),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3C404).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.tune_rounded,
+              size: 22,
+              color: Color(0xFF165F8C),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (sizeLabel != null)
-                  Text(
-                    sizeLabel!,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
                 const Text(
-                  'After payment, select the cycle on the washer.',
-                  style: TextStyle(fontSize: 16),
+                  'Choose your cycle at the washer',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  sizeLabel == null
+                      ? 'Select the cycle after payment.'
+                      : '$sizeLabel washer settings are selected on the machine.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
