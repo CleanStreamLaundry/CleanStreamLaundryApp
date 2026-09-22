@@ -56,6 +56,7 @@ export interface VendSession {
   amount_cents: number;
   dryer_minutes: number | null;
   pulse_line_number: number | null;
+  product_code?: number | null;
   currency: string;
   payment_method: "card" | "wallet";
   channel: "app" | "web";
@@ -99,6 +100,28 @@ export function centsFromNayaxAmount(value: unknown): number | null {
 
 export function nayaxPriceFromCents(amountCents: number): number {
   return amountCents / 100;
+}
+
+export function resolveProductSelector(
+  config: { product_codes?: unknown; pulse_line_number?: unknown },
+  amountCents: number,
+  dryerPulseLine: number | null,
+): { product_code: number | null; pulse_line_number: number | null } {
+  if (config.product_codes != null) {
+    const codes = config.product_codes;
+    const code = typeof codes === "object" && !Array.isArray(codes)
+      ? (codes as Record<string, unknown>)[String(amountCents)]
+      : undefined;
+    if (typeof code !== "number" || !Number.isInteger(code) || code < 0 || code > 32767) {
+      throw new HttpError(409, "Machine product pricing needs review", "product_mapping_missing");
+    }
+    return { product_code: code, pulse_line_number: null };
+  }
+  const line = dryerPulseLine ?? config.pulse_line_number;
+  if (typeof line !== "number" || !Number.isInteger(line) || line < 1 || line > 6) {
+    throw new HttpError(409, "Machine pulse line needs review", "pulse_mapping_missing");
+  }
+  return { product_code: null, pulse_line_number: line };
 }
 
 export function validateVendAmount(
@@ -241,6 +264,15 @@ export async function resolveQuote(
     washerSizeRateId = rate.id;
   }
 
+  // Validate every offered price before a customer can pay.
+  if (machineType === "dryer") {
+    for (const option of DRYER_OPTIONS) {
+      resolveProductSelector(config, option.amountCents, option.pulseLineNumber);
+    }
+  } else {
+    resolveProductSelector(config, amountCents, null);
+  }
+
   return {
     machineId: machine.id,
     publicMachineToken: String(config.public_machine_token),
@@ -276,6 +308,13 @@ export async function createVendSession(
   },
 ): Promise<{ session: VendSession; accessToken: string; wasCreated: boolean }> {
   const accessToken = input.clientRequestId;
+  const { data: config, error: configError } = await admin
+    .from("cortina_machine_config").select("*")
+    .eq("machine_id", quote.machineId).single();
+  if (configError || !config?.is_enabled || config.review_required) {
+    throw new HttpError(409, "Machine payments are not enabled", "machine_disabled");
+  }
+  const selector = resolveProductSelector(config, input.amountCents, input.pulseLineNumber);
   const { data, error } = await admin.from("cortina_vend_sessions").insert({
     client_request_id: input.clientRequestId,
     client_access_token_hash: await sha256(accessToken),
@@ -284,7 +323,7 @@ export async function createVendSession(
     washer_size_rate_id: quote.washerSizeRateId,
     amount_cents: input.amountCents,
     dryer_minutes: input.dryerMinutes,
-    pulse_line_number: input.pulseLineNumber,
+    ...selector,
     payment_method: input.paymentMethod,
     channel: input.channel,
     transaction_id: randomTransactionId(),
@@ -309,7 +348,7 @@ export async function createVendSession(
     existing.machine_id !== quote.machineId ||
     existing.user_id !== input.userId ||
     existing.amount_cents !== input.amountCents ||
-    existing.pulse_line_number !== input.pulseLineNumber ||
+    existing.dryer_minutes !== input.dryerMinutes ||
     existing.payment_method !== input.paymentMethod ||
     existing.channel !== input.channel
   ) {
@@ -428,12 +467,20 @@ export async function startCortinaVend(
 
   try {
     const settings = nayaxSettings(config.environment);
+    const selector = session.product_code != null
+      ? { Code: session.product_code }
+      : { PulseLineNumber: session.pulse_line_number ?? config.pulse_line_number };
+    const value = session.product_code ?? selector.PulseLineNumber;
+    if (!Number.isInteger(value) || value! < (session.product_code != null ? 0 : 1) ||
+        value! > (session.product_code != null ? 32767 : 6)) {
+      throw new Error("Vend session has no valid product selector");
+    }
     const product: Record<string, unknown> = {
-      PulseLineNumber: session.pulse_line_number ?? config.pulse_line_number,
+      ...selector,
       Price: nayaxPriceFromCents(session.amount_cents),
     };
     const payload: Record<string, unknown> = {
-      AppUserID: session.user_id ?? `guest-${session.id.slice(0, 30)}`,
+      AppUserId: session.user_id ?? `guest-${session.id.slice(0, 30)}`,
       TransactionId: session.transaction_id,
       SecretToken: settings.secretToken,
       Products: [product],
@@ -444,6 +491,15 @@ export async function startCortinaVend(
       payload.UniQR = config.nayax_uniqr;
     }
 
+    const { SecretToken: _secret, ...requestSummary } = payload;
+    const endpoint = new URL(settings.startUrl);
+    await recordVendEvent(deps.admin, {
+      sessionId: session.id,
+      source: "clean_stream",
+      eventType: "nayax_start_request",
+      eventKey: `start-request:${session.id}`,
+      payload: { endpoint: `${endpoint.origin}${endpoint.pathname}`, environment: config.environment, request: requestSummary },
+    });
     const response = await (deps.fetcher ?? fetch)(settings.startUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -463,12 +519,10 @@ export async function startCortinaVend(
     if (!response.ok || verdict !== "approved") {
       const message = responseBody?.Status?.StatusMessage ??
         `Nayax Start declined with HTTP ${response.status}`;
-      await deps.admin.from("cortina_vend_sessions").update({
-        status: "failed",
-        failure_code: String(responseBody?.Status?.Code ?? response.status),
-        failure_message: message,
-      }).eq("id", session.id);
-      await compensateVend({ ...session, status: "failed" }, deps, message);
+      await failStartingVend(
+        session.id, deps, message,
+        String(responseBody?.Status?.Code ?? response.status),
+      );
       return;
     }
 
@@ -478,12 +532,25 @@ export async function startCortinaVend(
     if (error) throw new Error(error.message);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await deps.admin.from("cortina_vend_sessions").update({
-      status: "failed",
-      failure_message: message,
-    }).eq("id", session.id);
-    await compensateVend({ ...session, status: "failed" }, deps, message);
+    await failStartingVend(session.id, deps, message);
   }
+}
+
+async function failStartingVend(
+  sessionId: string,
+  deps: CortinaDeps,
+  message: string,
+  code?: string,
+): Promise<void> {
+  // A callback can finish the vend before the Start HTTP response arrives.
+  const { data: failed, error } = await deps.admin.from("cortina_vend_sessions")
+    .update({ status: "failed", failure_code: code ?? null, failure_message: message })
+    .eq("id", sessionId)
+    .eq("status", "starting")
+    .select("*")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (failed) await compensateVend(failed as VendSession, deps, message);
 }
 
 export async function markCortinaCardPaid(

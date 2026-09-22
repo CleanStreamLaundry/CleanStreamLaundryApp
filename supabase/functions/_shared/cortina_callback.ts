@@ -182,16 +182,25 @@ async function handleSale(
     payload: auditPayload(body),
   });
 
-  if (!["awaiting_sale", "approved", "started"].includes(session.status)) {
+  if (!["starting", "awaiting_sale", "approved", "started"].includes(session.status)) {
     return declined(2, "Transaction is not awaiting Sale");
   }
-  if (session.status === "awaiting_sale") {
-    const { error } = await deps.admin.from("cortina_vend_sessions").update({
+  if (["starting", "awaiting_sale"].includes(session.status)) {
+    const { data: updated, error } = await deps.admin.from("cortina_vend_sessions").update({
       status: "approved",
       nayax_transaction_id: nayaxTransactionId(body),
       nayax_rrn: rrn(body),
-    }).eq("id", session.id).eq("status", "awaiting_sale");
+    }).eq("id", session.id).in("status", ["starting", "awaiting_sale"])
+      .select("status").maybeSingle();
     if (error) throw new Error(error.message);
+    if (!updated) {
+      const { data: current, error: currentError } = await deps.admin
+        .from("cortina_vend_sessions").select("status").eq("id", session.id).single();
+      if (currentError) throw new Error(currentError.message);
+      if (!current || !["approved", "started"].includes(current.status)) {
+        return declined(2, "Transaction is no longer awaiting Sale");
+      }
+    }
   }
   return approved(session, amountCents ?? undefined, rrn(body) ?? undefined);
 }
