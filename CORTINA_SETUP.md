@@ -12,11 +12,11 @@ The code is implemented but intentionally does not enable or deploy production v
 - Live quote and callback smoke tests pass. Only the sandbox `Washer 1` mapping is enabled; additional machines remain disabled until their rates and device mappings are reviewed.
 - The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
-- The sandbox washer is mapped to test device 150568 using price-array product code 3 for $4.00 (`product_codes = {"400":3}`, `pulse_line_number = null`). It has passed QR lookup and Stripe payment testing, but Nayax has not yet accepted Start.
+- The sandbox washer is mapped to test device 150568 using price-array product code 3 for $4.00 (`product_codes = {"400":3}`, `pulse_line_number = null`). On September 24 it passed browser Stripe sandbox payment, Nayax Start approval, Sale authorization, and SaleEnd completion. Physical washer operation and the app/wallet success paths still require separate verification.
 - The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate was then aligned to the first configured Nayax price point at $4.00.
 - A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded.
 - The Nayax `Live Test` record (`635642176`) in `my.nayax.com` reports `No device`. Its machine number contains `4434331126150568`, but that label alone does not establish the hardware assignment or its QA configuration.
-- Device 150568 is hardware serial `4434331126150568`. Nayax's June 15 email confirms that it and `4434331126150748` were configured for sandbox. Do not infer that the hardware needs provisioning or transfer from the production portal record; first verify the sandbox account and effective device mapping used by the `qa2-lynx` Start endpoint.
+- Device 150568 is hardware serial `4434331126150568`. Nayax's June 15 email confirms that it and `4434331126150748` were configured for sandbox. Do not infer that the hardware needs provisioning or transfer from the unrelated production portal record. The previously used `qa2-lynx` endpoint was corrected on September 24.
 - A September 8 Stripe test sent the $4.00 product price and pulse line to Nayax. Nayax returned HTTP 200 with status code 13, and Clean Stream automatically refunded the card payment.
 - A $10 Stripe test wallet load completed successfully. A subsequent $4.00 loyalty vend was debited, received the same Nayax decline, and was automatically reversed; the test account returned to its $11.00 balance.
 - On September 16, a $4.00 browser Stripe sandbox checkout initially remained `payment_pending`: the dedicated Stripe sandbox had no webhook destination, and the deployed `stripeWebhook` still required a Supabase JWT. Both configuration gaps were corrected with approval. The live Stripe destination and its signing secret were preserved.
@@ -29,15 +29,28 @@ The code is implemented but intentionally does not enable or deploy production v
 - The DEV device uses `03 / Use Price Array`, with prices `1000,800,600,400,200` cents. The StaticQR guide requires zero-based `Code` for this mode, so $4 uses `Code: 3`, not `PulseLineNumber: 1`. No Nayax settings were changed.
 - Migration `20260922224735_cortina_price_array_selectors.sql` and all four function updates were deployed on September 22. Selectors are validated before payment and snapshotted per session. Existing pulse-line configurations remain supported. Start audit records redact the secret. Callback/start race protection prevents an already approved or completed vend from being overwritten by a late Start failure.
 - A fresh September 22 Stripe sandbox test used session `d2f1459c-ac5d-4600-a7f6-91d11bc2768d`, transaction `32f9f108ed69423fa64688decdccfc06`, and one product `{"Code":3,"Price":4}`. The request audit time is `2026-09-22 23:12:16.516 UTC`. Nayax again returned HTTP 200 with `{"Status":{"Code":13,"Verdict":"Declined"}}`. The two Stripe success events produced only one Start. Clean Stream recorded refund `re_3UIcrALHhN3TvHi61VkxHfj1` and session status `refunded`; no Nayax callback event was recorded for the session. This verifies the corrected request and compensation path, not a successful hardware vend.
+- The September 22 support reply was sent after user approval. On September 24 at 9:34 AM, Maxim confirmed that the request was correct and the endpoint caused code 13. His exact URL uses `lynx.nayax.com` and the integration slug `clean_stream_laundry_solutions`, not the display name with encoded spaces.
+- Both stored Start URL settings were corrected on September 24. No secret tokens, Stripe keys, Nayax portal settings, or machine enablement were changed. Only the existing sandbox washer remains enabled. No application rebuild or function redeployment was needed for this configuration-only correction.
+
+### Successful September 24 sandbox test
+
+- Flow: production website `/pay` -> Stripe sandbox -> one Nayax Start -> Sale -> SaleEnd -> `started`.
+- Vend session: `6f72bee8-99af-4f1b-97b8-eb1b8d38a74a`; Clean Stream TransactionId: `7c78037686794f7e83d2a7178b5fff2a`.
+- Amount: 400 cents USD; product: `{"Code":3,"Price":4}`; terminal: `4434331126150568`; environment remained `sandbox`.
+- Stripe PaymentIntent: `pi_3UJCtSLHhN3TvHi60GEpCEqI`. Both success webhook types arrived, but only one Start was recorded.
+- Start request audit: `2026-09-24 13:41:02.004 UTC`; response: `{"Status":{"Code":0,"Verdict":"Approved","StatusMessage":"Transaction is Approved "}}`.
+- Sale callback: `13:41:08.622 UTC`; SaleEnd callback: `13:41:25.503 UTC`; final session status: `started`, no failure or refund.
+- Nayax TransactionId: `4758557042`; RRN: `124134107964`. The browser displayed `Machine started`.
+- This proves the browser/card/backend exchange with the test terminal. Actual washer operation, app card and loyalty success, all six dryer selections, and production certification remain outstanding.
 
 ## 1. Nayax
 
 The Clean Stream Start endpoints are configured as:
 
-- Sandbox: `https://qa2-lynx.nayax.com/payment/v2/transactions/cortina/Clean%20Stream%20Laundry%20Solutions/start`
-- Production: `https://lynx.nayax.com/payment/v2/transactions/cortina/Clean%20Stream%20Laundry%20Solutions/start`
+- Sandbox: `https://lynx.nayax.com/payment/v2/transactions/cortina/clean_stream_laundry_solutions/start`
+- Production: `https://lynx.nayax.com/payment/v2/transactions/cortina/clean_stream_laundry_solutions/start`
 
-The URL digests stored in Supabase were verified against these exact endpoints. The integration name matches the payment method visible in the DEV account on September 22. The `qa2-lynx` host comes from the supplied Cortina specification; Maxim is being asked to confirm this exact endpoint while tracing code 13. Nayax's token ID identifies the credential in their system; Static QR `Start` sends the secret token value and does not send the token ID.
+Maxim supplied this exact integration URL on September 24, and the sandbox test succeeded with it. Both stored URL digests were verified as `1b0376f7aeda47de2cfea9337b07e2bacf7372b30c79e1efe900876b4a6276ea`. The URL's host does not mean that Stripe or the configured machine should be switched to production: the successful test retained its sandbox configuration. Keep the separate environment settings and callback bases; production vending is not certified or enabled. Do not derive the path from the human-readable payment-method name. The user's original Nayax YAML remains unchanged as a historical vendor document. Nayax's token ID identifies the credential in their system; Static QR `Start` sends the secret token value and does not send the token ID.
 
 The Start request sends exactly one product with either the configured `Code` (price array, zero-based) or `PulseLineNumber` (pulse lines, 1-6), never both, and the server-authoritative decimal `Price`. The Sale callback must still match the amount already paid to Clean Stream before it is approved. A non-null price-array mapping must contain every offered price; missing mappings fail before payment instead of falling back to a pulse line.
 
@@ -46,7 +59,7 @@ The remaining machine-specific configuration for each additional device is:
 - `TerminalId` or full `UniQR` for each device
 - The device's selection mode and either a `PulseLineNumber` or a product code for every offered amount
 
-Ask Nayax to register these callback bases and append the documented routes:
+The callback bases and documented routes are below. Sandbox Sale and SaleEnd delivery were verified on September 24; confirm production routing before production certification:
 
 - Sandbox: `https://dnuuhupoxjtwqzaqylvb.supabase.co/functions/v1/nayax-sale-end-sandbox`
 - Production: `https://dnuuhupoxjtwqzaqylvb.supabase.co/functions/v1/nayax-sale-end`
@@ -89,7 +102,7 @@ The handler selects the live or sandbox signing secret from the event mode, then
 
 Stripe collects card payments for Clean Stream; no card details or funds are sent to Nayax through this integration. Loyalty vends debit the Clean Stream wallet first. Both paths then use StaticQR Start/Sale for machine authorization. Failed card vends use Stripe refunds with a session-level idempotency key; failed loyalty vends reverse the wallet debit. These automatic failed-vend reversals are separate from the admin loyalty-credit workflow.
 
-The remaining blocker is Nayax's StaticQR Start code 13, even after correcting the selector against the verified DEV device. Its meaning is not documented in the StaticQR decline table. An unsent Outlook reply includes the fresh September 22 request and asks Maxim to trace it, confirm the exact Start endpoint, and confirm the product selection. Do not change prices, credentials, or hardware assignments speculatively.
+The StaticQR code 13 blocker was resolved on September 24 by applying Nayax's exact endpoint. The fresh browser Stripe sandbox test was approved and completed, without a refund. Continue with app card and loyalty success testing, physical pulse verification, dryer configuration, and the certification checklist below before enabling production.
 
 ## 4. Database and functions
 
