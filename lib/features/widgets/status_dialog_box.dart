@@ -9,6 +9,7 @@ Future<void> statusDialog(
 }) {
   return showDialog(
     context: context,
+    useRootNavigator: false,
     builder: (dialogContext) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       content: Column(

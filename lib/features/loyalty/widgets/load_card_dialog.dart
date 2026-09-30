@@ -13,7 +13,6 @@ class LoadCardDialog extends StatefulWidget {
 
 class _LoadCardDialogState extends State<LoadCardDialog> {
   double selectedAmount = 1.0;
-  bool termsAccepted = false;
 
   @override
   Widget build(BuildContext context) {
@@ -173,31 +172,16 @@ class _LoadCardDialogState extends State<LoadCardDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: termsAccepted,
-              onChanged: (value) {
-                setState(() => termsAccepted = value ?? false);
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/legal/loyalty-card');
               },
-              title: Text(
-                'I agree to the Loyalty Card Terms.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.fontInverted,
-                  fontSize: 13,
-                ),
+              style: TextButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                padding: EdgeInsets.zero,
               ),
-              subtitle: TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  context.push('/legal/loyalty-card');
-                },
-                style: TextButton.styleFrom(
-                  alignment: Alignment.centerLeft,
-                  padding: EdgeInsets.zero,
-                ),
-                child: const Text('View terms'),
-              ),
+              child: const Text('View terms'),
             ),
           ],
         ),
@@ -208,13 +192,11 @@ class _LoadCardDialogState extends State<LoadCardDialog> {
           child: Text('Cancel', style: TextStyle(color: Colors.blue[700])),
         ),
         ElevatedButton(
-          onPressed: termsAccepted
-              ? () async {
-                  final amount = selectedAmount;
-                  Navigator.of(context).pop();
-                  await widget.onPay(amount);
-                }
-              : null,
+          onPressed: () async {
+            final amount = selectedAmount;
+            Navigator.of(context).pop();
+            await widget.onPay(amount);
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
             foregroundColor: Colors.white,

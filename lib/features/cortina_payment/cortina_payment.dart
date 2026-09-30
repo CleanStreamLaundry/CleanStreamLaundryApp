@@ -50,6 +50,7 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
   }
 
   Future<void> _pay(bool wallet) async {
+    if (controller.isProcessing || controller.paymentCompleted) return;
     final outcome = wallet
         ? await controller.payWithWallet()
         : await controller.payWithCard();
@@ -84,10 +85,14 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
       ),
     };
     await _showResultDialog(title: title, message: message, success: success);
+    if (!mounted) return;
+    if (outcome == CortinaPaymentOutcome.success) {
+      context.go(wallet ? '/loyalty' : '/homePage');
+    }
   }
 
   void _selectWallet(bool useWallet) {
-    if (controller.isProcessing) return;
+    if (controller.isProcessing || controller.paymentCompleted) return;
     setState(() => _useWallet = useWallet);
   }
 
@@ -100,6 +105,7 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
     final statusColor = success ? Colors.green.shade700 : Colors.red.shade700;
     return showDialog<void>(
       context: context,
+      useRootNavigator: false,
       builder: (dialogContext) => Dialog(
         key: const ValueKey('cortina-result-dialog'),
         insetPadding: const EdgeInsets.symmetric(horizontal: 30),
@@ -265,8 +271,9 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                       _PaymentMethodTile(
                         icon: Icons.account_balance_wallet_rounded,
                         title: 'Loyalty wallet',
-                        subtitle:
-                            '\$${walletBalance.toStringAsFixed(2)} available',
+                        subtitle: controller.walletBalance == null
+                            ? 'Balance unavailable'
+                            : '\$${walletBalance.toStringAsFixed(2)} available',
                         selected: useWallet,
                         enabled: walletAvailable,
                         onTap: () => _selectWallet(true),
@@ -322,7 +329,9 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
           amount: controller.price,
           isProcessing: controller.isProcessing,
           paymentLabel: useWallet ? 'Loyalty wallet' : 'Card',
-          onPay: controller.isProcessing ? null : () => _pay(useWallet),
+          onPay: controller.isProcessing || controller.paymentCompleted
+              ? null
+              : () => _pay(useWallet),
         ),
       ],
     );

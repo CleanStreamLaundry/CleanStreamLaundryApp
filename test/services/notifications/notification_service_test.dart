@@ -65,7 +65,17 @@ void main() {
     GetIt.I.registerSingleton<FlutterLocalNotificationsPlugin>(mockPlugin);
     GetIt.I.registerSingleton<ProfileService>(mockProfile);
 
-    when(() => mockPlugin.initialize(any())).thenAnswer((_) async => true);
+    when(
+      () => mockPlugin.initialize(
+        any(),
+        onDidReceiveNotificationResponse: any(
+          named: 'onDidReceiveNotificationResponse',
+        ),
+      ),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockPlugin.getNotificationAppLaunchDetails(),
+    ).thenAnswer((_) async => null);
 
     when(
       () => mockPlugin

@@ -1,4 +1,17 @@
+import 'package:clean_stream_laundry_app/logic/models/admission_status.dart';
+import 'package:clean_stream_laundry_app/logic/models/newsletter_status.dart';
+import 'package:clean_stream_laundry_app/logic/models/loyalty_policy_status.dart';
+
 abstract class ProfileService {
+  Future<NewsletterStatus> getNewsletterStatus();
+  Future<NewsletterStatus> requestNewsletter(String version);
+  Future<NewsletterStatus> withdrawNewsletter();
+  Future<AdmissionStatus> getAdmissionStatus();
+  Future<AdmissionStatus> requestAccountDeletion();
+  Future<AdmissionStatus> restoreAccount();
+  Future<LoyaltyPolicyDescriptor> getLoyaltyPolicyDescriptor();
+  Future<LoyaltyPolicyStatus> getLoyaltyPolicyStatus();
+  Future<LoyaltyPolicyStatus> acceptLoyaltyPolicy(String version);
   Future<void> createAccount({required String id, required String name});
   Future<Map<String, dynamic>?> getUserBalanceById(String userId);
   Future<void> updateBalanceById(String userId, double balance);

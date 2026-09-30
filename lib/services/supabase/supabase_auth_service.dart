@@ -1,3 +1,4 @@
+import 'package:clean_stream_laundry_app/services/supabase/mfa_verification_client.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:flutter/foundation.dart';
@@ -5,9 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAuthService implements AuthService {
   late final SupabaseClient _client;
+  final MfaVerificationClient Function(String accessToken)? _mfaClientFactory;
+  bool _mfaVerificationPending = false;
   String? lastSignedUpUserId;
 
-  SupabaseAuthService({required SupabaseClient client}) {
+  SupabaseAuthService({
+    required SupabaseClient client,
+    MfaVerificationClient Function(String accessToken)? mfaClientFactory,
+  }) : _mfaClientFactory = mfaClientFactory {
     _client = client;
   }
 
@@ -26,7 +32,7 @@ class SupabaseAuthService implements AuthService {
     AuthenticationResponses output = AuthenticationResponses.success;
     final session = _client.auth.currentSession;
 
-    if (!(session != null && session.user != null)) {
+    if (session == null) {
       output = AuthenticationResponses.failure;
     }
 
@@ -181,6 +187,12 @@ class SupabaseAuthService implements AuthService {
   }
 
   @override
+  Session? get currentSession => _client.auth.currentSession;
+
+  @override
+  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+
+  @override
   Stream<bool> get onAuthChange {
     return _client.auth.onAuthStateChange.map((tuple) {
       final session = tuple.session;
@@ -193,6 +205,14 @@ class SupabaseAuthService implements AuthService {
     return _client.auth.currentUser?.emailConfirmedAt != null;
   }
 
+  String get _webOAuthRedirect {
+    final document = Uri.base;
+    // The app uses Flutter's default hash routing, including embedded basepaths.
+    return Uri.parse(document.origin)
+        .replace(path: document.path, fragment: '/loading')
+        .toString();
+  }
+
   @override
   Future<void> appleSignIn() async {
     if (!kIsWeb) {
@@ -203,10 +223,9 @@ class SupabaseAuthService implements AuthService {
         );
       } catch (e) {}
     } else {
-      //We don't have to worry about return type because it will navigate away during web and navigate back and login page will detect session or not
       await _client.auth.signInWithOAuth(
         OAuthProvider.apple,
-        redirectTo: "http://localhost:8080/loading",
+        redirectTo: _webOAuthRedirect,
       );
     }
   }
@@ -221,10 +240,9 @@ class SupabaseAuthService implements AuthService {
         );
       } catch (e) {}
     } else {
-      //We don't have to worry about return type because it will navigate away during web and navigate back and login page will detect session or not
       await _client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: "http://localhost:8080/loading",
+        redirectTo: _webOAuthRedirect,
       );
     }
   }
@@ -284,10 +302,8 @@ class SupabaseAuthService implements AuthService {
   Future<AuthenticationResponses> exchangeCodeForSession(String code) async {
     AuthenticationResponses output = AuthenticationResponses.failure;
     try {
-      final response = await _client.auth.exchangeCodeForSession(code);
-      if (response.session.user != null) {
-        output = AuthenticationResponses.success;
-      }
+      await _client.auth.exchangeCodeForSession(code);
+      output = AuthenticationResponses.success;
     } catch (e) {
       output = AuthenticationResponses.failure;
     }
@@ -354,5 +370,114 @@ class SupabaseAuthService implements AuthService {
     }
 
     return output;
+  }
+
+  @override
+  Future<AuthMFAListFactorsResponse> listMfaFactors() =>
+      _client.auth.mfa.listFactors();
+
+  @override
+  AuthMFAGetAuthenticatorAssuranceLevelResponse getMfaAssurance() =>
+      _client.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  @override
+  Future<AuthMFAEnrollResponse> enrollTotp({String? friendlyName}) =>
+      _client.auth.mfa.enroll(
+        factorType: FactorType.totp,
+        issuer: 'Clean Stream Laundry',
+        friendlyName: friendlyName,
+      );
+
+  @override
+  Future<AuthMFAVerifyResponse> verifyTotp({
+    required String factorId,
+    required String code,
+  }) async {
+    if (_mfaVerificationPending) {
+      throw const AuthException('MFA verification is already in progress.');
+    }
+    final auth = _client.auth;
+    final captured = auth.currentSession;
+    void requireCapturedSession() {
+      if (captured == null ||
+          !identical(auth.currentSession, captured) ||
+          captured.expiresAt == null ||
+          captured.isExpired) {
+        throw const AuthException(
+          'MFA verification requires the original active session.',
+        );
+      }
+    }
+
+    requireCapturedSession();
+    final accessToken = captured!.accessToken;
+    _mfaVerificationPending = true;
+    MfaVerificationClient? isolated;
+    try {
+      isolated = _mfaClientFactory?.call(accessToken);
+      if (isolated == null) {
+        throw const AuthException('Isolated MFA client is not configured.');
+      }
+      requireCapturedSession();
+      final challenge = await isolated.challenge(factorId: factorId);
+      requireCapturedSession();
+      final verified = await isolated.verify(
+        factorId: factorId,
+        challengeId: challenge.id,
+        code: code,
+      );
+      requireCapturedSession();
+      final verifiedSession = Session(
+        accessToken: verified.accessToken,
+        tokenType: verified.tokenType,
+        user: verified.user,
+        expiresIn: verified.expiresIn.inSeconds,
+        refreshToken: verified.refreshToken,
+      );
+      if (verified.user.id != captured.user.id ||
+          verifiedSession.expiresAt == null ||
+          verifiedSession.isExpired ||
+          decodeJwt(verified.accessToken).payload.claims['aal'] != 'aal2') {
+        throw const AuthException(
+          'MFA verification did not produce an active AAL2 session.',
+        );
+      }
+
+      // Requires gotrue 2.27.2's session-version guard. Do not pass accessToken:
+      // that takes a different SDK path without the guarded refresh adoption.
+      final adoptionEvents = <AuthState>[];
+      var adoptionStreamError = false;
+      final subscription = auth.onAuthStateChange.listen((state) {
+        if (!identical(state.session, captured)) adoptionEvents.add(state);
+      }, onError: (Object _) => adoptionStreamError = true);
+      final AuthResponse adopted;
+      try {
+        adopted = await auth.setSession(verified.refreshToken);
+        // Drain queued public events: the SDK can return an already-current
+        // session on refresh-token reuse without actually committing adoption.
+        await Future<void>.delayed(Duration.zero);
+      } finally {
+        await subscription.cancel();
+      }
+      final committed = auth.currentSession;
+      if (committed == null ||
+          identical(committed, captured) ||
+          !identical(committed, adopted.session) ||
+          committed.user.id != captured.user.id ||
+          committed.expiresAt == null ||
+          committed.isExpired ||
+          adoptionStreamError ||
+          adoptionEvents.length != 1 ||
+          adoptionEvents.single.event != AuthChangeEvent.tokenRefreshed ||
+          !identical(adoptionEvents.single.session, committed) ||
+          auth.mfa.getAuthenticatorAssuranceLevel().currentLevel !=
+              AuthenticatorAssuranceLevels.aal2) {
+        throw const AuthException('MFA session adoption was not committed.');
+      }
+      return AuthMFAVerifyResponse.fromJson(committed.toJson());
+    } finally {
+      _mfaVerificationPending = false;
+      isolated?.dispose();
+    }
   }
 }

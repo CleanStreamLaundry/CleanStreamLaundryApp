@@ -10,7 +10,6 @@ import '../mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late FakeAppLinks fakeAppLinks;
 
   setUpAll(() {
     registerFallbackValue('');
@@ -18,12 +17,10 @@ void main() {
 
   setUp(() {
     mockAuthService = MockAuthService();
-    fakeAppLinks = FakeAppLinks();
     GetIt.instance.registerSingleton<AuthService>(mockAuthService);
   });
 
   tearDown(() {
-    fakeAppLinks.dispose();
     GetIt.instance.reset();
   });
 
@@ -46,31 +43,9 @@ void main() {
     );
   }
 
-  /// Creates a ChangeEmailVerificationController bound to tester's context
-  /// Must be called after tester.pumpWidget so a context is accessible to test
-  Future<ChangeEmailVerificationController> buildController(
-      WidgetTester tester) async {
-    late ChangeEmailVerificationController controller;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(builder: (context) {
-          controller = ChangeEmailVerificationController(
-            appLinks: fakeAppLinks,
-            context: context,
-          );
-          return const SizedBox();
-        }),
-      ),
-    );
-
-    return controller;
-  }
-
-
   group('Initial state', () {
     testWidgets('shows Resend Verification link text', (tester) async {
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 
@@ -78,7 +53,7 @@ void main() {
     });
 
     testWidgets('link text has correct styling', (tester) async {
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 
@@ -92,7 +67,7 @@ void main() {
     });
 
     testWidgets('link is wrapped in an InkWell', (tester) async {
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 
@@ -110,7 +85,7 @@ void main() {
           when(() => mockAuthService.resendVerification())
               .thenAnswer((_) async => AuthenticationResponses.success);
 
-          final controller = await buildController(tester);
+          final controller = ChangeEmailVerificationController();
           await tester.pumpWidget(buildWidget(controller: controller));
           await tester.pumpAndSettle();
 
@@ -125,7 +100,7 @@ void main() {
       when(() => mockAuthService.resendVerification())
           .thenAnswer((_) async => AuthenticationResponses.success);
 
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 
@@ -143,7 +118,7 @@ void main() {
           when(() => mockAuthService.resendVerification())
               .thenAnswer((_) async => AuthenticationResponses.success);
 
-          final controller = await buildController(tester);
+          final controller = ChangeEmailVerificationController();
           await tester.pumpWidget(buildWidget(controller: controller));
           await tester.pumpAndSettle();
 
@@ -164,7 +139,7 @@ void main() {
       when(() => mockAuthService.resendVerification())
           .thenAnswer((_) async => AuthenticationResponses.failure);
 
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 
@@ -183,7 +158,7 @@ void main() {
           when(() => mockAuthService.resendVerification())
               .thenAnswer((_) async => AuthenticationResponses.failure);
 
-          final controller = await buildController(tester);
+          final controller = ChangeEmailVerificationController();
           await tester.pumpWidget(buildWidget(controller: controller));
           await tester.pumpAndSettle();
 
@@ -204,7 +179,7 @@ void main() {
       when(() => mockAuthService.resendVerification())
           .thenAnswer((_) async => AuthenticationResponses.success);
 
-      final controller = await buildController(tester);
+      final controller = ChangeEmailVerificationController();
       await tester.pumpWidget(buildWidget(controller: controller));
       await tester.pumpAndSettle();
 

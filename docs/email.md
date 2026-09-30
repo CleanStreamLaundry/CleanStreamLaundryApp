@@ -1,6 +1,6 @@
 # Email and Consent
 
-Local source and public DNS reviewed 2026-09-29; no Clean Stream sender, production SMTP, or remote template configuration verified. Targets below are not implemented. Reuse existing Supabase Auth and Resend infrastructure instead of adding another provider.
+Updated 2026-09-30. The local disabled consent/outbox/welcome backend candidate and public newsletter link page are implemented; independent review, Flutter preferences and activation remain open. No Clean Stream sender, production SMTP or remote template configuration is verified. Reuse existing Supabase Auth and Resend infrastructure instead of adding another provider.
 
 ## Access and DNS Checkpoint
 
@@ -15,8 +15,9 @@ Local source and public DNS reviewed 2026-09-29; no Clean Stream sender, product
 - `supabase/functions/refund-email/index.ts`: internal Resend alert; inspected code does not check HTTP success.
 - `supabase/functions/_shared/refund_resolution_backend.ts`: decision email checks status and records `notification_sent_at`. The resolution handler skips already-resolved requests, so a failed email is not necessarily retryable independently of the refund.
 - `supabase/functions/admin-portal/index.ts`: existing local admin invitations/recovery use Supabase Auth, not a second direct Resend workflow.
-- `supabase/functions/delete-account/logic.ts` currently anonymizes wallet links and deletes Auth immediately. Current app/website wording is permanent deletion, not a recoverable state.
-- No newsletter double opt-in, consent ledger, welcome sender, durable email retry/suppression workflow, or 30-day restore was found in inspected source.
+- The legacy immediate-deletion caller is replaced locally by server-controlled recovery and explicit restoration. Client integration is independently accepted; production enforcement and retention/balance cleanup gates remain. Published website wording still describes permanent deletion.
+- New local `newsletter`, `mail-delivery`, `mail-webhook` and consent/outbox migration cover double opt-in, separate account/newsletter welcomes, deduplication and suppression. See [backend contract](newsletter-backend.md); independent backend review remains pending and runtime stays disabled.
+- Website `/newsletter` captures a capability fragment, removes it from history, and POSTs only on explicit confirmation/unsubscribe. It does not depend on a stored Auth session or automatically retry uncertain outcomes. Composer page/route tests: 32 passes, website typecheck/scoped lint pass, desktop and small-screen rendering inspected without sends. Flutter settings opt-in is in progress; independent frontend and hosted gateway checks remain.
 - Live Chrome review on 2026-09-30 UTC confirms public Privacy/Terms still show August 3, 2026, and deletion instructions describe removal/anonymization without normal wallet restoration. Published retention is up to seven years for financial records and two for security/support/maintenance, with legal exceptions. These are current published statements, not approval of the new retention design. Support/deletion email links currently target `jacob@cleanstreamlaundry.com`; verify the desired contact before coordinated policy/email release. No messages or deletion requests were sent.
 
 ## Approved Targets

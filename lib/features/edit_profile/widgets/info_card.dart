@@ -16,7 +16,7 @@ class InfoCard extends StatelessWidget {
       children: [
         Text(label),
         const SizedBox(width: 8),
-        Text(value),
+        Flexible(child: Text(value)),
       ],
     );
   }

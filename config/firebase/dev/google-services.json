@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "83380736317",
+    "project_id": "clean-stream-dev",
+    "storage_bucket": "clean-stream-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83380736317:android:7b074a257825c9670af554",
+        "android_client_info": {
+          "package_name": "com.cleanstreamlaundrysolutions.clean_stream_laundry_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_oRmXtCzIQGXhym3TqqtONbOhJwXKpFs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

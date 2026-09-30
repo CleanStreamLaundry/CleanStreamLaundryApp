@@ -1,427 +1,199 @@
 import 'package:clean_stream_laundry_app/features/machine_payment/machine_payment.dart';
-import 'package:clean_stream_laundry_app/logic/enums/payment_result_enum.dart';
+import 'package:clean_stream_laundry_app/features/machine_payment/widgets/payment_buttons.dart';
+import 'package:clean_stream_laundry_app/logic/models/wallet_balance.dart';
 import 'package:clean_stream_laundry_app/logic/payment/process_payment.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/cortina_vend_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/edge_function_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/machine_communication_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/machine_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/payment_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/transaction_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/wallet_service.dart';
 import 'package:clean_stream_laundry_app/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+
 import 'mocks.dart';
 
-void main() {
-  late MockAuthService mockAuthService;
-  late MockMachineService mockMachineService;
-  late MockProfileService mockProfileService;
-  late MockTransactionService mockTransactionService;
-  late MockMachineCommunicationService mockMachineCommunicator;
-  late MockNotificationService mockNotificationService;
-  late MockPaymentProcessor mockPaymentProcessor;
+class _PaymentMock extends Mock implements PaymentService {}
 
-  setUpAll(() {
-    registerFallbackValue(FakeAuthService());
-    registerFallbackValue(const Duration(seconds: 1));
-  });
+class _VendMock extends Mock implements CortinaVendService {}
 
-  setUp(() async {
-    mockAuthService = MockAuthService();
-    mockMachineService = MockMachineService();
-    mockProfileService = MockProfileService();
-    mockTransactionService = MockTransactionService();
-    mockMachineCommunicator = MockMachineCommunicationService();
-    mockNotificationService = MockNotificationService();
-    mockPaymentProcessor = MockPaymentProcessor();
+class _EdgeMock extends Mock implements EdgeFunctionService {}
 
-    await GetIt.instance.reset();
-    GetIt.instance.registerSingleton<AuthService>(mockAuthService);
-    GetIt.instance.registerSingleton<MachineService>(mockMachineService);
-    GetIt.instance.registerSingleton<ProfileService>(mockProfileService);
-    GetIt.instance.registerSingleton<TransactionService>(mockTransactionService);
-    GetIt.instance.registerSingleton<MachineCommunicationService>(
-        mockMachineCommunicator);
-    GetIt.instance.registerSingleton<NotificationService>(
-        mockNotificationService);
-    GetIt.instance.registerSingleton<PaymentProcessor>(mockPaymentProcessor);
+// Reused by the actual-router regression to verify zero service interactions.
+class LegacyPaymentMocks {
+  final auth = MockAuthService();
+  final machines = MockMachineService();
+  final profile = MockProfileService();
+  final transactions = MockTransactionService();
+  final wallet = MockWalletService();
+  final machine = MockMachineCommunicationService();
+  final notifications = MockNotificationService();
+  final processor = MockPaymentProcessor();
+  final payments = _PaymentMock();
+  final vend = _VendMock();
+  final edge = _EdgeMock();
 
-    when(() => mockNotificationService.scheduleEarlyMachineNotification(
-      id: any(named: 'id'),
-      machineTime: any(named: 'machineTime'),
-      machineName: any(named: 'machineName'),
-    )).thenAnswer((_) async {});
-  });
-
-  tearDown(() async {
-    await GetIt.instance.reset();
-  });
-
-  Widget createWidget(String machineId) {
-    return MaterialApp.router(
-      routerConfig: GoRouter(
-        initialLocation: '/payment',
-        routes: [
-          GoRoute(
-            path: '/payment',
-            builder: (_, __) => MachinePayment(machineId: machineId),
-          ),
-          GoRoute(
-            path: '/homePage',
-            builder: (_, __) => const Scaffold(body: Text('Home Page')),
-          ),
-        ],
+  LegacyPaymentMocks() {
+    GetIt.I.registerSingleton<AuthService>(auth);
+    GetIt.I.registerSingleton<MachineService>(machines);
+    GetIt.I.registerSingleton<ProfileService>(profile);
+    GetIt.I.registerSingleton<TransactionService>(transactions);
+    GetIt.I.registerSingleton<WalletService>(wallet);
+    GetIt.I.registerSingleton<MachineCommunicationService>(machine);
+    GetIt.I.registerSingleton<NotificationService>(notifications);
+    GetIt.I.registerSingleton<PaymentProcessor>(processor);
+    GetIt.I.registerSingleton<PaymentService>(payments);
+    GetIt.I.registerSingleton<CortinaVendService>(vend);
+    GetIt.I.registerSingleton<EdgeFunctionService>(edge);
+    when(() => auth.getCurrentUserId).thenReturn('current-user');
+    when(
+      () => machines.getMachineById(any()),
+    ).thenAnswer((_) async => {'Name': 'Washer01', 'Price': 2.75});
+    when(() => wallet.getBalance()).thenAnswer(
+      (_) async => const WalletBalance(
+        walletAccountId: 'wallet-current',
+        status: 'active',
+        paidBalanceCents: 1250,
+        promoBalanceCents: 0,
+        totalBalanceCents: 1250,
       ),
     );
   }
 
-  void mockWasherMachine({double price = 3.50, double balance = 10.0}) {
-    when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
-    when(() => mockMachineService.getMachineById(any()))
-        .thenAnswer((_) async => {'Name': 'Washer01', 'Price': price});
-    when(() => mockProfileService.getUserBalanceById(any()))
-        .thenAnswer((_) async => {'balance': balance});
+  void expectNoCalls() {
+    for (final mock in <Mock>[
+      auth,
+      machines,
+      profile,
+      transactions,
+      wallet,
+      machine,
+      notifications,
+      processor,
+      payments,
+      vend,
+      edge,
+    ]) {
+      verifyZeroInteractions(mock);
+    }
+  }
+}
+
+void main() {
+  late LegacyPaymentMocks services;
+
+  setUp(() async {
+    await GetIt.I.reset();
+    services = LegacyPaymentMocks();
+  });
+  tearDown(() => GetIt.I.reset());
+
+  Future<GoRouter> open(WidgetTester tester, String machineId) async {
+    final router = GoRouter(
+      initialLocation: '/payment',
+      routes: [
+        GoRoute(
+          path: '/payment',
+          builder: (_, _) => MachinePayment(machineId: machineId),
+        ),
+        GoRoute(
+          path: '/homePage',
+          builder: (_, _) => const Scaffold(body: Text('Home destination')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    return router;
   }
 
-  void mockDryerMachine({double price = 1.50, double balance = 10.0}) {
-    when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
-    when(() => mockMachineService.getMachineById(any()))
-        .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': price});
-    when(() => mockProfileService.getUserBalanceById(any()))
-        .thenAnswer((_) async => {'balance': balance});
+  for (final machineId in [
+    '',
+    '123',
+    'public-token+private',
+    '4434331126150568',
+  ]) {
+    testWidgets('legacy page is inert for identifier "$machineId"', (
+      tester,
+    ) async {
+      final router = await open(tester, machineId);
+      expect(find.text('Payment link unavailable'), findsOneWidget);
+      expect(find.byType(PaymentButtons), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Pay \$2.75'), findsNothing);
+      if (machineId.isNotEmpty) {
+        expect(find.textContaining(machineId), findsNothing);
+      }
+      services.expectNoCalls();
+      await tester.pump(const Duration(minutes: 3));
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/payment');
+      services.expectNoCalls();
+      expect(tester.takeException(), isNull);
+    });
   }
 
-  // ---------------------------------------------------------------------------
-  // Loading state
-  // ---------------------------------------------------------------------------
-
-  group('Loading state', () {
-    testWidgets('shows loading indicator while fetching machine info',
-            (tester) async {
-          when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
-          when(() => mockMachineService.getMachineById(any())).thenAnswer((_) async {
-            await Future.delayed(const Duration(milliseconds: 50));
-            return {'Name': 'Washer01', 'Price': 3.50};
-          });
-          when(() => mockProfileService.getUserBalanceById(any()))
-              .thenAnswer((_) async => {'balance': 10.0});
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pump();
-
-          expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
-          await tester.pumpAndSettle();
-          expect(find.byType(CircularProgressIndicator), findsNothing);
-        });
+  testWidgets('previous payment guidance makes no financial or vend claims', (
+    tester,
+  ) async {
+    await open(tester, '123');
+    expect(
+      find.text(
+        'If you already attempted a payment, contact Clean Stream support before '
+        'paying again. Its status cannot be confirmed here.',
+      ),
+      findsOneWidget,
+    );
+    for (final claim in [
+      'Payment Failed',
+      'Payment Successful!',
+      'Machine Ready!',
+      'refund',
+    ]) {
+      expect(find.textContaining(claim), findsNothing);
+    }
+    services.expectNoCalls();
   });
 
-  // ---------------------------------------------------------------------------
-  // Content display
-  // ---------------------------------------------------------------------------
-
-  group('Content display', () {
-    testWidgets('displays machine name and Amount Due after loading',
-            (tester) async {
-          mockWasherMachine();
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          expect(find.text('Machine Washer01'), findsOneWidget);
-          expect(find.text('Amount Due'), findsOneWidget);
-        });
-
-    testWidgets('displays formatted price', (tester) async {
-      mockWasherMachine(price: 3.50);
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('\$3.50'), findsOneWidget);
-    });
-
-    testWidgets('displays laundry service icon', (tester) async {
-      mockWasherMachine();
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.local_laundry_service), findsOneWidget);
-    });
-
-    testWidgets('handles null userId gracefully', (tester) async {
-      when(() => mockAuthService.getCurrentUserId).thenReturn(null);
-      when(() => mockMachineService.getMachineById(any()))
-          .thenAnswer((_) async => {'Name': 'Washer01', 'Price': 3.50});
-
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      verifyNever(() => mockProfileService.getUserBalanceById(any()));
-    });
-
-    testWidgets('handles machine not found', (tester) async {
-      when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
-      when(() => mockMachineService.getMachineById(any()))
-          .thenAnswer((_) async => null);
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
-
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Machine Unknown'), findsOneWidget);
-      expect(find.text('\$0.00'), findsOneWidget);
-    });
-
-    testWidgets('shows WasherControlsCard for washer machines', (tester) async {
-      mockWasherMachine();
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Select Your Cycle'), findsOneWidget);
-    });
-
-    testWidgets('shows DryerControlsCard for dryer machines', (tester) async {
-      mockDryerMachine();
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Set Dry Time'), findsOneWidget);
-    });
+  testWidgets('Back to Home is deliberate navigation without a payment', (
+    tester,
+  ) async {
+    final router = await open(tester, '123');
+    await tester.tap(find.text('Back to Home'));
+    await tester.pumpAndSettle();
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/homePage');
+    expect(find.text('Home destination'), findsOneWidget);
+    services.expectNoCalls();
   });
 
-  // ---------------------------------------------------------------------------
-  // Payment buttons
-  // ---------------------------------------------------------------------------
-
-  group('Payment buttons', () {
-    testWidgets('displays both payment buttons', (tester) async {
-      mockDryerMachine();
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Pay \$1.50'), findsOneWidget);
-      expect(find.text('Pay with Loyalty'), findsOneWidget);
-    });
-
-    testWidgets('disables loyalty button when balance is insufficient',
-            (tester) async {
-          mockDryerMachine(price: 5.00, balance: 1.00);
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          final button = tester.widget<ElevatedButton>(
-            find.widgetWithText(ElevatedButton, 'Pay with Loyalty'),
-          );
-          expect(button.onPressed, isNull);
-        });
-
-    testWidgets('enables loyalty button when balance is sufficient',
-            (tester) async {
-          mockDryerMachine(price: 1.50, balance: 10.00);
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          final button = tester.widget<ElevatedButton>(
-            find.widgetWithText(ElevatedButton, 'Pay with Loyalty'),
-          );
-          expect(button.onPressed, isNotNull);
-        });
+  testWidgets('page can mount without registering any payment dependencies', (
+    tester,
+  ) async {
+    await GetIt.I.reset();
+    await open(tester, '123');
+    expect(find.text('Payment link unavailable'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
-  // ---------------------------------------------------------------------------
-  // Direct payment
-  // ---------------------------------------------------------------------------
-
-  group('Direct payment', () {
-    testWidgets('shows success dialog when payment and machine wake succeed',
-            (tester) async {
-          mockDryerMachine();
-          when(() => mockPaymentProcessor.processPayment(any(), any()))
-              .thenAnswer((_) async => PaymentResult.success);
-          when(() => mockMachineCommunicator.wakeDevice(any()))
-              .thenAnswer((_) async => true);
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          await tester.tap(find.text('Pay \$1.50'));
-          await tester.pump();
-          await tester.pumpAndSettle();
-
-          expect(find.text('Payment Processed! Machine Ready!'), findsOneWidget);
-        });
-
-    testWidgets('shows machine error dialog when machine fails to wake',
-            (tester) async {
-          mockDryerMachine();
-          when(() => mockPaymentProcessor.processPayment(any(), any()))
-              .thenAnswer((_) async => PaymentResult.success);
-          when(() => mockMachineCommunicator.wakeDevice(any()))
-              .thenAnswer((_) async => false);
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          await tester.tap(find.text('Pay \$1.50'));
-          await tester.pump();
-          await tester.pumpAndSettle();
-
-          expect(find.text('Machine Error'), findsOneWidget);
-        });
-
-    testWidgets('shows payment failed dialog when payment fails', (tester) async {
-      mockDryerMachine();
-      when(() => mockPaymentProcessor.processPayment(any(), any()))
-          .thenAnswer((_) async => PaymentResult.failed);
-
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Pay \$1.50'));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      expect(find.text('Payment Failed'), findsOneWidget);
+  for (final size in [const Size(390, 844), const Size(1280, 900)]) {
+    testWidgets('unavailable content fits ${size.width.toInt()}px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await open(tester, '123');
+      expect(find.text('Back to Home').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      services.expectNoCalls();
     });
-
-    testWidgets('shows Back to Home button after successful direct payment',
-            (tester) async {
-          mockDryerMachine();
-          when(() => mockPaymentProcessor.processPayment(any(), any()))
-              .thenAnswer((_) async => PaymentResult.success);
-          when(() => mockMachineCommunicator.wakeDevice(any()))
-              .thenAnswer((_) async => true);
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          await tester.tap(find.text('Pay \$1.50'));
-          await tester.pump();
-          await tester.pumpAndSettle();
-
-          // Dismiss dialog
-          await tester.tap(find.text('Done'));
-          await tester.pumpAndSettle();
-
-          expect(find.text('Back to Home'), findsOneWidget);
-        });
-
-    testWidgets('schedules notification after successful direct payment',
-            (tester) async {
-          mockDryerMachine();
-          when(() => mockPaymentProcessor.processPayment(any(), any()))
-              .thenAnswer((_) async => PaymentResult.success);
-          when(() => mockMachineCommunicator.wakeDevice(any()))
-              .thenAnswer((_) async => true);
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          await tester.tap(find.text('Pay \$1.50'));
-          await tester.pump();
-          await tester.pumpAndSettle();
-
-          verify(() => mockNotificationService.scheduleEarlyMachineNotification(
-            id: 1,
-            machineTime: any(named: 'machineTime'),
-            machineName: any(named: 'machineName'),
-          )).called(1);
-        });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Loyalty payment
-  // ---------------------------------------------------------------------------
-
-  group('Loyalty payment', () {
-    testWidgets('processes loyalty payment and wakes machine', (tester) async {
-      mockDryerMachine(price: 1.50, balance: 10.00);
-      when(() => mockMachineCommunicator.wakeDevice(any()))
-          .thenAnswer((_) async => true);
-      when(() => mockProfileService.updateBalanceById(any(), any()))
-          .thenAnswer((_) async {});
-      when(() => mockTransactionService.recordTransaction(
-        amount: any(named: 'amount'),
-        description: any(named: 'description'),
-        type: any(named: 'type'),
-      ))
-          .thenAnswer((_) async {});
-
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Pay with Loyalty'));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      verify(() =>
-          mockProfileService.updateBalanceById('user123', 8.5))
-          .called(1);
-      verify(() => mockMachineCommunicator.wakeDevice('machine123')).called(1);
-      verify(() => mockTransactionService.recordTransaction(
-        amount: 1.50,
-        description: any(named: 'description'),
-        type: 'laundry',
-      ))
-          .called(1);
-    });
-
-    testWidgets('shows machine error when device fails to wake', (tester) async {
-      mockDryerMachine(price: 1.50, balance: 10.00);
-      when(() => mockMachineCommunicator.wakeDevice(any()))
-          .thenAnswer((_) async => false);
-      when(() => mockProfileService.updateBalanceById(any(), any()))
-          .thenAnswer((_) async {});
-      when(() => mockTransactionService.recordTransaction(
-        amount: any(named: 'amount'),
-        description: any(named: 'description'),
-        type: any(named: 'type'),
-      ))
-          .thenAnswer((_) async {});
-
-      await tester.pumpWidget(createWidget('machine123'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Pay with Loyalty'));
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      expect(find.text('Machine Error'), findsWidgets);
-      verifyNever(() => mockTransactionService.recordTransaction(
-        amount: any(named: 'amount'),
-        description: any(named: 'description'),
-        type: any(named: 'type'),
-      ));
-    });
-
-    testWidgets('schedules notification after successful loyalty payment',
-            (tester) async {
-          mockWasherMachine(price: 3.50, balance: 10.00);
-          when(() => mockMachineCommunicator.wakeDevice(any()))
-              .thenAnswer((_) async => true);
-          when(() => mockProfileService.updateBalanceById(any(), any()))
-              .thenAnswer((_) async {});
-          when(() => mockTransactionService.recordTransaction(
-            amount: any(named: 'amount'),
-            description: any(named: 'description'),
-            type: any(named: 'type'),
-          ))
-              .thenAnswer((_) async {});
-
-          await tester.pumpWidget(createWidget('machine123'));
-          await tester.pumpAndSettle();
-
-          await tester.tap(find.text('Pay with Loyalty'));
-          await tester.pump();
-          await tester.pumpAndSettle();
-
-          verify(() => mockNotificationService.scheduleEarlyMachineNotification(
-            id: 1,
-            machineTime: any(named: 'machineTime'),
-            machineName: any(named: 'machineName'),
-          )).called(1);
-        });
-  });
+  }
 }

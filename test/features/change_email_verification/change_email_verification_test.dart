@@ -13,7 +13,6 @@ import 'mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late FakeAppLinks fakeAppLinks;
   late MockLocationService mockLocationService;
   late MockMachineService mockMachineService;
   late MockProfileService mockProfileService;
@@ -24,7 +23,6 @@ void main() {
 
   setUp(() {
     mockAuthService = MockAuthService();
-    fakeAppLinks = FakeAppLinks();
     mockLocationService = MockLocationService();
     mockMachineService = MockMachineService();
     mockProfileService = MockProfileService();
@@ -46,10 +44,10 @@ void main() {
         .thenAnswer((_) async => 0);
     when(() => mockAuthService.refreshSession()).thenAnswer((_) async => {});
     when(() => mockAuthService.getCurrentUser()).thenAnswer((_) => null);
+    when(() => mockAuthService.onAuthChange).thenAnswer((_) => const Stream.empty());
   });
 
   tearDown(() {
-    fakeAppLinks.dispose();
     GetIt.instance.reset();
   });
 
@@ -60,7 +58,7 @@ void main() {
         GoRoute(
           path: '/change-email-verification',
           builder: (context, state) =>
-              ChangeEmailVerificationPage(appLinks: fakeAppLinks),
+              const ChangeEmailVerificationPage(),
         ),
         GoRoute(
           path: '/homePage',
@@ -128,7 +126,7 @@ void main() {
           expect(scaffold.backgroundColor, isNotNull);
         });
 
-    testWidgets('properly disposes controller on navigation away',
+    testWidgets('navigates away without callback lifecycle plumbing',
             (tester) async {
           await tester.pumpWidget(createTestWidget());
           await tester.pumpAndSettle();

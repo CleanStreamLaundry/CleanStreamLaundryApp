@@ -4,31 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late MockProfileService mockProfileService;
-  late FakeAppLinks fakeAppLinks;
-
-  setUpAll(() {
-    registerFallbackValue(FakeUri());
-  });
 
   setUp(() {
     mockAuthService = MockAuthService();
-    mockProfileService = MockProfileService();
-    fakeAppLinks = FakeAppLinks();
-  });
-
-  tearDown(() {
-    fakeAppLinks.dispose();
   });
 
   LoginController buildController() => LoginController(
     authService: mockAuthService,
-    profileService: mockProfileService,
   );
 
   Widget buildWithRouter({
@@ -43,10 +29,8 @@ void main() {
             builder: (context, state) {
               final controller = LoginController(
                 authService: mockAuthService,
-                profileService: mockProfileService,
               );
               onControllerReady(controller);
-              controller.init(context, fakeAppLinks);
               return const SizedBox();
             },
           ),
@@ -67,6 +51,17 @@ void main() {
       ),
     );
   }
+
+  test('constructs with AuthService alone without consuming callbacks', () {
+    final controller = LoginController(authService: mockAuthService);
+    addTearDown(() {
+      controller.disposeController();
+      controller.dispose();
+    });
+
+    expect(controller.authService, same(mockAuthService));
+    verifyZeroInteractions(mockAuthService);
+  });
 
   group('handleLogin', () {
     testWidgets('calls auth service with trimmed email and password',
@@ -175,68 +170,8 @@ void main() {
     });
   });
 
-  group('Deep link handling', () {
-    testWidgets('calls getSessionFromURI on oauth deep link', (tester) async {
-      when(() => mockAuthService.getSessionFromURI(any()))
-          .thenAnswer((_) async {});
-      when(() => mockAuthService.isLoggedIn())
-          .thenAnswer((_) async => AuthenticationResponses.success);
-      when(() => mockAuthService.getCurrentUser()).thenReturn(null);
-
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      verify(() => mockAuthService.getSessionFromURI(any())).called(1);
-    });
-
-    testWidgets('calls createAccount when oauth user exists', (tester) async {
-      when(() => mockAuthService.getSessionFromURI(any()))
-          .thenAnswer((_) async {});
-      when(() => mockAuthService.isLoggedIn())
-          .thenAnswer((_) async => AuthenticationResponses.success);
-      when(() => mockAuthService.getCurrentUser()).thenReturn(
-        User(
-          id: 'uid',
-          appMetadata: {},
-          userMetadata: {'full_name': 'Jane Doe'},
-          aud: '',
-          createdAt: '',
-        ),
-      );
-      when(() => mockProfileService.createAccount(
-        id: any(named: 'id'),
-        name: any(named: 'name'),
-      )).thenAnswer((_) async {});
-
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      verify(() => mockProfileService.createAccount(
-        id: 'uid',
-        name: 'Jane Doe',
-      )).called(1);
-    });
-
-    testWidgets('ignores uri with unrecognised host', (tester) async {
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://unknown-host'));
-      await tester.pumpAndSettle();
-
-      verifyNever(() => mockAuthService.getSessionFromURI(any()));
-    });
-  });
-
-
   group('Lifecycle', () {
-    testWidgets('disposeController cancels subscription without error',
+    testWidgets('disposeController releases local controls without error',
             (tester) async {
           late LoginController controller;
           await tester.pumpWidget(

@@ -14,6 +14,8 @@ class NameFormField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     return TextFormField(
       controller: controller,
       enabled: enabled,
@@ -30,20 +32,16 @@ class NameFormField extends StatelessWidget {
         labelText: 'New Full Name',
         hintText: 'Enter your full name',
         hintStyle: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .fontSecondary
-              .withValues(alpha: 0.5),
+          color: colorScheme.fontSecondary,
         ),
         labelStyle: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
+          color: isDark ? colorScheme.fontSecondary : colorScheme.primary,
           fontSize: 14,
         ),
         counterStyle: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .fontSecondary
-              .withValues(alpha: 0.6),
+          color: isDark
+              ? colorScheme.fontSecondary
+              : colorScheme.fontSecondary.withValues(alpha: 0.6),
         ),
         filled: true,
         fillColor:

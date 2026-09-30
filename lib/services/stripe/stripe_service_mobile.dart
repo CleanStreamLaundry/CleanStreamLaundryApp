@@ -72,7 +72,7 @@ class StripeService implements PaymentService {
         ),
       );
       await _stripeInstance.presentPaymentSheet();
-      return verifyPaymentIntent(paymentIntent.paymentIntentId);
+      return await verifyPaymentIntent(paymentIntent.paymentIntentId);
     } on StripeException catch (e) {
       debugPrint(
         "Stripe PaymentSheet error: "
@@ -93,13 +93,13 @@ class StripeService implements PaymentService {
         return PaymentResult.canceled;
       }
       if (paymentIntent != null) {
-        return verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
       }
       rethrow;
     } catch (e) {
       debugPrint("payment error: $e");
       if (paymentIntent != null) {
-        return verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
       }
       rethrow;
     } finally {

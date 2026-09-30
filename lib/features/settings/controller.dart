@@ -3,6 +3,7 @@ import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/transaction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:clean_stream_laundry_app/services/firebase/firebase_service.dart';
 
 class SettingsController extends ChangeNotifier {
   static const int maxNotificationLeadTime = 30;
@@ -69,6 +70,9 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (GetIt.instance.isRegistered<FirebaseService>()) {
+      await GetIt.instance<FirebaseService>().disablePush();
+    }
     await authService.logout();
   }
 }

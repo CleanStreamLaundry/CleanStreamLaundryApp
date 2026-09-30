@@ -1,5 +1,7 @@
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/edit_profile/widgets/email_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,6 +19,45 @@ void main() {
         ),
       ),
     );
+  }
+
+  for (final theme in [lightMode, darkMode]) {
+    for (final value in ['', 'customer@example.test']) {
+      for (final focused in [false, true]) {
+        testWidgets(
+          '${theme.brightness.name} ${value.isEmpty ? 'empty' : 'filled'} '
+          '${focused ? 'focused' : 'unfocused'} email text has readable contrast',
+          (tester) async {
+            final controller = TextEditingController(text: value);
+            addTearDown(controller.dispose);
+            await tester.pumpWidget(MaterialApp(
+              theme: theme,
+              home: Scaffold(body: EmailFormField(
+                controller: controller,
+                enabled: true,
+              )),
+            ));
+            if (focused) await tester.tap(find.byType(TextFormField));
+            await tester.pumpAndSettle();
+            final decoration = tester.widget<TextField>(find.byType(TextField)).decoration!;
+            final fill = Color.alphaBlend(decoration.fillColor!, theme.colorScheme.surface);
+            for (final label in [
+              'New Email',
+              if (value.isEmpty && focused) 'Enter your email address',
+            ]) {
+              final foreground = tester.renderObject<RenderParagraph>(
+                find.descendant(of: find.text(label), matching: find.byType(RichText)),
+              ).text.style!.color!;
+              final a = Color.alphaBlend(foreground, fill).computeLuminance();
+              final b = fill.computeLuminance();
+              final ratio = a > b ? (a + .05) / (b + .05) : (b + .05) / (a + .05);
+              expect(ratio, greaterThanOrEqualTo(4.5), reason: label);
+            }
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
   }
 
   group('EmailFormField', () {

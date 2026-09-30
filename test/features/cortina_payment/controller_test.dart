@@ -140,6 +140,17 @@ void main() {
       expect(outcome, CortinaPaymentOutcome.success);
       expect(subject.paymentCompleted, isTrue);
       verify(() => vendService.confirmCardPayment(any())).called(1);
+
+      expect(await subject.payWithCard(), CortinaPaymentOutcome.success);
+      verify(
+        () => vendService.createCardPayment(
+          machineToken: 'token-1',
+          terminalId: null,
+          uniQr: null,
+          amountCents: 150,
+          clientRequestId: any(named: 'clientRequestId'),
+        ),
+      ).called(1);
     },
   );
 
@@ -241,5 +252,117 @@ void main() {
     await subject.init();
 
     expect(subject.walletBalance, 6.00);
+  });
+
+  group('wallet completion', () {
+    WalletBalance balance(int cents) => WalletBalance(
+      walletAccountId: 'wallet-1',
+      status: 'active',
+      paidBalanceCents: cents,
+      promoBalanceCents: 0,
+      totalBalanceCents: cents,
+    );
+
+    setUp(() {
+      when(() => authService.getCurrentUserId).thenReturn('user-1');
+      when(
+        () => vendService.quote(
+          machineToken: 'token-1',
+          terminalId: null,
+          uniQr: null,
+        ),
+      ).thenAnswer((_) async => dryerQuote);
+      when(
+        () => vendService.payWithWallet(
+          machineToken: 'token-1',
+          terminalId: null,
+          uniQr: null,
+          amountCents: 150,
+          clientRequestId: any(named: 'clientRequestId'),
+        ),
+      ).thenAnswer(
+        (_) async => const CortinaVendReference(
+          sessionId: 'session-1',
+          accessToken: 'access-1',
+        ),
+      );
+      when(
+        () => walletService.getBalance(),
+      ).thenAnswer((_) async => balance(1100));
+    });
+
+    test(
+      'refreshes the ledger balance and prevents another completed payment',
+      () async {
+        when(
+          () => vendService.status(any()),
+        ).thenAnswer((_) async => const CortinaVendStatus(status: 'started'));
+        final subject = controller();
+        await subject.init();
+        when(
+          () => walletService.getBalance(),
+        ).thenAnswer((_) async => balance(950));
+
+        expect(await subject.payWithWallet(), CortinaPaymentOutcome.success);
+        expect(subject.walletBalance, 9.50);
+        expect(await subject.payWithWallet(), CortinaPaymentOutcome.success);
+        expect(await subject.payWithCard(), CortinaPaymentOutcome.success);
+        subject.setDryerAmount(200);
+        expect(subject.amountCents, 150);
+        verify(
+          () => vendService.payWithWallet(
+            machineToken: 'token-1',
+            terminalId: null,
+            uniQr: null,
+            amountCents: 150,
+            clientRequestId: any(named: 'clientRequestId'),
+          ),
+        ).called(1);
+        verify(() => walletService.getBalance()).called(2);
+      },
+    );
+
+    for (final status in ['refunded', 'approved', 'support_required']) {
+      test('refreshes balance for $status without reporting success', () async {
+        when(
+          () => vendService.status(any()),
+        ).thenAnswer((_) async => CortinaVendStatus(status: status));
+        final subject = controller();
+        await subject.init();
+        when(
+          () => walletService.getBalance(),
+        ).thenAnswer((_) async => balance(status == 'refunded' ? 1100 : 950));
+
+        final outcome = await subject.payWithWallet();
+        expect(
+          outcome,
+          status == 'refunded'
+              ? CortinaPaymentOutcome.refunded
+              : status == 'approved'
+              ? CortinaPaymentOutcome.pending
+              : CortinaPaymentOutcome.failed,
+        );
+        expect(subject.walletBalance, status == 'refunded' ? 11 : 9.50);
+        expect(subject.paymentCompleted, isFalse);
+        verify(() => walletService.getBalance()).called(2);
+      });
+    }
+
+    test(
+      'failed balance refresh does not mask a successful vend or show stale funds',
+      () async {
+        when(
+          () => vendService.status(any()),
+        ).thenAnswer((_) async => const CortinaVendStatus(status: 'started'));
+        final subject = controller();
+        await subject.init();
+        when(() => walletService.getBalance()).thenThrow(StateError('Offline'));
+
+        expect(await subject.payWithWallet(), CortinaPaymentOutcome.success);
+        expect(subject.paymentCompleted, isTrue);
+        expect(subject.walletBalance, isNull);
+        expect(subject.errorMessage, isNull);
+      },
+    );
   });
 }

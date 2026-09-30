@@ -15,6 +15,10 @@ void main() {
     mockController = MockLoyaltyController();
     when(() => mockController.recentTransactions).thenReturn([]);
     when(() => mockController.showPastTransactions).thenReturn(false);
+    when(() => mockController.isLoading).thenReturn(false);
+    when(() => mockController.isRefreshing).thenReturn(false);
+    when(() => mockController.isLoadingMore).thenReturn(false);
+    when(() => mockController.hasMoreTransactions).thenReturn(false);
     when(() => mockController.toggleTransactionView()).thenAnswer((_) async {});
   });
 
@@ -25,6 +29,38 @@ void main() {
   }
 
   group('TransactionList', () {
+    testWidgets('only More transactions fetches a page; loading disables it', (
+      tester,
+    ) async {
+      when(() => mockController.recentTransactions).thenReturn(['First entry']);
+      when(() => mockController.showPastTransactions).thenReturn(true);
+      when(() => mockController.hasMoreTransactions).thenReturn(true);
+      when(
+        () => mockController.loadMoreTransactions(),
+      ).thenAnswer((_) async {});
+      await tester.pumpWidget(buildWidget());
+      await tester.tap(find.byKey(const ValueKey('transactions-next-page')));
+      verify(() => mockController.loadMoreTransactions()).called(1);
+      when(() => mockController.isLoadingMore).thenReturn(true);
+      await tester.pumpWidget(buildWidget());
+      final button = tester.widget<TextButton>(
+        find.byKey(const ValueKey('transactions-next-page')),
+      );
+      expect(button.onPressed, isNull);
+      expect(find.text('First entry'), findsOneWidget);
+    });
+
+    testWidgets('initial error is not a false empty-history message', (
+      tester,
+    ) async {
+      when(
+        () => mockController.transactionsError,
+      ).thenReturn('Unable to refresh transactions');
+      await tester.pumpWidget(buildWidget());
+      expect(find.text('Unable to refresh transactions'), findsOneWidget);
+      expect(find.text('No transactions found.'), findsNothing);
+    });
+
     group('Empty state', () {
       testWidgets('shows No transactions found text', (tester) async {
         await tester.pumpWidget(buildWidget());

@@ -71,6 +71,7 @@ class _StartPageState extends State<StartPage> {
   void _showLowBalanceDialog() {
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Low Balance'),

@@ -1,13 +1,10 @@
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:app_links/app_links.dart';
 import 'controller.dart';
 import 'widgets/resend_verification.dart';
 
 class ChangeEmailVerificationPage extends StatefulWidget {
-  final AppLinks appLinks;
-
-  const ChangeEmailVerificationPage({super.key, required this.appLinks});
+  const ChangeEmailVerificationPage({super.key});
 
   @override
   State<ChangeEmailVerificationPage> createState() =>
@@ -21,17 +18,7 @@ class _ChangeEmailVerificationPageState
   @override
   void initState() {
     super.initState();
-    _controller = ChangeEmailVerificationController(
-      appLinks: widget.appLinks,
-      context: context,
-    );
-    _controller.init();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _controller = ChangeEmailVerificationController();
   }
 
   void _refresh() {

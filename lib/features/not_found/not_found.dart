@@ -30,7 +30,15 @@ class NotFound extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () async {
-                if (await authService.isLoggedIn() == AuthenticationResponses.success){
+                late final AuthenticationResponses response;
+                try {
+                  response = await authService.isLoggedIn();
+                } catch (_) {
+                  if (!context.mounted) return;
+                  rethrow;
+                }
+                if (!context.mounted) return;
+                if (response == AuthenticationResponses.success){
                   context.go("/homePage");
                 }else{
                   context.go("/login");

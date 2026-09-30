@@ -1,5 +1,7 @@
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/edit_profile/widgets/danger_zone.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,6 +17,69 @@ void main() {
         ),
       ),
     );
+  }
+
+  for (final theme in [lightMode, darkMode]) {
+    for (final width in [320.0, 390.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('unknown outcome fits $width/${scale}x ${theme.brightness.name}', (tester) async {
+          tester.view.physicalSize = Size(width, 800);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          var checks = 0;
+          await tester.pumpWidget(MaterialApp(
+            theme: theme,
+            home: Scaffold(body: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+              child: SingleChildScrollView(child: DangerZoneSection(
+                isSaving: false,
+                needsStatusCheck: true,
+                message: 'The outcome could not be confirmed. Check account status before making another request.',
+                onDeletePressed: () => checks++,
+              )),
+            )),
+          ));
+          await tester.ensureVisible(find.text('Check Account Status'));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.text('Check Account Status'));
+          expect(checks, 1);
+        });
+      }
+    }
+    testWidgets('${theme.brightness.name} danger text has readable contrast', (
+      tester,
+    ) async {
+      var callbacks = 0;
+      await tester.pumpWidget(MaterialApp(
+        theme: theme,
+        home: Scaffold(body: DangerZoneSection(
+          isSaving: false,
+          onDeletePressed: () => callbacks++,
+        )),
+      ));
+      final container = tester.widget<Container>(find.descendant(
+        of: find.byType(DangerZoneSection),
+        matching: find.byType(Container),
+      ).first);
+      final fill = Color.alphaBlend(
+        (container.decoration! as BoxDecoration).color!,
+        theme.colorScheme.surface,
+      );
+      for (final label in [
+        find.text('Danger Zone'),
+        find.textContaining('Request account deletion with a 30-day recovery window.'),
+        find.text('Delete Account'),
+      ]) {
+        final foreground = tester.renderObject<RenderParagraph>(label).text.style!.color!;
+        final a = Color.alphaBlend(foreground, fill).computeLuminance();
+        final b = fill.computeLuminance();
+        final ratio = a > b ? (a + .05) / (b + .05) : (b + .05) / (a + .05);
+        expect(ratio, greaterThanOrEqualTo(4.5));
+      }
+      await tester.tap(find.byType(OutlinedButton));
+      expect(callbacks, 1);
+    });
   }
 
   group('DangerZoneSection', () {
@@ -47,7 +112,9 @@ void main() {
         await tester.pumpWidget(buildWidget());
 
         expect(
-          find.textContaining('Once you delete your account'),
+          find.text(
+            'Request account deletion with a 30-day recovery window. Account access will be restricted until you sign in again and explicitly restore it before the deadline. Financial records and your Loyalty Card balance are not erased by this request.',
+          ),
           findsOneWidget,
         );
       });

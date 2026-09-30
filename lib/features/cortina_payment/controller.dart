@@ -98,6 +98,7 @@ class CortinaPaymentController extends ChangeNotifier {
   }
 
   void setDryerAmount(int cents) {
+    if (isProcessing || paymentCompleted) return;
     final currentQuote = quote;
     if (currentQuote == null || !currentQuote.isDryer) return;
     if (!currentQuote.dryerOptions.any(
@@ -137,24 +138,35 @@ class CortinaPaymentController extends ChangeNotifier {
   Future<CortinaPaymentOutcome> payWithWallet() async {
     if (!isSignedIn) return CortinaPaymentOutcome.failed;
     return _runPayment(() async {
-      final reference = await vendService.payWithWallet(
-        machineToken: machineToken,
-        terminalId: terminalId,
-        uniQr: uniQr,
-        amountCents: amountCents,
-        clientRequestId: _walletRequestId ??= const Uuid().v4(),
-      );
-      final outcome = await _poll(reference);
-      if (outcome != CortinaPaymentOutcome.pending) {
-        _walletRequestId = null;
+      try {
+        final reference = await vendService.payWithWallet(
+          machineToken: machineToken,
+          terminalId: terminalId,
+          uniQr: uniQr,
+          amountCents: amountCents,
+          clientRequestId: _walletRequestId ??= const Uuid().v4(),
+        );
+        final outcome = await _poll(reference);
+        if (outcome != CortinaPaymentOutcome.pending) {
+          _walletRequestId = null;
+        }
+        return outcome;
+      } finally {
+        // Read the ledger after either a debit or its reversal; never guess it.
+        try {
+          walletBalance = (await walletService.getBalance()).totalBalance;
+        } catch (_) {
+          // A balance lookup failure must not turn a successful vend into a failure.
+          walletBalance = null;
+        }
       }
-      return outcome;
     });
   }
 
   Future<CortinaPaymentOutcome> _runPayment(
     Future<CortinaPaymentOutcome> Function() action,
   ) async {
+    if (paymentCompleted) return CortinaPaymentOutcome.success;
     if (isProcessing) return CortinaPaymentOutcome.pending;
     isProcessing = true;
     errorMessage = null;

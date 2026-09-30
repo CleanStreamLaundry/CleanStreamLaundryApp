@@ -1,48 +1,40 @@
+import 'dart:async';
+
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/login/login.dart';
 import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
-import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late MockProfileService mockProfileService;
-  late FakeAppLinks fakeAppLinks;
-
-  setUpAll(() {
-    registerFallbackValue(FakeUri());
-  });
 
   setUp(() async {
     mockAuthService = MockAuthService();
-    mockProfileService = MockProfileService();
-    fakeAppLinks = FakeAppLinks();
 
     await GetIt.instance.reset();
     GetIt.instance.registerSingleton<AuthService>(mockAuthService);
-    GetIt.instance.registerSingleton<ProfileService>(mockProfileService);
   });
 
   tearDown(() async {
-    fakeAppLinks.dispose();
     await GetIt.instance.reset();
   });
 
-  Widget createWidget() {
+  Widget createWidget({ThemeData? theme}) {
     return MaterialApp.router(
+      theme: theme,
       routerConfig: GoRouter(
         initialLocation: '/',
         routes: [
           GoRoute(
             path: '/',
-            builder: (_, __) => Login(appLinks: fakeAppLinks),
+            builder: (_, __) => const Login(),
           ),
           GoRoute(
             path: '/homePage',
@@ -94,8 +86,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final image = tester.widget<Image>(find.byKey(const Key('app_logo')));
-      expect(image.height, 250);
-      expect(image.width, 250);
+      expect(image.height, 300);
+      expect(image.width, 300);
     });
 
     testWidgets('displays email and password text fields', (tester) async {
@@ -131,15 +123,22 @@ void main() {
       );
     });
 
-    testWidgets('displays Sign in with Apple button', (tester) async {
-      await tester.pumpWidget(createWidget());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'displays Sign in with Apple button on iOS and macOS',
+      (tester) async {
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
 
-      expect(
-        find.widgetWithText(ElevatedButton, 'Sign in with Apple'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.widgetWithText(ElevatedButton, 'Sign in with Apple'),
+          findsOneWidget,
+        );
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.iOS,
+        TargetPlatform.macOS,
+      }),
+    );
 
     testWidgets('displays Create Account link', (tester) async {
       await tester.pumpWidget(createWidget());
@@ -411,99 +410,97 @@ void main() {
     });
   });
 
-  group('Deep links', () {
-    testWidgets('navigates to home on email-verification deep link', (
-      tester,
-    ) async {
-      await tester.pumpWidget(createWidget());
-      await tester.pumpAndSettle();
+  testWidgets('mounts with AuthService alone without consuming callbacks', (
+    tester,
+  ) async {
+    await tester.pumpWidget(createWidget());
+    await tester.pumpAndSettle();
 
-      fakeAppLinks.emit(Uri.parse('clean-stream://email-verification'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Home Page'), findsOneWidget);
-    });
-
-    testWidgets('handles oauth deep link with successful session', (
-      tester,
-    ) async {
-      when(
-        () => mockAuthService.getSessionFromURI(any()),
-      ).thenAnswer((_) async {});
-      when(
-        () => mockAuthService.isLoggedIn(),
-      ).thenAnswer((_) async => AuthenticationResponses.success);
-      when(() => mockAuthService.getCurrentUser()).thenReturn(
-        User(
-          id: 'testId',
-          appMetadata: {},
-          userMetadata: {'full_name': 'Test User'},
-          aud: '',
-          createdAt: '',
-        ),
-      );
-      when(
-        () => mockProfileService.createAccount(
-          id: any(named: 'id'),
-          name: any(named: 'name'),
-        ),
-      ).thenAnswer((_) async {});
-
-      await tester.pumpWidget(createWidget());
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Home Page'), findsOneWidget);
-      verify(() => mockAuthService.getSessionFromURI(any())).called(1);
-      verify(() => mockAuthService.isLoggedIn()).called(1);
-      verify(() => mockAuthService.getCurrentUser()).called(1);
-      verify(
-        () => mockProfileService.createAccount(id: 'testId', name: 'Test User'),
-      ).called(1);
-    });
-
-    testWidgets('navigates to login on oauth deep link with failed session', (
-      tester,
-    ) async {
-      when(
-        () => mockAuthService.getSessionFromURI(any()),
-      ).thenAnswer((_) async {});
-      when(
-        () => mockAuthService.isLoggedIn(),
-      ).thenAnswer((_) async => AuthenticationResponses.failure);
-
-      await tester.pumpWidget(createWidget());
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Login Page'), findsOneWidget);
-    });
-
-    testWidgets('ignores deep link with null uri', (tester) async {
-      await tester.pumpWidget(createWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.widgetWithText(TextField, 'Email'), findsOneWidget);
-    });
+    expect(find.widgetWithText(TextField, 'Email'), findsOneWidget);
+    expect(find.text('Home Page'), findsNothing);
+    verifyZeroInteractions(mockAuthService);
   });
 
   group('Styling', () {
-    testWidgets('Log In button has blue background and white text', (
+    testWidgets('Log In button has primary background and white text', (
       tester,
     ) async {
-      await tester.pumpWidget(createWidget());
+      await tester.pumpWidget(createWidget(theme: lightMode));
       await tester.pumpAndSettle();
 
       final button = tester.widget<ElevatedButton>(
         find.widgetWithText(ElevatedButton, 'Log In'),
       );
-      expect(button.style?.backgroundColor?.resolve({}), Colors.blue);
+      expect(
+        button.style?.backgroundColor?.resolve({}),
+        lightMode.colorScheme.primary,
+      );
       expect(button.style?.foregroundColor?.resolve({}), Colors.white);
     });
+
+    for (final theme in [lightMode, darkMode]) {
+      final mode = theme.brightness.name;
+
+      void expectReadableButton(WidgetTester tester) {
+        final button = find.widgetWithText(ElevatedButton, 'Log In');
+        final material = tester.widget<Material>(
+          find.descendant(of: button, matching: find.byType(Material)),
+        );
+        final foreground = DefaultTextStyle.of(
+          tester.element(find.text('Log In')),
+        ).style.color!;
+        final backgroundLuminance = material.color!.computeLuminance();
+        final foregroundLuminance = foreground.computeLuminance();
+        expect(
+          (foregroundLuminance + 0.05) / (backgroundLuminance + 0.05),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(material.color, theme.colorScheme.primary);
+        expect(foreground, Colors.white);
+      }
+
+      testWidgets('$mode enabled Log In button is readable', (tester) async {
+        await tester.pumpWidget(createWidget(theme: theme));
+        await tester.pumpAndSettle();
+
+        final button = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Log In'),
+        );
+        expect(button.onPressed, isNotNull);
+        expectReadableButton(tester);
+        verifyZeroInteractions(mockAuthService);
+      });
+
+      testWidgets('$mode pending login preserves button and completion', (
+        tester,
+      ) async {
+        final response = Completer<AuthenticationResponses>();
+        when(() => mockAuthService.login(any(), any()))
+            .thenAnswer((_) => response.future);
+        await tester.pumpWidget(createWidget(theme: theme));
+        await tester.pumpAndSettle();
+        await enterCredentials(tester);
+        final button = find.widgetWithText(ElevatedButton, 'Log In');
+        await tester.ensureVisible(button);
+        await tester.pumpAndSettle();
+        final bounds = tester.getRect(button);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+
+        expect(tester.widget<ElevatedButton>(button).onPressed, isNotNull);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(tester.getRect(button), bounds);
+        expectReadableButton(tester);
+        expect(find.text('Home Page'), findsNothing);
+        verify(() => mockAuthService.login('test@example.com', 'password123'))
+            .called(1);
+
+        response.complete(AuthenticationResponses.success);
+        await tester.pumpAndSettle();
+        expect(find.text('Home Page'), findsOneWidget);
+        verifyNoMoreInteractions(mockAuthService);
+      });
+    }
 
     testWidgets('Create Account text is blue and underlined', (tester) async {
       await tester.pumpWidget(createWidget());

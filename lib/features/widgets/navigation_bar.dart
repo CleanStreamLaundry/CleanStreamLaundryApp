@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,6 +57,7 @@ class NavBar extends StatelessWidget {
     final location = router.routeInformationProvider.value.uri.toString();
     final currentIndex = _getIndex(location);
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final height = math.max(
       _minimumHeight,
@@ -70,8 +72,18 @@ class NavBar extends StatelessWidget {
         child: BottomNavigationBar(
           currentIndex: currentIndex,
           backgroundColor: colorScheme.surface,
-          selectedItemColor: colorScheme.primary,
-          unselectedItemColor: Colors.grey.shade600,
+          selectedItemColor: isDark
+              ? colorScheme.fontInverted
+              : colorScheme.primary,
+          unselectedItemColor: isDark
+              ? colorScheme.fontSecondary
+              : Colors.grey.shade600,
+          selectedIconTheme: isDark
+              ? IconThemeData(color: colorScheme.primary)
+              : null,
+          unselectedIconTheme: isDark
+              ? IconThemeData(color: Colors.grey.shade600)
+              : null,
           selectedFontSize: 12,
           unselectedFontSize: 12,
           selectedLabelStyle: _labelStyle.copyWith(fontWeight: FontWeight.w700),

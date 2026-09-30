@@ -27,7 +27,7 @@ class LocationSelector extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text(
-                  controller.selectedLocation ?? 'Select Location',
+                  controller.selectedLocation?.address ?? 'Select Location',
                   style: TextStyle(
                     fontSize: 16,
                     color: controller.selectedLocation == null
@@ -46,6 +46,8 @@ class LocationSelector extends StatelessWidget {
   }
 
   void _showLocationPicker(BuildContext context) {
+    final generation = controller.generation;
+    final locations = List<MaintenanceLocation>.of(controller.locations);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -53,7 +55,7 @@ class LocationSelector extends StatelessWidget {
       ),
       builder: (_) => ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        itemCount: controller.locations.length + 1,
+        itemCount: locations.length + 1,
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (_, index) {
           if (index == 0) {
@@ -63,18 +65,20 @@ class LocationSelector extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent),
               ),
               onTap: () {
-                controller.selectLocation('No Applicable Location');
+                if (controller.isCurrent(generation)) {
+                  controller.selectLocation(MaintenanceController.noApplicableLocation);
+                }
                 Navigator.pop(context);
               },
             );
           }
-          final item = controller.locations[index - 1];
-          final String address = item is String ? item : item['Address'];
+          final item = locations[index - 1];
 
           return ListTile(
-            title: Text(address),
+            title: Text(item.address),
+            subtitle: Text('Location ${item.id}'),
             onTap: () {
-              controller.selectLocation(address);
+              if (controller.isCurrent(generation)) controller.selectLocation(item);
               Navigator.pop(context);
             },
           );

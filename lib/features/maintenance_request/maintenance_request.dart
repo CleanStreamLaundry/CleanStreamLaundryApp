@@ -16,6 +16,8 @@ class MaintenancePage extends StatefulWidget {
 class MaintenancePageState extends State<MaintenancePage> {
   late final MaintenanceController _controller;
   final FocusNode _focusNode = FocusNode();
+  bool _handlingSubmission = false;
+  String? _submitError;
 
   @override
   void initState() {
@@ -23,13 +25,13 @@ class MaintenancePageState extends State<MaintenancePage> {
     _controller = widget.controller ?? MaintenanceController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.init();
+      if (mounted) _controller.init();
     });
     _controller.addListener(_onControllerChanged);
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (mounted) setState(() { _submitError = null; });
   }
 
   @override
@@ -44,33 +46,45 @@ class MaintenancePageState extends State<MaintenancePage> {
   }
 
   Future<void> _onSubmitPressed() async {
+    if (_handlingSubmission || _controller.isLoading) return;
     _controller.markAttemptedSubmit();
     if (!_controller.isFormValid) return;
     await _handleMaintenance();
   }
 
   Future<void> _handleMaintenance() async {
+    final generation = _controller.generation;
+    setState(() {
+      _handlingSubmission = true;
+      _submitError = null;
+    });
     try {
       final success = await _controller.submitMaintenance();
-      if (!mounted) return;
-
-      if (!success) return;
-
-      _showMaintenanceDialog();
+      if (!mounted || !_controller.isCurrent(generation)) return;
+      if (success) {
+        await _showMaintenanceDialog(generation);
+      } else {
+        setState(() {
+          _submitError =
+              _controller.submissionMessage ?? MaintenanceController.unknownMessage;
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_controller.isCurrent(generation)) return;
+      setState(() { _submitError = MaintenanceController.unknownMessage; });
+    } finally {
+      if (mounted) setState(() { _handlingSubmission = false; });
     }
   }
 
-  void _showMaintenanceDialog() {
-    statusDialog(
+  Future<void> _showMaintenanceDialog(int generation) async {
+    await statusDialog(
       context,
       title: 'Success',
       message: 'Your maintenance request has been submitted',
       isSuccess: true,
-    ).then((_) {
-      if (mounted) context.go('/settings');
-    });
+    );
+    if (mounted && _controller.isCurrent(generation)) context.go('/settings');
   }
 
   @override
@@ -99,13 +113,17 @@ class MaintenancePageState extends State<MaintenancePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 28),
-            MaintenanceForm(controller: _controller),
+            KeyedSubtree(
+              key: ValueKey(_controller.draftKey),
+              child: MaintenanceForm(controller: _controller),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: _controller.isLoading ? null : _onSubmitPressed,
+                onPressed: _controller.isLoading || _handlingSubmission
+                    ? null : _onSubmitPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _controller.isFormValid
                       ? colorScheme.primary
@@ -135,6 +153,11 @@ class MaintenancePageState extends State<MaintenancePage> {
               ),
             ),
             const SizedBox(height: 12),
+            if ((_submitError ?? _controller.submissionMessage) != null)
+              Text(
+                _submitError ?? _controller.submissionMessage!,
+                style: TextStyle(color: colorScheme.error),
+              ),
             const SizedBox(height: 4),
           ],
         ),

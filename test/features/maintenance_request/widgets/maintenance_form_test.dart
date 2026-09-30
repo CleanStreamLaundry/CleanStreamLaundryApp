@@ -30,8 +30,13 @@ void main() {
     when(() => controller.selectedImage).thenReturn(null);
     when(() => controller.attemptedSubmit).thenReturn(false);
     when(() => controller.isFormValid).thenReturn(true);
-    when(() => controller.locations).thenReturn(['123 Main St', '456 Oak Ave']);
+    when(() => controller.locations).thenReturn([
+      (id: '1', address: '123 Main St'),
+      (id: '2', address: '456 Oak Ave'),
+    ]);
     when(() => controller.selectedLocation).thenReturn(null);
+    when(() => controller.generation).thenReturn(0);
+    when(() => controller.isCurrent(any())).thenReturn(true);
 
     when(() => controller.selectCategory(any())).thenReturn(null);
     when(() => controller.selectLocation(any())).thenReturn(null);
@@ -40,6 +45,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(FakeBuildContext());
+    registerFallbackValue(MaintenanceController.noApplicableLocation);
   });
 
   testWidgets('MaintenanceForm renders all fields', (tester) async {
@@ -84,7 +90,8 @@ void main() {
     await tester.tap(find.text('123 Main St'));
     await tester.pumpAndSettle();
 
-    verify(() => controller.selectLocation('123 Main St')).called(1);
+    verify(() => controller.selectLocation((id: '1', address: '123 Main St')))
+        .called(1);
   });
 
   testWidgets('Typing in description updates controller', (tester) async {

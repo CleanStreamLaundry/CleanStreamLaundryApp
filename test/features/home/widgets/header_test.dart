@@ -4,6 +4,8 @@ import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/location_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/machine_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/wallet_service.dart';
+import 'package:clean_stream_laundry_app/logic/models/wallet_balance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -28,6 +30,17 @@ void main() {
     GetIt.instance.registerSingleton<LocationService>(mockLocationService);
     GetIt.instance.registerSingleton<MachineService>(mockMachineService);
     GetIt.instance.registerSingleton<ProfileService>(mockProfileService);
+    final wallet = MockWalletService();
+    when(() => wallet.getBalance()).thenAnswer(
+      (_) async => const WalletBalance(
+        walletAccountId: 'wallet-1',
+        status: 'active',
+        paidBalanceCents: 1250,
+        promoBalanceCents: 0,
+        totalBalanceCents: 1250,
+      ),
+    );
+    GetIt.instance.registerSingleton<WalletService>(wallet);
 
     SharedPreferences.setMockInitialValues({});
 
@@ -74,7 +87,7 @@ void main() {
         ).thenAnswer((_) async => 'Jane');
         when(
           () => mockProfileService.getUserBalanceById('user-1'),
-        ).thenAnswer((_) async => {'balance': 10.0});
+        ).thenAnswer((_) async => {'balance': 10.0, 'full_name': 'Jane'});
 
         final controller = HomePageController(
           locationParser: MockLocationParser(),
@@ -102,7 +115,7 @@ void main() {
         ).thenAnswer((_) async => 'Jane');
         when(
           () => mockProfileService.getUserBalanceById('user-1'),
-        ).thenAnswer((_) async => {'balance': 12.5});
+        ).thenAnswer((_) async => {'balance': 12.5, 'full_name': 'Jane'});
 
         final controller = HomePageController(
           locationParser: MockLocationParser(),

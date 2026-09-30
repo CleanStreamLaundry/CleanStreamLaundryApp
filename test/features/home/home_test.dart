@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'package:clean_stream_laundry_app/logic/models/machine_availability.dart';
+import 'package:clean_stream_laundry_app/features/home/widgets/header.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:clean_stream_laundry_app/features/home/home.dart';
 import 'package:clean_stream_laundry_app/features/widgets/navigation_bar.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/location_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/machine_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/wallet_service.dart';
+import 'package:clean_stream_laundry_app/logic/models/wallet_balance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -34,6 +40,20 @@ void main() {
     GetIt.instance.registerSingleton<LocationService>(mockLocationService);
     GetIt.instance.registerSingleton<MachineService>(mockMachineService);
     GetIt.instance.registerSingleton<ProfileService>(mockProfileService);
+    final wallet = MockWalletService();
+    GetIt.instance.registerSingleton<WalletService>(wallet);
+    when(() => wallet.getBalance()).thenAnswer(
+      (_) async => const WalletBalance(
+        walletAccountId: 'wallet-1',
+        status: 'active',
+        paidBalanceCents: 1000,
+        promoBalanceCents: 0,
+        totalBalanceCents: 1000,
+      ),
+    );
+    when(
+      () => mockAuthService.onAuthChange,
+    ).thenAnswer((_) => const Stream.empty());
 
     SharedPreferences.setMockInitialValues({});
 
@@ -75,6 +95,26 @@ void main() {
     int idleDryers = 2,
   }) {
     when(
+      () => mockMachineService.getAvailability(int.parse(locationId)),
+    ).thenAnswer(
+      (_) async => MachineAvailability(
+        washers: MachineAvailabilityCount(
+          total: washers,
+          available: idleWashers,
+          busy: washers - idleWashers,
+          unknown: 0,
+        ),
+        dryers: MachineAvailabilityCount(
+          total: dryers,
+          available: idleDryers,
+          busy: dryers - idleDryers,
+          unknown: 0,
+        ),
+        checkedAt: DateTime.now(),
+        configured: true,
+      ),
+    );
+    when(
       () => mockMachineService.getWasherCountByLocation(locationId),
     ).thenAnswer((_) async => washers);
     when(
@@ -89,6 +129,55 @@ void main() {
   }
 
   group('Loading state', () {
+    testWidgets(
+      'hidden Home keeps its controller but cannot show a late refresh error',
+      (tester) async {
+        final active = ValueNotifier(true);
+        addTearDown(active.dispose);
+        when(() => mockAuthService.getCurrentUserId).thenReturn('user-1');
+        when(
+          () => mockProfileService.getUserBalanceById('user-1'),
+        ).thenAnswer((_) async => {'full_name': 'Jane'});
+        final page = createWidget();
+        await tester.pumpWidget(
+          ValueListenableBuilder<bool>(
+            valueListenable: active,
+            builder: (_, visible, child) =>
+                TickerMode(enabled: visible, child: child!),
+            child: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller = tester
+            .widget<Header>(find.byType(Header))
+            .controller;
+        final pending = Completer<Map<String, dynamic>?>();
+        when(
+          () => mockProfileService.getUserBalanceById('user-1'),
+        ).thenAnswer((_) => pending.future);
+        final refresh = controller.refresh();
+        await tester.pump();
+        active.value = false;
+        await tester.pump();
+        pending.completeError(StateError('Synthetic late read failure'));
+        await refresh;
+        await tester.pumpAndSettle();
+        expect(find.byType(SnackBar), findsNothing);
+        expect(
+          tester.widget<Header>(find.byType(Header)).controller,
+          same(controller),
+        );
+        clearInteractions(mockProfileService);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+        verifyNever(() => mockProfileService.getUserBalanceById(any()));
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
     testWidgets('shows loading indicator while fetching data', (tester) async {
       when(() => mockLocationService.getLocations()).thenAnswer((_) async {
         await Future.delayed(const Duration(milliseconds: 100));
@@ -123,7 +212,7 @@ void main() {
       ).thenAnswer((_) async => 'Jane');
       when(
         () => mockProfileService.getUserBalanceById('user-1'),
-      ).thenAnswer((_) async => {'balance': 10.00});
+      ).thenAnswer((_) async => {'balance': 999.00, 'full_name': 'Jane'});
 
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
@@ -378,6 +467,38 @@ void main() {
   });
 
   group('Home actions', () {
+    testWidgets(
+      'quiet refresh retains the existing map and balance on failure',
+      (tester) async {
+        when(() => mockAuthService.getCurrentUserId).thenReturn('user-1');
+        when(
+          () => mockProfileService.getUserBalanceById('user-1'),
+        ).thenAnswer((_) async => {'full_name': 'Jane', 'balance': 999.0});
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+        final map = tester.element(find.byType(FlutterMap));
+        final controller = tester
+            .widget<Header>(find.byType(Header))
+            .controller;
+        final wallet = GetIt.I<WalletService>() as MockWalletService;
+        final delayed = Completer<WalletBalance>();
+        when(() => wallet.getBalance()).thenAnswer((_) => delayed.future);
+        final pending = controller.refresh();
+        await tester.pump();
+        expect(tester.element(find.byType(FlutterMap)), same(map));
+        expect(find.text('\$10.00'), findsOneWidget);
+        delayed.completeError(StateError('offline'));
+        await pending;
+        await tester.pumpAndSettle();
+        expect(tester.element(find.byType(FlutterMap)), same(map));
+        expect(find.text('\$10.00'), findsOneWidget);
+        expect(
+          find.textContaining('Showing the last loaded balance'),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets('Start Laundry navigates to start page', (tester) async {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();

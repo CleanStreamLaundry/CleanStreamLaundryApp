@@ -4,10 +4,11 @@ import 'package:clean_stream_laundry_app/core/storage/storage_service.dart';
 
 class ThemeManager with ChangeNotifier {
   ThemeData _themeData = lightMode;
-  final StorageService storage = StorageService();
+  final StorageService storage;
+  late final Future<void> initialized;
 
-  ThemeManager() {
-    _initTheme();
+  ThemeManager({StorageService? storage}) : storage = storage ?? StorageService() {
+    initialized = _initTheme();
   }
 
   ThemeData get themeData => _themeData;
@@ -28,12 +29,16 @@ class ThemeManager with ChangeNotifier {
   }
 
   Future<void> _initTheme() async {
-    await storage.init();
-    final savedTheme = await storage.getValue("themeData");
+    try {
+      await storage.init();
+      final savedTheme = await storage.getValue("themeData");
 
-    if (savedTheme == "darkMode") {
-      _themeData = darkMode;
-    } else {
+      if (savedTheme == "darkMode") {
+        _themeData = darkMode;
+      } else {
+        _themeData = lightMode;
+      }
+    } catch (_) {
       _themeData = lightMode;
     }
 

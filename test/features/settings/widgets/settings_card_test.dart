@@ -1,8 +1,89 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/settings/widgets/settings_card.dart';
 
 void main() {
+  testWidgets('declared control width preserves a fitting row', (tester) async {
+    Future<List<Rect>> render(double? controlWidth) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lightMode,
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              child: SettingsCard(
+                icon: Icons.timer,
+                title: 'Timer',
+                subtitle: 'Minutes',
+                trailingWidth: controlWidth,
+                trailing: const SizedBox(width: 118, child: Icon(Icons.add)),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      return [
+        tester.getRect(find.byType(SettingsCard)),
+        tester.getRect(find.text('Timer')),
+        tester.getRect(find.text('Minutes')),
+        tester.getRect(find.byIcon(Icons.timer)),
+        tester.getRect(find.byIcon(Icons.add)),
+      ];
+    }
+
+    final originalLayout = await render(null);
+    expect(await render(118), originalLayout);
+  });
+
+  testWidgets('dark subtitle and destructive label have readable contrast', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: darkMode,
+        home: const Scaffold(
+          body: Column(
+            children: [
+              SettingsCard(
+                icon: Icons.timer,
+                title: 'Notify Before Finish',
+                subtitle: "Minutes you're notified before machine finish",
+              ),
+              SettingsCard(
+                icon: Icons.logout,
+                title: 'Sign Out',
+                isDestructive: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    for (final label in [
+      "Minutes you're notified before machine finish",
+      'Sign Out',
+    ]) {
+      final foreground = tester.widget<Text>(find.text(label)).style!.color!;
+      final background = darkMode.cardColor;
+      final luminance = Color.alphaBlend(
+        foreground,
+        background,
+      ).computeLuminance();
+      final surface = background.computeLuminance();
+      final ratio = luminance > surface
+          ? (luminance + 0.05) / (surface + 0.05)
+          : (surface + 0.05) / (luminance + 0.05);
+      expect(ratio, greaterThanOrEqualTo(4.5), reason: label);
+    }
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.logout)).color,
+      Colors.red.shade700,
+    );
+  });
+
   group('SettingsCard Widget Tests', () {
     testWidgets('renders with title and icon', (WidgetTester tester) async {
       await tester.pumpWidget(

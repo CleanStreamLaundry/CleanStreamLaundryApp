@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:ui' show SemanticsAction;
+
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/widgets/custom_app_bar.dart';
 import 'package:clean_stream_laundry_app/services/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +13,50 @@ class MockNotificationService extends Mock implements NotificationService {}
 
 void main() {
   group("Custom App Bar Tests", () {
+    for (final isDark in [false, true]) {
+      for (final width in [320.0, 800.0]) {
+        testWidgets(
+          'action contrast in ${isDark ? "dark" : "light"} mode at $width',
+          (tester) async {
+            tester.view.physicalSize = Size(width, 600);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: isDark ? darkMode : lightMode,
+                home: const Scaffold(appBar: CustomAppBar()),
+              ),
+            );
+
+            for (final entry in {
+              'Notifications': Icons.notifications_none_rounded,
+              'Settings': Icons.settings_outlined,
+            }.entries) {
+              final icon = find.byIcon(entry.value);
+              expect(
+                IconTheme.of(tester.element(icon)).color,
+                isDark ? Colors.white : Colors.black,
+              );
+              expect(find.byTooltip(entry.key), findsOneWidget);
+              final button = find.ancestor(
+                of: icon,
+                matching: find.byType(IconButton),
+              );
+              final semantics = tester.getSemantics(button).getSemanticsData();
+              expect(semantics.tooltip, entry.key);
+              expect(semantics.flagsCollection.isButton, isTrue);
+              expect(semantics.hasAction(SemanticsAction.tap), isTrue);
+              expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
+              expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+            }
+            expect(tester.getSize(find.byType(AppBar)).height, 60);
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+
     test('CustomAppBar instantiates correctly', () {
       const customAppBar = CustomAppBar();
       expect(customAppBar, isA<CustomAppBar>());
@@ -103,6 +151,40 @@ void main() {
 
       expect(find.text('Notifications'), findsOneWidget);
       expect(find.text('No notifications'), findsOneWidget);
+    });
+
+    testWidgets('deferred notification failure shows the empty state safely', (
+      tester,
+    ) async {
+      final notificationService = MockNotificationService();
+      final pendingNotifications = Completer<List<AppNotification>>();
+      when(
+        () => notificationService.getPendingNotifications(),
+      ).thenAnswer((_) => pendingNotifications.future);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            appBar: CustomAppBar(notificationService: notificationService),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('notifications-button')));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('No notifications'), findsNothing);
+
+      pendingNotifications.completeError(
+        StateError('Notification lookup failed'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('No notifications'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('notification bell shows pending notifications', (

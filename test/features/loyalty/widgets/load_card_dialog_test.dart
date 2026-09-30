@@ -19,15 +19,12 @@ void main() {
     );
   }
 
-  Future<void> openDialog(WidgetTester tester,
-      {Future<void> Function(double)? onPay}) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    Future<void> Function(double)? onPay,
+  }) async {
     await tester.pumpWidget(buildWidget(onPay: onPay));
     await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-  }
-
-  Future<void> acceptTerms(WidgetTester tester) async {
-    await tester.tap(find.text('I agree to the Loyalty Card Terms.'));
     await tester.pumpAndSettle();
   }
 
@@ -49,10 +46,9 @@ void main() {
           find.textContaining('Loyalty Card loads are final sale'),
           findsOneWidget,
         );
-        expect(
-          find.text('I agree to the Loyalty Card Terms.'),
-          findsOneWidget,
-        );
+        expect(find.byType(CheckboxListTile), findsNothing);
+        expect(find.text('View terms'), findsOneWidget);
+        expect(find.text('I agree to the Loyalty Card Terms.'), findsNothing);
       });
 
       testWidgets('shows Cancel and Pay buttons', (tester) async {
@@ -91,15 +87,16 @@ void main() {
         expect(find.text('\$1.25'), findsOneWidget);
       });
 
-      testWidgets('decrements by 25¢ when -25¢ tapped after increment',
-              (tester) async {
-            await openDialog(tester);
-            await tester.tap(find.text('+25¢'));
-            await tester.pumpAndSettle();
-            await tester.tap(find.text('-25¢'));
-            await tester.pumpAndSettle();
-            expect(find.text('\$1.00'), findsOneWidget);
-          });
+      testWidgets('decrements by 25¢ when -25¢ tapped after increment', (
+        tester,
+      ) async {
+        await openDialog(tester);
+        await tester.tap(find.text('+25¢'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('-25¢'));
+        await tester.pumpAndSettle();
+        expect(find.text('\$1.00'), findsOneWidget);
+      });
 
       testWidgets('selects \$10 chip', (tester) async {
         await openDialog(tester);
@@ -124,8 +121,7 @@ void main() {
 
       testWidgets('does not go below \$1.00', (tester) async {
         await openDialog(tester);
-        final decrementButton =
-        find.widgetWithText(OutlinedButton, '-25¢');
+        final decrementButton = find.widgetWithText(OutlinedButton, '-25¢');
         await tester.tap(decrementButton);
         await tester.pumpAndSettle();
         expect(find.text('\$1.00'), findsOneWidget);
@@ -163,7 +159,6 @@ void main() {
           tester,
           onPay: (amount) async => capturedAmount = amount,
         );
-        await acceptTerms(tester);
 
         await tester.tap(find.widgetWithText(ElevatedButton, 'Pay'));
         await tester.pumpAndSettle();
@@ -180,7 +175,6 @@ void main() {
 
         await tester.tap(find.text('\$25'));
         await tester.pumpAndSettle();
-        await acceptTerms(tester);
 
         await tester.tap(find.widgetWithText(ElevatedButton, 'Pay'));
         await tester.pumpAndSettle();
@@ -189,11 +183,7 @@ void main() {
       });
 
       testWidgets('closes dialog before calling onPay', (tester) async {
-        await openDialog(
-          tester,
-          onPay: (_) async {},
-        );
-        await acceptTerms(tester);
+        await openDialog(tester, onPay: (_) async {});
 
         await tester.tap(find.widgetWithText(ElevatedButton, 'Pay'));
         await tester.pumpAndSettle();

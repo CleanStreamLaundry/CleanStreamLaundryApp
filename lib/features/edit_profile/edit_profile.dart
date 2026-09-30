@@ -11,7 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  final VoidCallback? onDeletionPending;
+
+  const EditProfilePage({super.key, this.onDeletionPending});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -84,44 +86,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   void _onDeletePressed() async {
-    final confirmed = await _confirmDeleteAccount();
-    if (!confirmed) return;
-
-    try {
-      final deleted = await _controller.deleteAccount();
-
-      if (!mounted) return;
-
-      if (deleted) {
-        statusDialog(
-          context,
-          title: 'Account Deleted',
-          message: 'Your account has been deleted successfully.',
-          isSuccess: true,
-        );
-        context.go('/login');
-      } else {
-        statusDialog(
-          context,
-          title: 'Error',
-          message: 'An error occurred, please try again later.',
-          isSuccess: false,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      statusDialog(
-        context,
-        title: 'Error',
-        message: e.toString(),
-        isSuccess: false,
-      );
+    final status = await _controller.deleteAccount(
+      confirm: _confirmDeleteAccount,
+      isPageCurrent: () => mounted && (ModalRoute.of(context)?.isCurrent ?? false),
+    );
+    if (!mounted) return;
+    if (status?.accountState == 'pending_deletion') {
+      widget.onDeletionPending?.call();
+      context.go('/admission');
     }
   }
 
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
@@ -151,6 +130,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<bool> _confirmSaveChanges() async {
     return await showDialog<bool>(
           context: context,
+          useRootNavigator: false,
           builder: (context) => AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -195,11 +175,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<bool> _confirmDeleteAccount() async {
     return await showDialog<bool>(
           context: context,
+          useRootNavigator: false,
           builder: (context) {
             var acknowledged = false;
 
             return StatefulBuilder(
               builder: (context, setDialogState) => AlertDialog(
+                scrollable: true,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -222,7 +204,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Deleting your account is permanent and removes app access to your Loyalty Card balance. Clean Stream may retain limited anonymized transaction and balance records for legal, tax, accounting, dispute, fraud-prevention, and compliance purposes.',
+                      'Requesting deletion restricts account access. You have 30 days to recover your account by signing in again and explicitly restoring it. The recovery screen will show your exact deadline. This request does not erase financial records or refund your Loyalty Card balance.',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.fontSecondary,
                       ),
@@ -236,7 +218,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         setDialogState(() => acknowledged = value ?? false);
                       },
                       title: Text(
-                        'I understand deletion is permanent.',
+                        'I understand I have 30 days to recover my account.',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.fontSecondary,
                         ),
@@ -262,7 +244,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Delete'),
+                    child: const Text('Request Deletion'),
                   ),
                 ],
               ),
@@ -351,7 +333,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const SizedBox(height: 30),
 
                       DangerZoneSection(
-                        isSaving: _controller.isSaving,
+                        isSaving: _controller.isSaving || _controller.isDeleting,
+                        needsStatusCheck: _controller.needsDeletionStatusCheck,
+                        message: _controller.deletionMessage,
                         onDeletePressed: _onDeletePressed,
                       ),
                       const SizedBox(height: 24),

@@ -13,6 +13,8 @@ class EmailFormField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     return TextFormField(
       controller: controller,
       enabled: enabled,
@@ -24,13 +26,10 @@ class EmailFormField extends StatelessWidget {
         labelText: 'New Email',
         hintText: 'Enter your email address',
         hintStyle: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .fontSecondary
-              .withValues(alpha: 0.5),
+          color: colorScheme.fontSecondary,
         ),
         labelStyle: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
+          color: isDark ? colorScheme.fontSecondary : colorScheme.primary,
           fontSize: 14,
         ),
         filled: true,

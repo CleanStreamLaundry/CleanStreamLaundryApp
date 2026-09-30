@@ -1,3 +1,4 @@
+import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:clean_stream_laundry_app/logic/parsing/password_parser.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ class ResetProtectedController extends ChangeNotifier {
   bool obscurePassword = true;
   bool obscureConfirm = true;
   bool isLoading = false;
+  bool _disposed = false;
 
   String passwordLabel = 'New Password';
   String confirmLabel = 'Confirm Password';
@@ -22,8 +24,15 @@ class ResetProtectedController extends ChangeNotifier {
   Color labelColor = Colors.blue;
 
   void disposeController() {
+    _disposed = true;
     passwordController.dispose();
     confirmController.dispose();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   void initColors(Color primary) {
@@ -93,11 +102,14 @@ class ResetProtectedController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await authService.updatePassword(password);
+      final response = await authService.updatePassword(password);
+      if (response != AuthenticationResponses.success) {
+        throw StateError('Failed to reset password');
+      }
       return null;
     } finally {
       isLoading = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 }

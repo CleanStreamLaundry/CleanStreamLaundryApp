@@ -8,15 +8,16 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.error_outline, color: Colors.redAccent, size: 80),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Authentication Failed',
           style: TextStyle(
-            color: Colors.white,
+            color: colorScheme.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
@@ -26,7 +27,7 @@ class ErrorView extends StatelessWidget {
         Text(
           error,
           style: TextStyle(
-            color: Colors.redAccent.withValues(alpha: 0.8),
+            color: colorScheme.onSurface,
             fontSize: 14,
           ),
           textAlign: TextAlign.center,
@@ -37,6 +38,9 @@ class ErrorView extends StatelessWidget {
           icon: const Icon(Icons.login),
           label: const Text('Return to Login'),
           style: ElevatedButton.styleFrom(
+            foregroundColor: colorScheme.brightness == Brightness.dark
+                ? colorScheme.onSurface
+                : null,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ),

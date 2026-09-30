@@ -1,5 +1,6 @@
 import 'package:clean_stream_laundry_app/features/machine_payment/controller.dart';
 import 'package:clean_stream_laundry_app/logic/enums/payment_result_enum.dart';
+import 'package:clean_stream_laundry_app/logic/models/wallet_balance.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'mocks.dart';
@@ -9,6 +10,7 @@ void main() {
   late MockMachineService mockMachineService;
   late MockProfileService mockProfileService;
   late MockTransactionService mockTransactionService;
+  late MockWalletService mockWalletService;
   late MockMachineCommunicationService mockMachineCommunicator;
   late MockNotificationService mockNotificationService;
   late MockPaymentProcessor mockPaymentProcessor;
@@ -23,9 +25,20 @@ void main() {
     mockMachineService = MockMachineService();
     mockProfileService = MockProfileService();
     mockTransactionService = MockTransactionService();
+    mockWalletService = MockWalletService();
     mockMachineCommunicator = MockMachineCommunicationService();
     mockNotificationService = MockNotificationService();
     mockPaymentProcessor = MockPaymentProcessor();
+
+    when(() => mockWalletService.getBalance()).thenAnswer(
+      (_) async => const WalletBalance(
+        walletAccountId: 'wallet123',
+        status: 'active',
+        paidBalanceCents: 800,
+        promoBalanceCents: 200,
+        totalBalanceCents: 1000,
+      ),
+    );
 
     when(() => mockNotificationService.scheduleEarlyMachineNotification(
       id: any(named: 'id'),
@@ -34,13 +47,14 @@ void main() {
     )).thenAnswer((_) async {});
   });
 
-  PaymentController buildController({String machineId = 'machine123'}) =>
+  PaymentController buildController({String machineId = '123'}) =>
       PaymentController(
         machineId: machineId,
         authService: mockAuthService,
         machineService: mockMachineService,
         profileService: mockProfileService,
         transactionService: mockTransactionService,
+        walletService: mockWalletService,
         machineCommunicator: mockMachineCommunicator,
         notificationService: mockNotificationService,
         paymentProcessor: mockPaymentProcessor,
@@ -53,10 +67,8 @@ void main() {
   group('init', () {
     test('sets machineName, price, userBalance on success', () async {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
-      when(() => mockMachineService.getMachineById('machine123'))
+      when(() => mockMachineService.getMachineById('123'))
           .thenAnswer((_) async => {'Name': 'Washer01', 'Price': 3.50});
-      when(() => mockProfileService.getUserBalanceById('user123'))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -64,6 +76,8 @@ void main() {
       expect(controller.machineName, 'Washer01');
       expect(controller.price, 3.50);
       expect(controller.userBalance, 10.0);
+      verify(() => mockWalletService.getBalance()).called(1);
+      verifyNever(() => mockProfileService.getUserBalanceById(any()));
       expect(controller.isLoading, isFalse);
     });
 
@@ -71,8 +85,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => null);
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -92,6 +104,7 @@ void main() {
           await controller.init();
 
           verifyNever(() => mockProfileService.getUserBalanceById(any()));
+          verifyNever(() => mockWalletService.getBalance());
           expect(controller.isLoading, isFalse);
         });
 
@@ -99,8 +112,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Washer01', 'Price': 3.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       var notified = false;
@@ -121,8 +132,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': 1.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -134,8 +143,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Washer01', 'Price': 3.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -158,8 +165,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': 1.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -175,8 +180,6 @@ void main() {
           when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
           when(() => mockMachineService.getMachineById(any()))
               .thenAnswer((_) async => {'Name': 'Washer01', 'Price': 3.50});
-          when(() => mockProfileService.getUserBalanceById(any()))
-              .thenAnswer((_) async => {'balance': 10.0});
 
           final controller = buildController();
           await controller.init();
@@ -190,8 +193,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': 1.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
 
       final controller = buildController();
       await controller.init();
@@ -214,8 +215,6 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': 1.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
     });
 
     test('returns success and sets paymentCompleted when everything succeeds',
@@ -321,10 +320,11 @@ void main() {
       when(() => mockAuthService.getCurrentUserId).thenReturn('user123');
       when(() => mockMachineService.getMachineById(any()))
           .thenAnswer((_) async => {'Name': 'Dryer01', 'Price': 1.50});
-      when(() => mockProfileService.getUserBalanceById(any()))
-          .thenAnswer((_) async => {'balance': 10.0});
-      when(() => mockProfileService.updateBalanceById(any(), any()))
-          .thenAnswer((_) async {});
+      when(() => mockWalletService.redeemForMachine(
+        machineId: any(named: 'machineId'),
+        amountCents: any(named: 'amountCents'),
+        note: any(named: 'note'),
+      )).thenAnswer((_) async => <String, dynamic>{});
       when(() => mockTransactionService.recordTransaction(
         amount: any(named: 'amount'),
         description: any(named: 'description'),
@@ -346,7 +346,7 @@ void main() {
       expect(controller.paymentCompleted, isTrue);
     });
 
-    test('updates balance and calls services on success', () async {
+    test('redeems wallet cents and records the transaction on success', () async {
       when(() => mockMachineCommunicator.wakeDevice(any()))
           .thenAnswer((_) async => true);
 
@@ -355,9 +355,13 @@ void main() {
 
       await controller.processLoyaltyPayment();
 
-      verify(() =>
-          mockProfileService.updateBalanceById('user123', 8.5))
-          .called(1);
+      expect(controller.userBalance, 8.5);
+      verify(() => mockWalletService.redeemForMachine(
+        machineId: 123,
+        amountCents: 150,
+        note: 'Loyalty payment on Dryer01',
+      )).called(1);
+      verifyNever(() => mockProfileService.updateBalanceById(any(), any()));
       verify(() => mockTransactionService.recordTransaction(
         amount: 1.50,
         description: any(named: 'description'),
@@ -366,7 +370,7 @@ void main() {
           .called(1);
     });
 
-    test('returns machineError and does not update balance when device fails',
+    test('returns machineError, restores balance and does not redeem when device fails',
             () async {
           when(() => mockMachineCommunicator.wakeDevice(any()))
               .thenAnswer((_) async => false);
@@ -378,6 +382,12 @@ void main() {
 
           expect(result, PaymentOutcome.machineError);
           expect(controller.paymentCompleted, isFalse);
+          expect(controller.userBalance, 10.0);
+          verifyNever(() => mockWalletService.redeemForMachine(
+            machineId: any(named: 'machineId'),
+            amountCents: any(named: 'amountCents'),
+            note: any(named: 'note'),
+          ));
           verifyNever(() => mockProfileService.updateBalanceById(any(), any()));
           verifyNever(() => mockTransactionService.recordTransaction(
             amount: any(named: 'amount'),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/features/not_found/not_found.dart';
@@ -150,5 +152,125 @@ void main() {
 
       verify(() => mockAuthService.isLoggedIn()).called(1);
     });
+  });
+
+  group('Deferred auth lifetime', () {
+    late Completer<AuthenticationResponses> pending;
+    GoRouter? router;
+    late List<String> routeChanges;
+
+    tearDown(() {
+      router?.dispose();
+      router = null;
+    });
+
+    Future<void> begin(WidgetTester tester, {bool press = true}) async {
+      pending = Completer<AuthenticationResponses>();
+      when(() => mockAuthService.isLoggedIn()).thenAnswer((_) => pending.future);
+      routeChanges = [];
+      router = GoRouter(
+        initialLocation: '/unknown',
+        errorBuilder: (_, _) => const NotFound(),
+        routes: [
+          GoRoute(
+            path: '/homePage',
+            builder: (_, _) => const Scaffold(body: Text('Home fixture')),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => const Scaffold(body: Text('Login fixture')),
+          ),
+          GoRoute(
+            path: '/other',
+            builder: (_, _) => const Scaffold(body: Text('Other fixture')),
+          ),
+        ],
+      );
+      router!.routerDelegate.addListener(() {
+        routeChanges.add(router!.routerDelegate.currentConfiguration.uri.path);
+      });
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
+      expect(find.byType(NotFound), findsOneWidget);
+      if (press) {
+        await tester.tap(find.text('Go to Home'));
+        await tester.pump();
+        verify(() => mockAuthService.isLoggedIn()).called(1);
+        expect(pending.isCompleted, isFalse);
+        expect(router!.routerDelegate.currentConfiguration.uri.path, '/unknown');
+      }
+    }
+
+    for (final response in AuthenticationResponses.values) {
+      testWidgets('mounted deferred ${response.name} preserves routing', (tester) async {
+        await begin(tester);
+        pending.complete(response);
+        await tester.pumpAndSettle();
+        final success = response == AuthenticationResponses.success;
+        expect(
+          router!.routerDelegate.currentConfiguration.uri.path,
+          success ? '/homePage' : '/login',
+        );
+        expect(find.text(success ? 'Home fixture' : 'Login fixture'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('mounted deferred exception retains the existing error contract', (tester) async {
+      await begin(tester, press: false);
+      final context = tester.element(find.byType(NotFound));
+      final callback = tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed!;
+      final operation = (callback as Future<void> Function())();
+      verify(() => mockAuthService.isLoggedIn()).called(1);
+      final notificationsBefore = routeChanges.length;
+      final error = StateError('synthetic deferred auth failure');
+      final reported = expectLater(operation, throwsA(same(error)));
+      pending.completeError(error);
+      await reported;
+      await tester.pumpAndSettle();
+      expect(context.mounted, isTrue);
+      expect(router!.routerDelegate.currentConfiguration.uri.path, '/unknown');
+      expect(routeChanges.length, notificationsBefore);
+      expect(find.byType(NotFound), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final disposal in ['unmount', 'navigate away']) {
+      for (final completion in ['success', 'failure', 'throw']) {
+        testWidgets('$disposal then deferred $completion has no late effects', (tester) async {
+          await begin(tester);
+          final oldContext = tester.element(find.byType(NotFound));
+          if (disposal == 'unmount') {
+            await tester.pumpWidget(const SizedBox.shrink());
+          } else {
+            router!.go('/other');
+            await tester.pumpAndSettle();
+            expect(find.text('Other fixture'), findsOneWidget);
+          }
+          expect(oldContext.mounted, isFalse);
+          final pathBefore = router!.routerDelegate.currentConfiguration.uri.path;
+          final notificationsBefore = routeChanges.length;
+          if (completion == 'throw') {
+            pending.completeError(StateError('synthetic deferred auth failure'));
+          } else {
+            pending.complete(
+              completion == 'success'
+                  ? AuthenticationResponses.success
+                  : AuthenticationResponses.failure,
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(router!.routerDelegate.currentConfiguration.uri.path, pathBefore);
+          expect(routeChanges.length, notificationsBefore);
+          expect(find.byType(NotFound), findsNothing);
+          if (disposal == 'navigate away') {
+            expect(find.text('Other fixture'), findsOneWidget);
+          }
+          expect(tester.takeException(), isNull);
+          verifyNoMoreInteractions(mockAuthService);
+        });
+      }
+    }
   });
 }

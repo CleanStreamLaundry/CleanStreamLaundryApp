@@ -100,6 +100,7 @@ class _AdminWalletsPageState extends State<AdminWalletsPage> {
     final noteController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: Column(

@@ -1,14 +1,18 @@
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/widgets/base_page.dart';
+import 'package:clean_stream_laundry_app/logic/models/loyalty_policy_status.dart';
+import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum LegalPageType { privacy, terms, loyaltyCard }
 
 class LegalPage extends StatelessWidget {
   final LegalPageType type;
+  final ProfileService? profileService;
 
-  const LegalPage({super.key, required this.type});
+  const LegalPage({super.key, required this.type, this.profileService});
 
   String get title => switch (type) {
     LegalPageType.privacy => 'Privacy Policy',
@@ -27,11 +31,7 @@ class LegalPage extends StatelessWidget {
       'If a paid machine vend is rejected, voided, or times out, Clean Stream will initiate the applicable card refund or wallet reversal. Laundry refunds may be reviewed by support using the related payment and machine records.',
       'The current public Terms of Service govern use of the website, app, payments, wallet, and connected laundry services.',
     ],
-    LegalPageType.loyaltyCard => const [
-      'Loyalty Card loads are final sale prepaid Clean Stream Laundry credit. Balance is usable only for eligible Clean Stream Laundry services, is not a bank account, does not earn interest, and is not redeemable for cash except where required by law.',
-      'Promotional bonus credits have no cash value and may be subject to separate terms. Promotional credit is tracked separately from paid credit and is applied before paid credit when a wallet payment is used.',
-      'Deleting your account removes app access. Clean Stream may retain anonymized wallet, ledger, load, redemption, and complaint records for legal, tax, accounting, dispute, fraud-prevention, and compliance purposes. Deleted wallets are not normally restored or reattached.',
-    ],
+    LegalPageType.loyaltyCard => const [],
   };
 
   Uri get publicUrl => Uri.parse(switch (type) {
@@ -69,6 +69,8 @@ class LegalPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
+                if (type == LegalPageType.loyaltyCard)
+                  _LoyaltyPolicyDocument(service: profileService),
                 for (final paragraph in paragraphs) ...[
                   Text(
                     paragraph,
@@ -82,9 +84,14 @@ class LegalPage extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 FilledButton.icon(
+                  style: FilledButton.styleFrom(foregroundColor: Colors.white),
                   onPressed: () => _openPublicPolicy(context),
                   icon: const Icon(Icons.open_in_new),
-                  label: const Text('View current policy'),
+                  label: Text(
+                    type == LegalPageType.loyaltyCard
+                        ? 'Public website terms'
+                        : 'View current policy',
+                  ),
                 ),
               ],
             ),
@@ -93,4 +100,96 @@ class LegalPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LoyaltyPolicyDocument extends StatefulWidget {
+  final ProfileService? service;
+
+  const _LoyaltyPolicyDocument({this.service});
+
+  @override
+  State<_LoyaltyPolicyDocument> createState() => _LoyaltyPolicyDocumentState();
+}
+
+class _LoyaltyPolicyDocumentState extends State<_LoyaltyPolicyDocument> {
+  LoyaltyPolicyDescriptor? _descriptor;
+  bool _loading = true;
+  bool _failed = false;
+  int _request = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_LoyaltyPolicyDocument oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.service != widget.service) _load();
+  }
+
+  Future<void> _load() async {
+    final request = ++_request;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final descriptor = await (widget.service ?? GetIt.I<ProfileService>())
+          .getLoyaltyPolicyDescriptor();
+      if (!mounted || request != _request) return;
+      setState(() => _descriptor = descriptor);
+    } catch (_) {
+      if (!mounted || request != _request) return;
+      setState(() => _failed = true);
+    } finally {
+      if (mounted && request == _request) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final descriptor = _descriptor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Review-only draft'),
+        if (_loading)
+          const LinearProgressIndicator(semanticsLabel: 'Loading policy'),
+        if (descriptor != null) LoyaltyPolicyText(descriptor: descriptor),
+        if (_failed) const Text('Unable to load the policy.'),
+        IconButton(
+          onPressed: _loading ? null : _load,
+          tooltip: _failed ? 'Retry policy' : 'Refresh policy',
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+}
+
+class LoyaltyPolicyText extends StatelessWidget {
+  final LoyaltyPolicyDescriptor descriptor;
+
+  const LoyaltyPolicyText({super.key, required this.descriptor});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 14),
+      SelectableText(
+        descriptor.policyText,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.fontSecondary,
+          fontSize: 15,
+          height: 1.45,
+        ),
+      ),
+      const SizedBox(height: 14),
+      SelectableText('Version: ${descriptor.requiredVersion}'),
+      SelectableText('SHA-256: ${descriptor.policySha256}'),
+    ],
+  );
 }
