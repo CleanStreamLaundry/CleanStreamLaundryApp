@@ -1,5 +1,19 @@
+export function selectWebhookSecret(
+  rawBody: string,
+  secrets: { live?: string; sandbox?: string },
+): string {
+  const { livemode } = JSON.parse(rawBody);
+  if (typeof livemode !== "boolean") throw new Error("Invalid Stripe event mode");
+  // This untrusted field only selects a key; the raw body must still pass verification.
+  const secret = livemode ? secrets.live : secrets.sandbox ?? secrets.live;
+  if (!secret) throw new Error("Stripe webhook signing secret is not configured");
+  return secret;
+}
+
 export interface StripeEvent {
     id?: string;
+    created?: number;
+    livemode?: boolean;
     type: string;
     data: {
       object: any;
@@ -8,9 +22,9 @@ export interface StripeEvent {
   
   export interface Dependencies {
     verifyAndConstructEvent: (rawBody: string, signature: string) => Promise<StripeEvent>;
-    broadcastPaymentSuccess: (payload: {
-      user_id?: string;
-      amount?: number;
+    recordTopupRefundProvenance?: (payload: {
+      intent: string; user: string; amount: number; succeededAt: string;
+      event: string; livemode: boolean;
     }) => Promise<void>;
     recordWalletLoad?: (payload: {
       user_id: string;
@@ -40,7 +54,6 @@ export interface StripeEvent {
     const { rawBody, signature } = params;
     const {
       verifyAndConstructEvent,
-      broadcastPaymentSuccess,
       recordWalletLoad,
       recordCortinaPayment,
     } = deps;
@@ -88,11 +101,6 @@ export interface StripeEvent {
           stripe_checkout_session_id: session.id,
         });
       }
-  
-      await broadcastPaymentSuccess({
-        user_id: userId,
-        amount,
-      });
     }
 
     if (event.type === "payment_intent.succeeded") {
@@ -112,6 +120,16 @@ export interface StripeEvent {
               : paymentIntent.latest_charge?.id ?? null,
           stripe_event_id: event.id ?? null,
         });
+        if (deps.recordTopupRefundProvenance && event.id &&
+          Number.isSafeInteger(event.created) && (event.created ?? 0) > 0 &&
+          typeof event.livemode === "boolean" && paymentIntent.status === "succeeded" &&
+          paymentIntent.currency === "usd" && Number.isSafeInteger(amount) && amount > 0) {
+          await deps.recordTopupRefundProvenance({
+            intent: paymentIntent.id, user: userId, amount,
+            succeededAt: new Date(event.created! * 1000).toISOString(),
+            event: event.id, livemode: event.livemode,
+          });
+        }
       }
 
 

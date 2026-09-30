@@ -74,10 +74,11 @@ function getPaymentIntentChargeId(intent: Stripe.PaymentIntent): string | null {
   return charge?.id ?? null;
 }
 
-async function recordWalletLoadFromIntent(
+export async function recordWalletLoadFromIntent(
   intent: Stripe.PaymentIntent,
   userId: string,
-  supabaseAdmin: SupabaseClient
+  supabaseAdmin: SupabaseClient,
+  checkoutSessionId: string | null = null
 ): Promise<boolean> {
   if (intent.metadata?.purpose !== "wallet_load") {
     return false;
@@ -96,7 +97,7 @@ async function recordWalletLoadFromIntent(
     target_user_id: userId,
     amount_cents: amountCents,
     stripe_payment_intent_id: intent.id,
-    stripe_checkout_session_id: null,
+    stripe_checkout_session_id: checkoutSessionId,
     stripe_charge_id: getPaymentIntentChargeId(intent),
     stripe_event_id: null,
   });

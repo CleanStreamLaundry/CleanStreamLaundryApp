@@ -20,10 +20,12 @@ Be warm, direct, repo-aware, and verification-minded. Leave the project easier t
 - Set delegated reasoning effort explicitly: `medium` for routine implementation, docs, styling, and straightforward tests; `high` for auth, payments, database changes, concurrency, and difficult QA. Reserve extra-high for a concrete unresolved problem, not the default. Keep the inherited model unless the user requests another.
 - Assign effort by task risk, not the composer's setting. Escalate only when evidence warrants it. If an agent's effort cannot be changed in place, finish its bounded batch and set the next agent appropriately rather than restarting completed work.
 - Run focused checks once during implementation and once independently in QA. Composer reviews the diff and evidence instead of routinely running a third copy. Rerun only after a relevant change or to investigate a concrete failure.
+- Start new Auth transport work with one real-SDK, fake-HTTP happy path before expanding mocked race tests; catch SDK replay/cleanup assumptions early.
 - Reserve full suites, native builds, and broad security checks for shared-contract changes or release checkpoints. Never weaken financial, authorization, or data-integrity verification to save usage.
 - Reuse accepted evidence while its inputs are unchanged. Check owned files and relevant dependencies, not repeated whole-workspace fingerprint inventories.
 - Read targeted sections, keep handoffs concise, and maintain one current status record. Do not duplicate long logs, historical narratives, or complete context across agents.
 - After two unsuccessful attempts at the same check, record the blocker and change approach or move to unblocked work. Do not spend repeated runs proving the same environment failure.
+- Following the host restart, use one bounded check at a time and no automatic agent-pool, simulator, native-build, or preview restart. Reuse existing caches without making full copies; keep new isolated work/handoffs under the workspace's `.campaign-work/` rather than volatile `/private/tmp`. Verify files and process handles after interruptions, and distinguish recorded past results from reproducible surviving evidence.
 
 ## Read Only What You Need
 
@@ -52,6 +54,7 @@ Keep operations focused on current assignments, approvals and evidence summaries
 - Auth entry spans the router, loading controller, auth service, and `clean-stream://` deep links. Check all four before changing OAuth, verification, reset, or post-login redirects.
 - For web callbacks, verify the actual document URL, base path, and Flutter URL strategy as well as the router URI. Hash routes and top-level OAuth parameters are different inputs. Keep one callback consumer and test exchange, cleanup, reload, and failure without relying only on mocked route strings.
 - Financial changes cross interfaces, implementations, Edge Functions, and SQL. Read the payments reference first; never infer success from UI state.
+- Keep collection, wallet spending and machine activity distinct in reporting. A Nayax vend can describe an existing Stripe/wallet payment; join verified provider IDs before counting money. Portal access and cached diagnostics do not prove current API entitlement.
 
 ## Safety and Coordination
 
@@ -68,6 +71,10 @@ Keep operations focused on current assignments, approvals and evidence summaries
 - Nonpersistent Auth clients can still share browser broadcast state. Disabling storage or token refresh does not establish isolation; verify cross-client effects in a browser before relying on temporary clients.
 - Keep account/payment truth server-side. Do not weaken authorization, idempotency, financial checks, or recovery to reduce code.
 - Bind asynchronous mutations to the intended caller before dispatch and guard late completion against account/route changes, including A-to-B-to-A. UI cleanup or a response timeout cannot undo SDK/server side effects already started.
+- Revalidate time-sensitive authority after lock waits, including waits inside triggers. Keep prechecks for stable errors; post-wait failure must roll back the mutation.
+- Mount protected dialogs and pushed payment pages inside the admission-controlled navigator. A root overlay can remain actionable above a blocked shell; test session/admission changes while the real modal is open.
+- Invalidate cached admission after account lifecycle mutations before recovery navigation. Changing the route alone can reuse a prior Home permission; test with the actual shared router/gate.
+- Retain protected presentation only while admission is unresolved; a resolved restriction must expose its recovery path, not leave an inert old screen. New privacy choices during startup must outrank saved consent snapshots.
 - Audit effective table/column grants, policies, triggers, and executable functions together. RLS being enabled or a column-level revoke alone does not prove sensitive fields are protected; check inherited/table-wide privileges and trusted-function paths.
 - Verify current official vendor docs before SDK/API changes. Prefer narrow MCP inspection where useful, then local tools. A failed/skipped check is not a pass.
 
