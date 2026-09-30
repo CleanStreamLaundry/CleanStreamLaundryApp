@@ -91,7 +91,12 @@ import {
     await createCheckoutSession(stripe, 4999, "user-456");
   
     assertEquals(capturedParams.line_items[0].price_data.unit_amount, 4999);
-    assertEquals(capturedParams.metadata.user_id, "user-456");
+    assertEquals(capturedParams.metadata, {
+      user_id: "user-456",
+      purpose: "direct_machine_payment",
+      amount_cents: "4999",
+    });
+    assertEquals(capturedParams.payment_intent_data.metadata, capturedParams.metadata);
   });
   
   Deno.test("createCheckoutSession — throws on invalid amount (zero)", async () => {
@@ -131,6 +136,39 @@ import {
   
     assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
     assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
+  });
+
+  Deno.test("handleCheckout - wallet metadata correlates Session and PaymentIntent", async () => {
+    let capturedParams: any;
+    const calls: unknown[] = [];
+    const stripe = {
+      checkout: { sessions: { create: (params: unknown) => {
+        capturedParams = params;
+        return Promise.resolve({ url: "https://checkout.stripe.com/test", id: "cs_wallet" });
+      } } },
+    } as any;
+    const response = await handleCheckout(
+      makeRequest({ amount: 2500, purpose: "walletLoad" }),
+      {
+        stripe,
+        supabase: makeSupabaseMock({ id: "user-1" }),
+        supabaseAdmin: { rpc: (name: string, params: unknown) => {
+          calls.push({ name, params });
+          return Promise.resolve({ data: "wallet-1", error: null });
+        } } as any,
+      },
+      "https://myapp.com",
+    );
+    assertEquals(await response.json(), { url: "https://checkout.stripe.com/test", session_id: "cs_wallet" });
+    assertEquals(calls, [{ name: "get_or_create_wallet_account", params: { target_user_id: "user-1" } }]);
+    assertEquals(capturedParams.metadata, {
+      user_id: "user-1", purpose: "wallet_load", amount_cents: "2500", wallet_account_id: "wallet-1",
+    });
+    assertEquals(capturedParams.payment_intent_data.metadata, capturedParams.metadata);
+    assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
+    assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
+    assertEquals(capturedParams.line_items[0].price_data.currency, "usd");
+    assertEquals(capturedParams.line_items[0].price_data.unit_amount, 2500);
   });
   
   Deno.test("handleCheckout — returns 200 with url and session_id on success", async () => {
@@ -255,4 +293,3 @@ import {
     assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
     assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
   });
-  

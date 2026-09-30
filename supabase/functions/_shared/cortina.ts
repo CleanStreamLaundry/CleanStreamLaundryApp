@@ -66,6 +66,10 @@ export interface VendSession {
   stripe_checkout_session_id: string | null;
   stripe_refund_id: string | null;
   wallet_redemption_id: number | null;
+  nayax_environment: "sandbox" | "production" | null;
+  nayax_terminal_id: string | null;
+  nayax_uniqr: string | null;
+  stripe_livemode: boolean | null;
 }
 
 export interface CortinaDeps {
@@ -227,11 +231,15 @@ export async function resolveQuote(
 
   const { data: machine, error: machineError } = await admin
     .from("Machines")
-    .select("id, Name, Machine_type, Status, Location_ID, washer_size_rate_id")
+    .select("id, Name, Machine_type, Status, Location_ID, washer_size_rate_id, is_out_of_service")
     .eq("id", config.machine_id)
     .maybeSingle();
   if (machineError || !machine) {
     throw new HttpError(404, "Machine is not available", "machine_not_found");
+  }
+
+  if (machine.is_out_of_service) {
+    throw new HttpError(409, "This machine is out of service. Choose another machine.", "machine_unavailable");
   }
 
   const status = String(machine.Status ?? "").toLowerCase();
@@ -332,6 +340,9 @@ export async function createVendSession(
   if (!error && data) {
     return { session: data as VendSession, accessToken, wasCreated: true };
   }
+  if (error?.code === "55000") {
+    throw new HttpError(409, "This machine is out of service. Choose another machine.", "machine_unavailable");
+  }
   if (error?.code !== "23505") {
     throw new HttpError(500, error?.message ?? "Unable to create vend session");
   }
@@ -415,7 +426,9 @@ export async function compensateVend(
     if (!session.stripe_payment_intent_id) {
       throw new Error("Paid card session is missing its PaymentIntent");
     }
-    const refund = await deps.stripe.refunds.create(
+    const refund = session.stripe_refund_id
+      ? await deps.stripe.refunds.retrieve(session.stripe_refund_id)
+      : await deps.stripe.refunds.create(
       {
         payment_intent: session.stripe_payment_intent_id,
         reason: "requested_by_customer",
@@ -423,11 +436,19 @@ export async function compensateVend(
       },
       { idempotencyKey: `cortina-refund-${session.id}` },
     );
+    const paymentIntent = typeof refund.payment_intent === "string"
+      ? refund.payment_intent : refund.payment_intent?.id;
+    const matches = Boolean(refund.id) &&
+      (!session.stripe_refund_id || refund.id === session.stripe_refund_id) &&
+      paymentIntent === session.stripe_payment_intent_id &&
+      refund.amount === session.amount_cents &&
+      refund.currency?.toUpperCase() === session.currency.toUpperCase();
+    const succeeded = matches && refund.status === "succeeded";
     const { error } = await deps.admin.from("cortina_vend_sessions").update({
-      status: "refunded",
-      stripe_refund_id: refund.id,
-      completed_at: new Date().toISOString(),
-      failure_message: reason,
+      status: succeeded ? "refunded" : "support_required",
+      stripe_refund_id: session.stripe_refund_id ?? refund.id ?? null,
+      completed_at: succeeded ? new Date().toISOString() : null,
+      failure_message: succeeded ? reason : `${reason}: Refund needs reconciliation`,
     }).eq("id", session.id);
     if (error) throw new Error(error.message);
   } catch (error) {
@@ -455,21 +476,43 @@ export async function startCortinaVend(
   if (!claimed) return;
   const session = claimed as VendSession;
 
+  if (!session.nayax_environment ||
+      (!textValue(session.nayax_terminal_id) && !textValue(session.nayax_uniqr))) {
+    const { error } = await deps.admin.from("cortina_vend_sessions").update({
+      status: "support_required",
+      failure_message: "Historical payment routing needs reconciliation",
+    }).eq("id", session.id).eq("status", "starting");
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  // A checkout opened before an outage can still settle. Compensate through the
+  // existing idempotent refund/reversal path before sending a machine start.
+  const { data: machine, error: machineError } = await deps.admin
+    .from("Machines")
+    .select("id, is_out_of_service")
+    .eq("id", session.machine_id)
+    .maybeSingle();
+  if (machineError || !machine || machine.is_out_of_service) {
+    await compensateVend(session, deps, "Machine is out of service or unavailable");
+    return;
+  }
+
   const { data: config, error: configError } = await deps.admin
     .from("cortina_machine_config")
     .select("*")
     .eq("machine_id", session.machine_id)
     .single();
-  if (configError || !config?.is_enabled) {
+  if (configError || !config?.is_enabled || config.review_required) {
     await compensateVend(session, deps, "Machine configuration is unavailable");
     return;
   }
 
   try {
-    const settings = nayaxSettings(config.environment);
+    const settings = nayaxSettings(session.nayax_environment);
     const selector = session.product_code != null
       ? { Code: session.product_code }
-      : { PulseLineNumber: session.pulse_line_number ?? config.pulse_line_number };
+      : { PulseLineNumber: session.pulse_line_number };
     const value = session.product_code ?? selector.PulseLineNumber;
     if (!Number.isInteger(value) || value! < (session.product_code != null ? 0 : 1) ||
         value! > (session.product_code != null ? 32767 : 6)) {
@@ -485,10 +528,10 @@ export async function startCortinaVend(
       SecretToken: settings.secretToken,
       Products: [product],
     };
-    if (textValue(config.nayax_terminal_id)) {
-      payload.TerminalId = config.nayax_terminal_id;
+    if (textValue(session.nayax_terminal_id)) {
+      payload.TerminalId = session.nayax_terminal_id;
     } else {
-      payload.UniQR = config.nayax_uniqr;
+      payload.UniQR = session.nayax_uniqr;
     }
 
     const { SecretToken: _secret, ...requestSummary } = payload;
@@ -498,7 +541,7 @@ export async function startCortinaVend(
       source: "clean_stream",
       eventType: "nayax_start_request",
       eventKey: `start-request:${session.id}`,
-      payload: { endpoint: `${endpoint.origin}${endpoint.pathname}`, environment: config.environment, request: requestSummary },
+      payload: { endpoint: `${endpoint.origin}${endpoint.pathname}`, environment: session.nayax_environment, request: requestSummary },
     });
     const response = await (deps.fetcher ?? fetch)(settings.startUrl, {
       method: "POST",
@@ -570,27 +613,49 @@ export async function markCortinaCardPaid(
     .eq("id", input.sessionId)
     .single();
   if (error || !session) throw new Error(error?.message ?? "Vend session not found");
-  if (session.amount_cents !== input.amountCents || session.payment_method !== "card") {
+  if (session.amount_cents !== input.amountCents || session.payment_method !== "card" ||
+      typeof session.stripe_livemode !== "boolean" || !session.nayax_environment ||
+      (session.stripe_payment_intent_id && session.stripe_payment_intent_id !== input.paymentIntentId) ||
+      (input.checkoutSessionId && session.stripe_checkout_session_id !== input.checkoutSessionId) ||
+      (!session.stripe_payment_intent_id && !session.stripe_checkout_session_id)) {
     throw new Error("Stripe payment does not match the vend session");
   }
 
-  await recordVendEvent(deps.admin, {
-    sessionId: input.sessionId,
-    source: "stripe",
-    eventType: "payment_succeeded",
-    eventKey: `stripe:${input.eventId}`,
-    payload: { payment_intent_id: input.paymentIntentId },
+  const metadataMatches = (metadata: Stripe.Metadata | null) =>
+    metadata?.purpose === "cortina_vend" && metadata.cortina_session_id === session.id &&
+    metadata.machine_id === String(session.machine_id) &&
+    metadata.amount_cents === String(session.amount_cents) &&
+    (metadata.user_id ?? null) === session.user_id;
+  const intent = await deps.stripe.paymentIntents.retrieve(input.paymentIntentId);
+  if (intent.id !== input.paymentIntentId || intent.status !== "succeeded" ||
+      intent.amount !== session.amount_cents || intent.amount_received !== session.amount_cents ||
+      intent.currency.toUpperCase() !== session.currency ||
+      intent.livemode !== session.stripe_livemode || !metadataMatches(intent.metadata)) {
+    throw new Error("Stripe has not confirmed this exact payment");
+  }
+  if (session.stripe_checkout_session_id) {
+    const checkout = await deps.stripe.checkout.sessions.retrieve(session.stripe_checkout_session_id);
+    const checkoutIntent = typeof checkout.payment_intent === "string"
+      ? checkout.payment_intent : checkout.payment_intent?.id;
+    if (checkout.id !== session.stripe_checkout_session_id || checkoutIntent !== intent.id ||
+        checkout.mode !== "payment" || checkout.status !== "complete" ||
+        checkout.payment_status !== "paid" || checkout.amount_total !== session.amount_cents ||
+        checkout.currency?.toUpperCase() !== session.currency ||
+        checkout.livemode !== session.stripe_livemode || !metadataMatches(checkout.metadata)) {
+      throw new Error("Stripe Checkout does not match the vend session");
+    }
+  }
+  const chargeId = typeof intent.latest_charge === "string"
+    ? intent.latest_charge : intent.latest_charge?.id ?? null;
+  if (input.chargeId && input.chargeId !== chargeId) {
+    throw new Error("Stripe charge does not match the vend session");
+  }
+  const { error: recordError } = await deps.admin.rpc("record_cortina_card_payment", {
+    p_session: session.id, p_event: input.eventId, p_intent: intent.id,
+    p_checkout: session.stripe_checkout_session_id, p_charge: chargeId,
+    p_amount: intent.amount_received, p_currency: intent.currency, p_livemode: intent.livemode,
   });
-  const { error: updateError } = await deps.admin.from("cortina_vend_sessions")
-    .update({
-      status: "paid",
-      stripe_payment_intent_id: input.paymentIntentId,
-      stripe_checkout_session_id: input.checkoutSessionId ?? null,
-      stripe_charge_id: input.chargeId ?? null,
-    })
-    .eq("id", input.sessionId)
-    .eq("status", "payment_pending");
-  if (updateError) throw new Error(updateError.message);
+  if (recordError) throw new Error(recordError.message);
   await startCortinaVend(input.sessionId, deps);
 }
 

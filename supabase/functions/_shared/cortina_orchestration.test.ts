@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { CortinaDeps, DRYER_OPTIONS, startCortinaVend } from "./cortina.ts";
+import { compensateVend, CortinaDeps, DRYER_OPTIONS, startCortinaVend, VendSession } from "./cortina.ts";
 import { handleNayaxCallback } from "./cortina_callback.ts";
 
 type Row = Record<string, any>;
@@ -7,7 +7,7 @@ type Row = Record<string, any>;
 function fixture() {
   Deno.env.set("NAYAX_SANDBOX_START_URL", "https://nayax.invalid/start");
   Deno.env.set("NAYAX_SANDBOX_SECRET_TOKEN", "test-secret");
-  Deno.env.delete("NAYAX_CALLBACK_AUTH_TOKEN");
+  Deno.env.set("NAYAX_CALLBACK_AUTH_TOKEN", "test-callback-secret");
   const session: Row = {
     id: "00000000-0000-4000-8000-000000000001",
     transaction_id: "0123456789abcdef0123456789abcdef",
@@ -27,14 +27,22 @@ function fixture() {
     environment: "sandbox",
     is_enabled: true,
   };
+  const machine: Row = { id: 1, is_out_of_service: false };
   const events: Row[] = [];
   const requests: Row[] = [];
   const refunds = new Map<string, Row>();
+  const refundCalls: string[] = [];
+  const reversals: string[] = [];
   let beforeApproval: (() => void) | undefined;
   let onStart: (() => Promise<Response>) | undefined;
 
   // Execute predicates at update time to exercise the production compare-and-set logic.
   const admin = {
+    rpc(name: string, input: { target_session_id: string }) {
+      if (name !== "reverse_cortina_wallet_redemption") throw new Error("Unexpected RPC");
+      reversals.push(input.target_session_id); session.status = "refunded";
+      return Promise.resolve({ error: null });
+    },
     from(table: string) {
       let change: Row | undefined;
       let insertion: Row | undefined;
@@ -48,7 +56,7 @@ function fixture() {
           return { data: null, error: null };
         }
         if (change?.status === "approved") beforeApproval?.();
-        const row = table === "cortina_machine_config" ? config : session;
+        const row = table === "cortina_machine_config" ? config : table === "Machines" ? machine : session;
         if (!filters.every((filter) => filter(row))) return { data: null, error: null };
         if (change) Object.assign(row, change);
         return { data: structuredClone(row), error: null };
@@ -79,10 +87,20 @@ function fixture() {
     stripe: {
       refunds: {
         create: async (body: Row, options: { idempotencyKey: string }) => {
+          refundCalls.push("create");
           if (!refunds.has(options.idempotencyKey)) {
-            refunds.set(options.idempotencyKey, { id: "re_test", ...body });
+            refunds.set(options.idempotencyKey, {
+              id: "re_test", status: "succeeded", currency: "usd",
+              amount: session.amount_cents, ...body,
+            });
           }
           return refunds.get(options.idempotencyKey)!;
+        },
+        retrieve: async (id: string) => {
+          refundCalls.push("retrieve");
+          const refund = [...refunds.values()].find((row) => row.id === id);
+          if (!refund) throw new Error("Refund unavailable");
+          return refund;
         },
       },
     },
@@ -104,12 +122,16 @@ function fixture() {
   const callback = async (value = body(), route = "StaticQR/Sale", environment: "sandbox" | "production" = "sandbox") => {
     const response = await handleNayaxCallback(new Request(
       `https://example.supabase.co/functions/v1/nayax-sale-end-sandbox/Cortina/${route}`,
-      { method: "POST", body: JSON.stringify(value) },
+      {
+        method: "POST",
+        headers: { "x-nayax-auth": "test-callback-secret" },
+        body: JSON.stringify(value),
+      },
     ), environment, deps);
     return await response.json();
   };
   return {
-    session, config, events, requests, refunds, deps, body, callback,
+    session, config, machine, events, requests, refunds, refundCalls, reversals, deps, body, callback,
     start: () => startCortinaVend(session.id, deps),
     onStart(value: () => Promise<Response>) { onStart = value; },
     beforeApproval(value: () => void) { beforeApproval = value; },
@@ -285,4 +307,93 @@ Deno.test("Sale never approves an unpaid or already reversed session", async () 
     f.session.status = status;
     assertEquals((await f.callback()).Status.Verdict, "Declined");
   }
+});
+
+Deno.test("a paid checkout settling during an outage is refunded without starting the machine", async () => {
+  const f = fixture();
+  f.machine.is_out_of_service = true;
+  await f.start();
+  await f.start();
+  assertEquals(f.requests.length, 0);
+  assertEquals(f.refunds.size, 1);
+  assertEquals(f.session.status, "refunded");
+});
+
+Deno.test("wallet payment settling during an outage reverses once without sending Start", async () => {
+  const f = fixture(); f.machine.is_out_of_service = true; f.session.payment_method = "wallet";
+  await f.start(); await f.start();
+  assertEquals(f.requests.length, 0); assertEquals(f.refunds.size, 0);
+  assertEquals(f.reversals, [f.session.id]); assertEquals(f.session.status, "refunded");
+});
+Deno.test("a machine that cannot be read fails closed before Start", async () => {
+  const f = fixture(); f.machine.id = 99;
+  await f.start();
+  assertEquals(f.requests.length, 0); assertEquals(f.refunds.size, 1);
+});
+
+for (const status of ["pending", "failed", "canceled", "requires_action", "unknown", undefined]) {
+  Deno.test(`failed vend does not report an unconfirmed ${status} refund as completed`, async () => {
+    const f = fixture();
+    f.machine.is_out_of_service = true;
+    f.refunds.set(`cortina-refund-${f.session.id}`, {
+      id: "re_test", payment_intent: "pi_test", amount: 400, currency: "usd", status,
+    });
+    await f.start();
+    assertEquals(f.session.status, "support_required");
+    assertEquals(f.session.stripe_refund_id, "re_test");
+    assertEquals(f.session.completed_at, null);
+    assertEquals(f.requests.length, 0);
+    assertEquals(f.refundCalls, ["create"]);
+  });
+}
+
+for (const mismatch of [
+  { payment_intent: "pi_other" }, { amount: 399 }, { currency: "eur" },
+  { id: "" }, { currency: undefined }, { amount: undefined },
+]) {
+  Deno.test(`failed vend rejects successful refund mismatch ${JSON.stringify(mismatch)}`, async () => {
+    const f = fixture();
+    f.refunds.set(`cortina-refund-${f.session.id}`, {
+      id: "re_test", payment_intent: "pi_test", amount: 400, currency: "usd",
+      status: "succeeded", ...mismatch,
+    });
+    await compensateVend(f.session as VendSession, f.deps, "Machine unavailable");
+    assertEquals(f.session.status, "support_required");
+    assertEquals(f.session.completed_at, null);
+  });
+}
+
+Deno.test("bound pending refund is retrieved to confirm success without another create", async () => {
+  const f = fixture();
+  f.session.status = "support_required";
+  f.session.stripe_refund_id = "re_test";
+  const refund = { id: "re_test", payment_intent: { id: "pi_test" }, amount: 400,
+    currency: "usd", status: "pending" };
+  f.refunds.set(`cortina-refund-${f.session.id}`, refund);
+  await compensateVend(f.session as VendSession, f.deps, "Machine unavailable");
+  assertEquals(f.session.status, "support_required");
+  refund.status = "succeeded";
+  await compensateVend(f.session as VendSession, f.deps, "Machine unavailable");
+  assertEquals(f.session.status, "refunded");
+  assertEquals(typeof f.session.completed_at, "string");
+  assertEquals(f.refundCalls, ["retrieve", "retrieve"]);
+  await compensateVend(f.session as VendSession, f.deps, "Machine unavailable");
+  assertEquals(f.refundCalls, ["retrieve", "retrieve"]);
+});
+
+Deno.test("unavailable bound refund remains support-required without a replacement create", async () => {
+  const f = fixture();
+  f.session.status = "support_required";
+  f.session.stripe_refund_id = "re_unavailable";
+  let failed = false;
+  try {
+    await compensateVend(f.session as VendSession, f.deps, "Machine unavailable");
+  } catch {
+    failed = true;
+  }
+  assertEquals(failed, true);
+  assertEquals(f.session.status, "support_required");
+  assertEquals(f.session.stripe_refund_id, "re_unavailable");
+  assertEquals(f.refundCalls, ["retrieve"]);
+  assertEquals(f.refunds.size, 0);
 });
