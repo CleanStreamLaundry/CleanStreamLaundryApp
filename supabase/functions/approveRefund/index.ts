@@ -1,16 +1,16 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { handleRefundResolution } from "../_shared/refund_resolution.ts";
-import { createRefundResolutionDependencies } from "../_shared/refund_resolution_backend.ts";
+import {
+  capturedBearer,
+  createCreditDependencies,
+} from "../admin-portal/backend.ts";
 
-const admin = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
+Deno.serve((request) =>
+  handleRefundResolution(
+    request,
+    "approved",
+    createCreditDependencies(capturedBearer(request), {
+      url: Deno.env.get("SUPABASE_URL")!,
+      anonKey: Deno.env.get("SUPABASE_ANON_KEY")!,
+    }),
+  )
 );
-const dependencies = createRefundResolutionDependencies(
-  admin,
-  Deno.env.get("RESEND_API_KEY"),
-);
-
-serve((req) => handleRefundResolution(req, "approved", dependencies));

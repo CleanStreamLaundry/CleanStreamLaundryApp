@@ -39,6 +39,13 @@ export async function createCheckoutSession(
     throw new Error("Invalid amount");
   }
 
+  const purpose: PaymentPurpose =
+    purposeOrBaseUrl === "walletLoad" ? "walletLoad" : "directMachinePayment";
+  if (purposeOrBaseUrl !== "walletLoad" &&
+      purposeOrBaseUrl !== "directMachinePayment") {
+    baseUrl = purposeOrBaseUrl;
+  }
+
   const metadata: Record<string, string> = {
     user_id: userId,
     purpose: purpose === "walletLoad" ? "wallet_load" : "direct_machine_payment",
@@ -119,9 +126,3 @@ export async function handleCheckout(
     headers: { "Content-Type": "application/json" },
   });
 }
-  const purpose: PaymentPurpose =
-    purposeOrBaseUrl === "walletLoad" ? "walletLoad" : "directMachinePayment";
-  if (purposeOrBaseUrl !== "walletLoad" &&
-      purposeOrBaseUrl !== "directMachinePayment") {
-    baseUrl = purposeOrBaseUrl;
-  }

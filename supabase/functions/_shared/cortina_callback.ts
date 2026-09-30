@@ -110,7 +110,7 @@ function amountAndCurrencyMatch(session: VendSession, body: JsonObject): boolean
 
 async function authorizeCallback(req: Request): Promise<boolean> {
   const expected = Deno.env.get("NAYAX_CALLBACK_AUTH_TOKEN");
-  if (!expected) return true;
+  if (!expected?.trim()) return false;
   const supplied = req.headers.get("x-nayax-auth") ??
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const [expectedHash, suppliedHash] = await Promise.all([

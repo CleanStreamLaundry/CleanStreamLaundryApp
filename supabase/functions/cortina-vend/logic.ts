@@ -103,6 +103,9 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
         payment_method_types: ["card"],
         metadata,
       }, { idempotencyKey: `cortina-card-${created.session.id}` });
+      if (intent.livemode !== created.session.stripe_livemode) {
+        throw new Error("Stripe environment does not match the machine");
+      }
       const { error } = await deps.admin.from("cortina_vend_sessions").update({
         stripe_payment_intent_id: intent.id,
       }).eq("id", created.session.id);
@@ -138,6 +141,9 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
       success_url: `${payUrl}?session=${created.session.id}&access=${created.accessToken}`,
       cancel_url: `${payUrl}?${cancelSelector}`,
     }, { idempotencyKey: `cortina-checkout-${created.session.id}` });
+    if (checkout.livemode !== created.session.stripe_livemode) {
+      throw new Error("Stripe environment does not match the machine");
+    }
     const { error } = await deps.admin.from("cortina_vend_sessions").update({
       stripe_checkout_session_id: checkout.id,
     }).eq("id", created.session.id);
@@ -151,7 +157,7 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
     await deps.admin.from("cortina_vend_sessions").update({
       status: "failed",
       failure_message: error instanceof Error ? error.message : String(error),
-    }).eq("id", created.session.id);
+    }).eq("id", created.session.id).eq("status", "payment_pending");
     throw error;
   }
 }
@@ -238,35 +244,12 @@ export async function handleCardConfirm(
     return jsonResponse({ status: session.status });
   }
 
-  const intent = await deps.stripe.paymentIntents.retrieve(
-    session.stripe_payment_intent_id,
-  );
-  const amountCents = intent.amount_received || intent.amount;
-  if (
-    intent.status !== "succeeded" ||
-    intent.currency.toLowerCase() !== session.currency.toLowerCase() ||
-    amountCents !== session.amount_cents ||
-    intent.metadata?.purpose !== "cortina_vend" ||
-    intent.metadata?.cortina_session_id !== session.id ||
-    intent.metadata?.machine_id !== String(session.machine_id) ||
-    intent.metadata?.amount_cents !== String(session.amount_cents)
-  ) {
-    throw new HttpError(
-      409,
-      "Stripe has not confirmed this payment",
-      "payment_unconfirmed",
-    );
-  }
-
   await markCortinaCardPaid(
     {
-      eventId: `confirm:${intent.id}`,
+      eventId: `confirm:${session.stripe_payment_intent_id}`,
       sessionId: session.id,
-      amountCents,
-      paymentIntentId: intent.id,
-      chargeId: typeof intent.latest_charge === "string"
-        ? intent.latest_charge
-        : intent.latest_charge?.id ?? null,
+      amountCents: session.amount_cents,
+      paymentIntentId: session.stripe_payment_intent_id,
     },
     deps,
   );

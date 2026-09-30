@@ -85,9 +85,11 @@ Deno.test("handlePaymentIntentStatus — returns normalized status for the owner
   const body = await res.json();
 
   assertEquals(res.status, 200);
-  assertEquals(body.paymentIntentId, "pi_test");
-  assertEquals(body.status, "succeeded");
-  assertEquals(body.walletLoadRecorded, false);
+  assertEquals(body, {
+    paymentIntentId: "pi_test",
+    status: "succeeded",
+    walletLoadRecorded: false,
+  });
   assertEquals(rpcCalls.length, 0);
 });
 

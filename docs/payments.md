@@ -7,6 +7,20 @@ Local source reviewed 2026-09-29, including dirty/untracked work. Deployment and
 - `supabase/migrations/20260526010000_wallet_ledger_compliance.sql` defines wallet loads, paid/promo ledger, balances, redemptions, and cash-redemption bookkeeping. `wallet_balances` is ledger-derived; `profiles.balance` is a dollar compatibility cache, not independent money truth.
 - Wallet ledger/RPC and Cortina amounts, and Stripe API request amounts, use integer USD cents. Flutter `PaymentService.makePayment(double amount)` currently takes dollars; Stripe implementations convert at the Edge-request boundary. `Refunds.amount`, transaction history, `profiles.balance`, and `profiles.reward_tracker` use dollars. Preserve these boundaries and avoid double conversion.
 - Each cumulative 2,000 paid cents currently earns 500 promo cents; reward progress crosses loads. Machine spending consumes promo first. Refunding a load cannot simply delete its row or subtract only a guessed bonus.
+
+## Admin Collections and Device Activity
+
+Source inspection on 2026-09-30, not a deployed-data reconciliation:
+
+- `portal_dataset('transactions')` combines Cortina app/web sessions with unlinked legacy history. A linked legacy transaction is excluded from the second branch, so the session and its ledger row are not two list entries. It labels `card`/`wallet` and app/web, but does not expose an independent direct-Nayax-reader sales feed.
+- Cortina sessions retain Stripe intent/checkout/charge references and Nayax transaction/RRN references. The Nayax callback locates an existing Clean Stream session; it is not an importer for all terminal card taps.
+- The overview reads `transactions`, not all Stripe settlements or `wallet_loads`. Its exact-description exclusions miss newer `Loyalty payment on Washer - <name>` rows; original amounts also survive late void/refund status updates. Treat these as reporting defects, not evidence of duplicated provider charges or customer loss.
+- Required model: collection processor, entry channel, vend provider, stable provider IDs, environment, gross/refunded/net collection amounts and reconciliation state. Stripe collection plus Nayax vend is one collection with linked operational evidence. Direct Nayax collection is separate only when supported by verified provider data. Unknown historical provenance remains explicitly unattributed.
+- Keep wallet funding and redemption separate: funding is cash collected, redemption consumes an existing balance, promotional credit is not cash collected. Machine activity totals are a separate operational measure, not a sum added to collection totals. Refund/void outcomes must reconcile without deleting original history.
+- Before enabling direct-device reporting, verify the authorized Nayax export/API, fees/quotas and environment. Use idempotent imports, stable IDs and explicit correlation; no amount/time-only deduplication, Supabase Realtime or assumed zero totals when the feed is unavailable.
+- September 30 read-only live verification: Nayax DEV reported three USD 4.00 vends; all matched existing Cortina sessions by transaction ID and RRN (two app wallet spends, one Stripe web payment). They are not extra Nayax collections. No direct reader card sample or transaction API entitlement was verified. [Evidence and unsent access request](../NAYAX_AVAILABILITY_RESEARCH.md#access-and-reporting-check---september-30).
+
+## Existing Financial Safeguards
 - `stripeWebhook/logic.ts` and `paymentIntentStatus/logic.ts` both reach `record_wallet_load_from_stripe`; the latter verifies payment ownership and successful status. Preserve shared idempotency across both paths.
 - Read-only production inspection found unique load indexes for Stripe intent, Checkout session, charge, and event IDs, but no explicit locking in the recording RPC's reward-tracker read/update. Distinct concurrent loads can race reward progress; the new Checkout-status caller must not be treated as production-ready until this shared financial contract is hardened and verified.
 - Live `redeem_wallet_for_machine` also reads the ledger balance without a wallet-level lock or wallet-status check. Cortina's per-session lock does not serialize spending from different sessions against the same wallet. Coordinate all financial writers and lock order before refunds/reservations or account restrictions rely on that state.
@@ -21,16 +35,18 @@ Local source reviewed 2026-09-29, including dirty/untracked work. Deployment and
 | Workflow | Current local behavior |
 | --- | --- |
 | Machine-issue claim | `Refunds` approval adds promo-only credit, not a Stripe payout; hardened resolution locks/deduplicates the request |
-| Failed card vend | Requests a Stripe refund with session-based idempotency, then marks the vend `refunded` without checking provider refund status. Thrown errors attempt `support_required`. Pending/failed refund reconciliation is a baseline risk; local `refunded` is not completed repayment. |
+| Failed card vend | Local repair marks `refunded` only for a successful refund matching principal, currency and PaymentIntent; other results retain the provider ID and `support_required`. A bound ID is retrieved, never replaced with another create. Independent 67 callback/orchestration checks pass; durable scheduled/webhook reconciliation remains open. Deployed behavior is unchanged. |
 | Failed wallet vend | Reverses the original paid/promo split and marks redemption void; spend history remains |
 | Legal cash/redemption bookkeeping | `admin_record_legal_cash_redemption` records negative paid ledger entries; an optional Stripe reference does not issue a payout |
-| Voluntary unused-topup refund | Proposed only; no dedicated request/reservation/provider reconciliation workflow found |
+| Voluntary unused-topup refund | Backend and customer/Owner interfaces integrated locally. External-replacement reservation bug is fixed and independently accepted (131 Deno; unchanged 54 PostgreSQL evidence retained). Owner/reporting QA also passed. Hosted/provider verification and operational controls remain; not deployed or activated. |
 
 Flutter `lib/services/supabase/supabase_admin_wallet_service.dart` currently passes a null Stripe refund reference. Do not label that as an implemented cash refund. Existing machine-claim history uses a 14-day request window, not the proposed 48-hour top-up window. Local admin portal resolution adds location scope; do not discard that work.
 
 App legal/load copy currently says final sale except legally required remedies. Website copy differs. Do not publish the new policy as available before the workflow works across app, backend, admin, and public terms.
 
-## Approved Top-Up Policy, Not Implemented
+## Approved Top-Up Contract
+
+Implemented locally with the verification limits above; not deployed or promised as available in published policy.
 
 - Eligibility uses server-recorded request time and authoritative successful-payment time: `0 <= requested_at - payment_succeeded_at <= 48 hours`. Owner review may occur later. Load insertion time is not necessarily payment-success time.
 - Any wallet spending after the top-up disqualifies it, including promo-only spend and a failed vend later fully reversed. Earlier account usage is allowed. Restored balance does not erase usage history.
@@ -44,7 +60,7 @@ App legal/load copy currently says final sale except legally required remedies. 
 
 Server owns quote/pricing, device mapping, washer settings, six dryer choices, and payment/vend authorization. Check exactly one Start request and strict transaction, terminal, amount, currency, and environment matching. Verify callback authentication; missing configuration must not silently authorize callbacks.
 
-Current local `_shared/cortina_callback.ts` is not yet strict: missing `NAYAX_CALLBACK_AUTH_TOKEN` allows the request; absent currency or missing callback/configured terminal passes matching. Environment is checked against mutable machine configuration, not an immutable session snapshot. These are source findings, not fresh provider/deployment tests. Review actual documented provider payloads and deployment compatibility before tightening them; preserve captured-payment reconciliation rather than silently rejecting settlement in production.
+Local `_shared/cortina_callback.ts` now denies missing/blank `NAYAX_CALLBACK_AUTH_TOKEN` before parsing or effects; valid configured header behavior is preserved. Independent review passed 35 supplied and 18 new cases. This is not deployed: confirm Nayax's real inbound authentication contract and credentials before rollout so settlement is not accidentally blocked. Other gaps remain: absent currency or missing callback/configured terminal passes matching, and environment is checked against mutable machine configuration instead of an immutable session snapshot. These are source findings, not fresh provider/deployment tests.
 
 Provider compatibility matters: Nayax's [Sale example](https://devzone.nayax.com/docs/cortina/staticqr/static-qr-sale) has an empty terminal ID but a hardware serial; those identifiers are not automatically interchangeable. [SaleEndNotification](https://devzone.nayax.com/docs/cortina/sale-end-notification) documents transaction/currency fields, not a device object, so requiring a terminal on every callback would reject valid payloads. [Void](https://devzone.nayax.com/docs/cortina/staticqr/static-qr-void) can follow a Sale-response timeout; it cannot require a previously acknowledged Sale. Proposed validation must freeze environment/device identity before funding and use route-specific transaction binding. Confirm the actual inbound authentication arrangement with Nayax before implementation; outbound Start credentials do not prove callback authentication. No provider call or financial-source implementation is authorized by this review.
 

@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.223.0/http/server.ts";
 import Stripe from "npm:stripe@14";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { handleStripeWebhook } from "./logic.ts";
+import { handleStripeWebhook, selectWebhookSecret } from "./logic.ts";
 import {
   createAdminClient,
   markCortinaCardPaid,
@@ -16,13 +15,16 @@ serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   const rawBody = await req.text();
 
-  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;
   const admin = createAdminClient();
 
   const result = await handleStripeWebhook(
     { rawBody, signature },
     {
       verifyAndConstructEvent: async (body, sig) => {
+        const webhookSecret = selectWebhookSecret(body, {
+          live: Deno.env.get("STRIPE_WEBHOOK_SECRET"),
+          sandbox: Deno.env.get("STRIPE_SANDBOX_WEBHOOK_SECRET"),
+        });
         return await stripe.webhooks.constructEventAsync(
           body,
           sig,
@@ -30,19 +32,6 @@ serve(async (req) => {
           undefined,
           Stripe.createSubtleCryptoProvider()
         );
-      },
-
-      broadcastPaymentSuccess: async (payload) => {
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
-
-        await supabase.channel("payments").send({
-          type: "broadcast",
-          event: "payment_success",
-          payload,
-        });
       },
 
       recordWalletLoad: async (payload) => {
@@ -58,6 +47,17 @@ serve(async (req) => {
         if (error) {
           throw new Error(error.message);
         }
+      },
+
+      recordTopupRefundProvenance: async (payload) => {
+        const { error } = await admin.rpc("record_topup_refund_provenance", {
+          p_intent: payload.intent, p_user: payload.user, p_amount: payload.amount,
+          p_succeeded_at: payload.succeededAt, p_event: payload.event,
+          p_livemode: payload.livemode,
+        });
+        // Funding is already idempotently committed. A delivery retry can repair
+        // provenance without crediting the wallet twice.
+        if (error) throw new Error("Top-up refund provenance unavailable");
       },
 
       recordCortinaPayment: async (payload) => {
