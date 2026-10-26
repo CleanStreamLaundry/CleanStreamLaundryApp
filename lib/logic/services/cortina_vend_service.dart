@@ -26,4 +26,9 @@ abstract class CortinaVendService {
   Future<void> confirmCardPayment(CortinaVendReference reference);
 
   Future<CortinaVendStatus> status(CortinaVendReference reference);
+
+  Future<CortinaVendReference> recoverPendingPayment({
+    required String clientRequestId,
+    required int machineId,
+  });
 }

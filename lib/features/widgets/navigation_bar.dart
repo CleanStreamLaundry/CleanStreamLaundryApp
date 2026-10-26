@@ -1,10 +1,8 @@
-import 'dart:math' as math;
-
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class NavBar extends StatelessWidget {
-  static const double _minimumHeight = 82;
   static const TextStyle _labelStyle = TextStyle(fontSize: 12, height: 1);
 
   static const List<_NavDestination> _destinations = [
@@ -56,44 +54,48 @@ class NavBar extends StatelessWidget {
     final location = router.routeInformationProvider.value.uri.toString();
     final currentIndex = _getIndex(location);
     final colorScheme = Theme.of(context).colorScheme;
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    final height = math.max(
-      _minimumHeight,
-      kBottomNavigationBarHeight + bottomInset,
-    );
+    final isDark = colorScheme.brightness == Brightness.dark;
 
     return Material(
       color: colorScheme.surface,
       elevation: 12,
-      child: SizedBox(
-        height: height,
-        child: BottomNavigationBar(
-          currentIndex: currentIndex,
-          backgroundColor: colorScheme.surface,
-          selectedItemColor: colorScheme.primary,
-          unselectedItemColor: Colors.grey.shade600,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          selectedLabelStyle: _labelStyle.copyWith(fontWeight: FontWeight.w700),
-          unselectedLabelStyle: _labelStyle,
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          onTap: (index) {
-            final route = _destinations[index].route;
-            if (!location.startsWith(route)) {
-              context.go(route);
-            }
-          },
-          items: _destinations
-              .map(
-                (destination) => BottomNavigationBarItem(
-                  icon: Icon(destination.icon),
-                  activeIcon: Icon(destination.activeIcon),
-                  label: destination.label,
-                ),
-              )
-              .toList(),
-        ),
+      // BottomNavigationBar reserves the system navigation inset itself.
+      child: BottomNavigationBar(
+        currentIndex: currentIndex,
+        backgroundColor: colorScheme.surface,
+        selectedItemColor: isDark
+            ? colorScheme.fontInverted
+            : colorScheme.primary,
+        unselectedItemColor: isDark
+            ? colorScheme.fontSecondary
+            : Colors.grey.shade600,
+        selectedIconTheme: isDark
+            ? IconThemeData(color: colorScheme.primary)
+            : null,
+        unselectedIconTheme: isDark
+            ? IconThemeData(color: Colors.grey.shade600)
+            : null,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        selectedLabelStyle: _labelStyle.copyWith(fontWeight: FontWeight.w700),
+        unselectedLabelStyle: _labelStyle,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        onTap: (index) {
+          final route = _destinations[index].route;
+          if (!location.startsWith(route)) {
+            context.go(route);
+          }
+        },
+        items: _destinations
+            .map(
+              (destination) => BottomNavigationBarItem(
+                icon: Icon(destination.icon),
+                activeIcon: Icon(destination.activeIcon),
+                label: destination.label,
+              ),
+            )
+            .toList(),
       ),
     );
   }

@@ -8,6 +8,7 @@ void showSearchingDialog(BuildContext context, VoidCallback onCancel) {
 
   showDialog(
     context: context,
+    useRootNavigator: false,
     barrierDismissible: false,
     builder: (dialogContext) => Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

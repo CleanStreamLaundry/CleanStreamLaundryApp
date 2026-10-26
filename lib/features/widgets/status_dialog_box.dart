@@ -9,30 +9,42 @@ Future<void> statusDialog(
 }) {
   return showDialog(
     context: context,
+    useRootNavigator: false,
     builder: (dialogContext) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Theme.of(dialogContext).colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      scrollable: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.green[50],
+              color:
+                  (isSuccess
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error)
+                      .withValues(alpha: .10),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isSuccess ? Icons.check_circle : Icons.error,
-              color: isSuccess ? Colors.green : Colors.red,
-              size: 64,
+              color: isSuccess
+                  ? (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF8DCDF4)
+                        : Theme.of(context).colorScheme.primary)
+                  : Theme.of(context).colorScheme.error,
+              size: 40,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Text(
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Theme.of(context).colorScheme.fontInverted,
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -42,6 +54,7 @@ Future<void> statusDialog(
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
+              height: 1.5,
               color: Theme.of(context).colorScheme.fontInverted,
             ),
           ),
@@ -53,7 +66,8 @@ Future<void> statusDialog(
                 Navigator.of(dialogContext).pop();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[700],
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                minimumSize: const Size(48, 48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),

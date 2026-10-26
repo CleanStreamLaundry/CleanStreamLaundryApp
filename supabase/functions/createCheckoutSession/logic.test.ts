@@ -10,6 +10,7 @@ import {
   
   function makeSupabaseMock(user: object | null, error: object | null = null) {
     return {
+      rpc: () => ({ abortSignal: () => Promise.resolve({ data: true, error: null }) }),
       auth: {
         getUser: () => Promise.resolve({ data: { user }, error }),
       },
@@ -91,7 +92,12 @@ import {
     await createCheckoutSession(stripe, 4999, "user-456");
   
     assertEquals(capturedParams.line_items[0].price_data.unit_amount, 4999);
-    assertEquals(capturedParams.metadata.user_id, "user-456");
+    assertEquals(capturedParams.metadata, {
+      user_id: "user-456",
+      purpose: "direct_machine_payment",
+      amount_cents: "4999",
+    });
+    assertEquals(capturedParams.payment_intent_data.metadata, capturedParams.metadata);
   });
   
   Deno.test("createCheckoutSession — throws on invalid amount (zero)", async () => {
@@ -131,6 +137,53 @@ import {
   
     assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
     assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
+  });
+
+  Deno.test("handleCheckout - wallet metadata correlates Session and PaymentIntent", async () => {
+    const contextId = "00000000-0000-4000-8000-000000000001";
+    let capturedParams: any;
+    const calls: unknown[] = [];
+    const admissionSubjects: string[] = [];
+    const stripe = {
+      checkout: { sessions: { create: (params: unknown) => {
+        capturedParams = params;
+        return Promise.resolve({ url: "https://checkout.stripe.com/test", id: "cs_wallet",
+          amount_total: 2500, currency: "usd", metadata: capturedParams.metadata });
+      } } },
+    } as any;
+    const response = await handleCheckout(
+      makeRequest({ amount: 2500, purpose: "walletLoad", consent: { context_id: contextId, acknowledged: true } }),
+      {
+        stripe,
+        supabase: makeSupabaseMock({ id: "user-1" }),
+        fundingAdmission: (subject) => { admissionSubjects.push(subject); return Promise.resolve(); },
+        walletLoadConsent: () => Promise.resolve({context_id:contextId,subject_id:"user-1",wallet_account_id:"wallet-1",
+          amount_cents:2500,channel:"checkout",accepted_at:"2026-10-05T15:00:00Z",policy_version:"synthetic-policy",
+          policy_sha256:"a".repeat(64),provider_reference:null}),
+        supabaseAdmin: { rpc: (name: string, params: unknown) => {
+          if (name === "new_payments_enabled") return {
+            abortSignal: () => Promise.resolve({ data: true, error: null }),
+          };
+          calls.push({ name, params });
+          return Promise.resolve({ data: "wallet-1", error: null });
+        } } as any,
+      },
+      "https://myapp.com",
+    );
+    assertEquals(await response.json(), { url: "https://checkout.stripe.com/test", session_id: "cs_wallet" });
+    assertEquals(calls, [{ name: "get_or_create_wallet_account", params: { target_user_id: "user-1" } },
+      {name:"bind_wallet_load_consent_provider",params:{p_context_id:contextId,p_subject_id:"user-1",
+        p_amount_cents:2500,p_channel:"checkout",p_provider_reference:"cs_wallet"}}]);
+    assertEquals(admissionSubjects, ["user-1", "user-1", "user-1", "user-1"]);
+    assertEquals(capturedParams.metadata, {
+      user_id: "user-1", purpose: "wallet_load", amount_cents: "2500", wallet_account_id: "wallet-1",
+      consent_context_id:contextId,consent_policy_version:"synthetic-policy",consent_policy_sha256:"a".repeat(64),
+    });
+    assertEquals(capturedParams.payment_intent_data.metadata, capturedParams.metadata);
+    assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
+    assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
+    assertEquals(capturedParams.line_items[0].price_data.currency, "usd");
+    assertEquals(capturedParams.line_items[0].price_data.unit_amount, 2500);
   });
   
   Deno.test("handleCheckout — returns 200 with url and session_id on success", async () => {
@@ -255,4 +308,3 @@ import {
     assertEquals(capturedParams.success_url, "https://myapp.com/homePage");
     assertEquals(capturedParams.cancel_url, "https://myapp.com/homePage");
   });
-  

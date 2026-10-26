@@ -33,12 +33,18 @@ void main() {
         expect(find.byIcon(Icons.close), findsOneWidget);
       });
 
-      testWidgets('Cancel button has red background', (tester) async {
+      testWidgets('Cancel button uses primary brand color', (tester) async {
         await tester.pumpWidget(buildWidget());
         final fab = tester.widget<FloatingActionButton>(
           find.widgetWithText(FloatingActionButton, 'Cancel'),
         );
-        expect(fab.backgroundColor, Colors.red);
+        expect(
+          fab.backgroundColor,
+          Theme.of(
+            tester.element(find.byType(ScannerOverlay)),
+          ).colorScheme.primary,
+        );
+        expect(fab.foregroundColor, Colors.white);
       });
 
       testWidgets('displays scanning frame with correct size', (tester) async {
@@ -48,9 +54,12 @@ void main() {
           if (widget is Container && widget.decoration is BoxDecoration) {
             final decoration = widget.decoration as BoxDecoration;
             final border = decoration.border as Border?;
-            return border?.top.color == Colors.white &&
+            return border?.top.color ==
+                    Theme.of(
+                      tester.element(find.byType(ScannerOverlay)),
+                    ).colorScheme.secondary &&
                 border?.top.width == 3 &&
-                decoration.borderRadius == BorderRadius.circular(12);
+                decoration.borderRadius == BorderRadius.circular(8);
           }
           return false;
         });

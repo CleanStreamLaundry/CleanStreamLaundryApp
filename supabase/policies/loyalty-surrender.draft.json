@@ -1,0 +1,71 @@
+{
+  "title": "Loyalty Program Terms",
+  "effective_date": "2026-10-05",
+  "draft": true,
+  "action_acknowledgements": {
+    "wallet_load": "I agree to the Loyalty Program Terms for this purchase.",
+    "account_deletion": "I voluntarily request account deletion and agree to surrender my remaining purchased and promotional laundry credit without payment if I do not explicitly restore my account before the 90-day recovery deadline, except where forfeiture is prohibited by law."
+  },
+  "sections": [
+    {
+      "heading": "1. Important purchase and deletion terms",
+      "paragraphs": [
+        "Loading your wallet purchases prepaid laundry-service credit usable only at participating Clean Stream-operated locations in Indiana. It is not a bank deposit or savings account, earns no interest, and is not available for cash withdrawal. Credit cannot be gifted, transferred to another customer, or used outside Clean Stream.",
+        "Purchases are nonrefundable except under sections 3 and 4 or where required by law. Credit does not expire solely through inactivity and carries no inactivity fee. If you voluntarily delete your account and do not explicitly restore it within the 90-day recovery period, you agree to surrender unused purchased and promotional credit and reward progress under section 6, except where applicable law prohibits forfeiture.",
+        "These terms govern the loyalty program offered by Clean Stream Laundry Solutions LLC. You agree initially, separately for each purchase, and expressly when requesting deletion. The version and acknowledgement for each action are recorded. Reading the terms without checking the agreement does not authorize a purchase or deletion."
+      ]
+    },
+    {
+      "heading": "2. Rewards and responsible use",
+      "paragraphs": [
+        "The applicable reward offer is displayed when you load your wallet. Promotional credit has no cash value and is applied before purchased credit. Spending wallet credit does not earn the load reward again. A refunded load loses its associated promotional credit and reward progress; unrelated earlier rewards are not canceled merely because a later load is refunded.",
+        "Use only accounts and payment methods you are authorized to use. Protect your credentials, report suspected unauthorized access or incorrect charges promptly, and follow posted facility and machine instructions. Do not interfere with payment controls, manipulate rewards, or submit fraudulent claims. We may restrict access for misuse or security concerns; restriction alone does not confiscate purchased credit or remove valid claims."
+      ]
+    },
+    {
+      "heading": "3. Voluntary refunds of unused wallet loads",
+      "paragraphs": [
+        "You may request a refund of the full paid principal of a load if our server receives the request no later than 48 hours after successful funding, including exactly 48 hours. No wallet spending may have occurred after that load, including promotional-credit spending or a failed vend later reversed. Earlier account use does not disqualify a later load.",
+        "An Owner reviews timely requests and may approve them after the deadline. Approved refunds return the full paid principal to the original payment method; Clean Stream absorbs original processing fees. No partial voluntary refunds or cash refunds of promotional credit are offered. Associated rewards are reversed under section 2. Deletion or restoration does not restart the refund deadline."
+      ]
+    },
+    {
+      "heading": "4. Machine and payment claims",
+      "paragraphs": [
+        "For our same-day machine-failure remedy, notify us through the app, on-site staff, or support@cleanstreamlaundry.com while you are at the affected location and on the same calendar day as the affected use, measured in that location's local time. Include the location, machine, approximate time, payment reference, and problem. We aim to resolve eligible issues that same day while you are still doing laundry, subject to staff availability. If our response is delayed, we may reconcile and approve a timely report afterward; our delay does not make your report late.",
+        "For an approved claim, if you have already completed another load to replace the affected service, we credit the affected service amount to your wallet. Otherwise, we arrange an available replacement machine at the same location for the same amount without an additional charge. If a suitable machine or immediate remedy is unavailable, the claim remains open for review.",
+        "Machine-failure claims, duplicate or unauthorized charges, and confirmed failed-payment or vend reversals are separate from voluntary unused-load refunds. The 48-hour restriction does not apply to those claims. The same-day procedure governs our voluntary machine remedy, not mandatory legal or payment-dispute rights. An approved wallet reversal preserves the original purchased and promotional portions; an approved card refund returns to the original payment method. We send a nonpromotional follow-up when a refund decision or reported issue is resolved."
+      ]
+    },
+    {
+      "heading": "5. Payments and availability",
+      "paragraphs": [
+        "Stripe processes app and website card payments and refunds. Nayax supports payments at participating machines and connected-machine operation. Clean Stream remains your contact for laundry-service, payment, and wallet issues. Providers receive information needed to process and reconcile payments as described in the Privacy Policy.",
+        "Prices and service details are shown before payment. Payment confirmation and machine-start confirmation differ; a timeout alone does not establish failure or a right to a refund. Check the machine and payment status and contact support before paying again if the outcome is unclear. Confirmed failed or voided vends with a collected payment or wallet debit receive the applicable refund or reversal. Processing times vary.",
+        "Equipment, networks, and payment services may be interrupted. We cannot promise uninterrupted service or a particular laundry result. Nothing here excludes liability, responsibility for valid service or payment claims, or consumer remedies that cannot lawfully be excluded."
+      ]
+    },
+    {
+      "heading": "6. Account deletion and voluntary surrender",
+      "paragraphs": [
+        "Deletion immediately restricts ordinary account access. You may explicitly restore the original account and wallet links by verifying ownership and completing required authentication before the exact server-set deadline 90 days after the request. The recovery screen displays the deadline and timezone. Signing in alone is not restoration; restoration is unavailable at or after the deadline even if cleanup is delayed.",
+        "Before confirming deletion, review your separately displayed purchased and promotional balances and express surrender acknowledgement. By voluntarily requesting deletion, you agree to surrender remaining purchased and promotional laundry credit and unissued reward progress without payment if you do not restore before the deadline, except where applicable law prohibits forfeiture. Creating a new account does not restore forfeited credit. Deletion does not convert credit into cash or create a refund right.",
+        "Use remaining credit before deletion or submit an eligible refund or claim within its existing deadline. Timely requests, approved refunds, reversals, and pending payments remain subject to the same rules and reconciliation; deletion itself is not a reason for approval. Nothing waives rights that cannot lawfully be waived.",
+        "After the deadline, we delete the login and ordinary profile through our cleanup process, subject to necessary limited retention in the Privacy Policy. The deadline is not a promise that every copy is erased at that moment. Restoration does not reset refund deadlines, duplicate rewards, or automatically restore revoked messaging permissions."
+      ]
+    },
+    {
+      "heading": "7. Changes and disputes",
+      "paragraphs": [
+        "Machine prices and future reward offers may change; the applicable price or offer is shown before purchase. Material revisions requiring agreement are presented under a new version. Changes do not retroactively erase purchased credit or override mandatory rights.",
+        "Contact support first so we can try to resolve a concern. We aim to work toward a resolution within 30 days without preventing urgent relief or requiring you to miss legal deadlines. Indiana law governs without overriding mandatory consumer protections. Unresolved disputes may go to an appropriate court, including small claims when eligible. These terms do not require arbitration or waive jury-trial or class-action rights. Mediation or arbitration requires a separate written agreement after a dispute arises."
+      ]
+    },
+    {
+      "heading": "8. Contact",
+      "paragraphs": [
+        "Contact Clean Stream Laundry Solutions LLC at support@cleanstreamlaundry.com for service, payment, wallet, or privacy questions. Do not send passwords, authentication codes, or full payment-card numbers."
+      ]
+    }
+  ]
+}

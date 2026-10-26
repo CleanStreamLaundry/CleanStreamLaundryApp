@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:clean_stream_laundry_app/features/loyalty/loyalty.dart';
 import 'package:clean_stream_laundry_app/logic/enums/payment_result_enum.dart';
 import 'package:clean_stream_laundry_app/features/widgets/base_page.dart';
@@ -8,6 +9,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'mocks.dart';
+import '../../fixtures/loyalty_action_context.dart';
 
 void main() {
   late MockLoyaltyController mockController;
@@ -18,9 +20,20 @@ void main() {
 
   setUp(() async {
     mockController = MockLoyaltyController();
+    when(() => mockController.loadPurchaseConsent()).thenAnswer((_) async => actionContext());
 
     await GetIt.instance.reset();
     when(() => mockController.isLoading).thenReturn(false);
+    when(() => mockController.isCurrentAccount).thenReturn(true);
+    when(() => mockController.accountEpoch).thenReturn(1);
+    when(() => mockController.isRefreshing).thenReturn(false);
+    when(() => mockController.isPaying).thenReturn(false);
+    when(() => mockController.isLoadingMore).thenReturn(false);
+    when(() => mockController.isLoadingRewards).thenReturn(false);
+    when(() => mockController.hasMoreTransactions).thenReturn(false);
+    when(() => mockController.hasMoreRewards).thenReturn(false);
+    when(() => mockController.refresh()).thenAnswer((_) async {});
+    when(() => mockController.refresh(ifStale: true)).thenAnswer((_) async {});
     when(() => mockController.errorMessage).thenReturn(null);
     when(() => mockController.userName).thenReturn('Test User');
     when(() => mockController.userBalance).thenReturn(25.50);
@@ -66,17 +79,16 @@ void main() {
   }
 
   Future<void> openLoadCardDialog(WidgetTester tester) async {
+    await tester.ensureVisible(find.text('Load card'));
     await tester.tap(find.text('Load card'));
     await tester.pumpAndSettle();
   }
 
-  Future<void> acceptLoyaltyTerms(WidgetTester tester) async {
-    await tester.tap(find.text('I agree to the Loyalty Card Terms.'));
-    await tester.pumpAndSettle();
-  }
-
   Future<void> tapPay(WidgetTester tester) async {
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Pay'));
+    await tester.ensureVisible(find.byType(Checkbox));
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Load'));
     await tester.pumpAndSettle();
   }
 
@@ -139,14 +151,15 @@ void main() {
       expect(find.text('\$42.75'), findsOneWidget);
     });
 
-    testWidgets('displays default balance when userBalance is null', (
+    testWidgets('displays unknown balance rather than zero when unavailable', (
       tester,
     ) async {
       when(() => mockController.userBalance).thenReturn(null);
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
-      expect(find.text('\$0.00'), findsOneWidget);
+      expect(find.text('Wallet balance unavailable'), findsOneWidget);
+      expect(find.byType(WalletPassCard), findsNothing);
     });
 
     testWidgets('displays paid and promo balances', (tester) async {
@@ -306,47 +319,49 @@ void main() {
   });
 
   group('Error handling', () {
-    testWidgets('shows error dialog when errorMessage is set', (tester) async {
+    testWidgets('shows inline refresh error with retained balance', (
+      tester,
+    ) async {
       when(() => mockController.errorMessage).thenReturn('Test error message');
       await tester.pumpWidget(createWidget());
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Error'), findsOneWidget);
-      expect(find.text('Test error message'), findsOneWidget);
-      expect(find.byIcon(Icons.error), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.textContaining('Test error message'), findsOneWidget);
+      expect(find.byType(WalletPassCard), findsOneWidget);
     });
 
-    testWidgets(
-      'navigates to /scanner when error is "Failed to fetch balance"',
-      (tester) async {
-        when(
-          () => mockController.errorMessage,
-        ).thenReturn('Failed to fetch balance');
-        await tester.pumpWidget(createWidget());
-        await tester.pump();
-        await tester.pump();
+    testWidgets('refresh failure does not navigate to scanner', (tester) async {
+      when(
+        () => mockController.errorMessage,
+      ).thenReturn('Failed to fetch balance');
+      await tester.pumpWidget(createWidget());
+      await tester.pump();
+      await tester.pump();
 
-        await tester.tap(find.text('OK'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Refresh wallet'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Scanner'), findsOneWidget);
-      },
-    );
+      expect(find.text('Scanner'), findsNothing);
+      expect(find.byType(WalletPassCard), findsOneWidget);
+      verify(() => mockController.refresh()).called(1);
+    });
 
-    testWidgets('navigates to /login for other errors', (tester) async {
+    testWidgets('read errors do not force navigation to login', (tester) async {
       when(() => mockController.errorMessage).thenReturn('User not known');
       await tester.pumpWidget(createWidget());
       await tester.pump();
       await tester.pump();
 
-      await tester.tap(find.text('OK'));
+      await tester.tap(find.byTooltip('Refresh wallet'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Login'), findsOneWidget);
+      expect(find.text('Login'), findsNothing);
+      verify(() => mockController.refresh()).called(1);
     });
 
-    testWidgets('displays only one error dialog', (tester) async {
+    testWidgets('rebuilds do not enqueue error dialogs', (tester) async {
       when(
         () => mockController.errorMessage,
       ).thenReturn('Something went wrong');
@@ -354,7 +369,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.textContaining('Something went wrong'), findsOneWidget);
     });
   });
 
@@ -392,6 +408,34 @@ void main() {
   });
 
   group('Rewards sheet', () {
+    testWidgets(
+      'independent rewards pagination fits a narrow phone without a cached balance',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        when(() => mockController.userBalance).thenReturn(null);
+        when(
+          () => mockController.rewardTransactions,
+        ).thenReturn(List.generate(25, (i) => 'Reward entry $i'));
+        when(() => mockController.hasMoreRewards).thenReturn(true);
+        when(
+          () => mockController.loadMoreTransactions(rewardsOnly: true),
+        ).thenAnswer((_) async {});
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('rewards-sheet-button')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text('More rewards'));
+        await tester.tap(find.text('More rewards'));
+        verify(
+          () => mockController.loadMoreTransactions(rewardsOnly: true),
+        ).called(1);
+      },
+    );
+
     testWidgets('opens rewards bottom sheet from Rewards pill', (tester) async {
       await tester.pumpWidget(createWidget());
       await tester.pump();
@@ -432,33 +476,209 @@ void main() {
   });
 
   group('Payment handling', () {
+    testWidgets(
+      'hidden Wallet suppresses late payment dialogs and resume reads without replay',
+      (tester) async {
+        final active = ValueNotifier(true);
+        addTearDown(active.dispose);
+        final completion = Completer<PaymentResult>();
+        when(
+          () => mockController.loadCard(1, consent: any(named: 'consent')),
+        ).thenAnswer((_) => completion.future);
+        final page = createWidget();
+        await tester.pumpWidget(
+          ValueListenableBuilder<bool>(
+            valueListenable: active,
+            builder: (_, visible, child) =>
+                TickerMode(enabled: visible, child: child!),
+            child: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await openLoadCardDialog(tester);
+        await tapPay(tester);
+        active.value = false;
+        await tester.pump();
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        completion.complete(PaymentResult.pending);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => mockController.setActive(false)).called(greaterThan(0));
+        verifyNever(() => mockController.refresh(ifStale: true));
+        active.value = true;
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => mockController.refresh(ifStale: true)).called(1);
+        verify(() => mockController.loadCard(1, consent: any(named: 'consent'))).called(1);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets(
+      'pending is neutral support guidance with no automatic charge or extra read',
+      (tester) async {
+        when(
+          () => mockController.loadCard(1.0, consent: any(named: 'consent')),
+        ).thenAnswer((_) async => PaymentResult.pending);
+        await tester.pumpWidget(createWidget());
+        await openLoadCardDialog(tester);
+        await tapPay(tester);
+        final dialog = find.byType(AlertDialog);
+        expect(find.text('Payment verification pending'), findsOneWidget);
+        expect(
+          find.textContaining('contact Clean Stream support'),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.byIcon(Icons.check_circle),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(of: dialog, matching: find.byIcon(Icons.error)),
+          findsNothing,
+        );
+        expect(find.textContaining('update shortly'), findsNothing);
+        expect(find.textContaining('refunded'), findsNothing);
+        await tester.pump(const Duration(minutes: 2));
+        verify(() => mockController.loadCard(1.0, consent: any(named: 'consent'))).called(1);
+        verifyNever(() => mockController.fetchTransactions());
+      },
+    );
+
+    testWidgets('late result after unmount cannot show success or refetch', (
+      tester,
+    ) async {
+      final payment = Completer<PaymentResult>();
+      when(
+        () => mockController.loadCard(1.0, consent: any(named: 'consent')),
+      ).thenAnswer((_) => payment.future);
+      await tester.pumpWidget(createWidget());
+      await openLoadCardDialog(tester);
+      await tapPay(tester);
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      payment.complete(PaymentResult.success);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+      verifyNever(() => mockController.fetchTransactions());
+      verifyNever(() => mockController.dispose());
+    });
+
+    testWidgets(
+      'late result from a changed account cannot show a payment dialog',
+      (tester) async {
+        final payment = Completer<PaymentResult>();
+        when(
+          () => mockController.loadCard(1.0, consent: any(named: 'consent')),
+        ).thenAnswer((_) => payment.future);
+        await tester.pumpWidget(createWidget());
+        await openLoadCardDialog(tester);
+        await tapPay(tester);
+        when(() => mockController.accountEpoch).thenReturn(2);
+        payment.complete(PaymentResult.success);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verifyNever(() => mockController.fetchTransactions());
+      },
+    );
+
+    testWidgets(
+      'same-scope refresh preserves wallet element and scroll position',
+      (tester) async {
+        final listeners = <VoidCallback>[];
+        when(() => mockController.addListener(any())).thenAnswer((call) {
+          listeners.add(call.positionalArguments.single as VoidCallback);
+        });
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+        final card = tester.element(find.byType(WalletPassCard));
+        await tester.drag(
+          find.byType(SingleChildScrollView).first,
+          const Offset(0, -90),
+        );
+        await tester.pumpAndSettle();
+        final scroll = tester.state<ScrollableState>(
+          find.byType(Scrollable).first,
+        );
+        final offset = scroll.position.pixels;
+        when(() => mockController.isRefreshing).thenReturn(true);
+        for (final listener in listeners) {
+          listener();
+        }
+        await tester.pump();
+        expect(tester.element(find.byType(WalletPassCard)), same(card));
+        expect(scroll.position.pixels, offset);
+        when(
+          () => mockController.errorMessage,
+        ).thenReturn('Failed to fetch balance');
+        when(() => mockController.isRefreshing).thenReturn(false);
+        for (final listener in listeners) {
+          listener();
+        }
+        await tester.pump();
+        expect(tester.element(find.byType(WalletPassCard)), same(card));
+        expect(scroll.position.pixels, offset);
+        expect(
+          find.textContaining('Showing the last loaded balance'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'account mismatch masks wallet and history immediately on rebuild',
+      (tester) async {
+        final listeners = <VoidCallback>[];
+        when(() => mockController.addListener(any())).thenAnswer((call) {
+          listeners.add(call.positionalArguments.single as VoidCallback);
+        });
+        when(
+          () => mockController.recentTransactions,
+        ).thenReturn(['Old account entry']);
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+        when(() => mockController.isCurrentAccount).thenReturn(false);
+        for (final listener in listeners) {
+          listener();
+        }
+        await tester.pump();
+        expect(find.byType(WalletPassCard), findsNothing);
+        expect(find.text('Old account entry'), findsNothing);
+        expect(find.text('Wallet balance unavailable'), findsOneWidget);
+      },
+    );
+
     testWidgets('calls loadCard with correct amount on Pay tap', (
       tester,
     ) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.success);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
-      verify(() => mockController.loadCard(1.0)).called(1);
+      verify(() => mockController.loadCard(1.0, consent: any(named: 'consent'))).called(1);
     });
 
     testWidgets('shows success dialog on successful payment', (tester) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.success);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       expect(find.text('Payment Successful!'), findsOneWidget);
@@ -470,35 +690,34 @@ void main() {
       );
     });
 
-    testWidgets('calls fetchTransactions after successful payment', (
-      tester,
-    ) async {
-      when(
-        () => mockController.loadCard(any()),
-      ).thenAnswer((_) async => PaymentResult.success);
+    testWidgets(
+      'does not refetch transactions again after successful payment',
+      (tester) async {
+        when(
+          () => mockController.loadCard(any(), consent: any(named: 'consent')),
+        ).thenAnswer((_) async => PaymentResult.success);
 
-      await tester.pumpWidget(createWidget());
-      await tester.pump();
+        await tester.pumpWidget(createWidget());
+        await tester.pump();
 
-      await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
-      await tapPay(tester);
+        await openLoadCardDialog(tester);
+        await tapPay(tester);
 
-      verify(() => mockController.fetchTransactions()).called(1);
-    });
+        verifyNever(() => mockController.fetchTransactions());
+      },
+    );
 
     testWidgets('shows canceled dialog when payment is canceled', (
       tester,
     ) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.canceled);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       expect(find.text('Payment Canceled'), findsOneWidget);
@@ -507,14 +726,13 @@ void main() {
 
     testWidgets('shows failed dialog when payment fails', (tester) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.failed);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       expect(find.text('Payment Failed'), findsOneWidget);
@@ -530,14 +748,13 @@ void main() {
       tester,
     ) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.failed);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       verifyNever(() => mockController.fetchTransactions());
@@ -547,14 +764,13 @@ void main() {
       tester,
     ) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.canceled);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       verifyNever(() => mockController.fetchTransactions());
@@ -562,7 +778,7 @@ void main() {
 
     testWidgets('handles custom amount payment', (tester) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.success);
 
       await tester.pumpWidget(createWidget());
@@ -573,22 +789,20 @@ void main() {
       await tester.tap(find.text('\$25'));
       await tester.pumpAndSettle();
 
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
-      verify(() => mockController.loadCard(25.0)).called(1);
+      verify(() => mockController.loadCard(25.0, consent: any(named: 'consent'))).called(1);
     });
 
     testWidgets('closes success dialog when Done tapped', (tester) async {
       when(
-        () => mockController.loadCard(any()),
+        () => mockController.loadCard(any(), consent: any(named: 'consent')),
       ).thenAnswer((_) async => PaymentResult.success);
 
       await tester.pumpWidget(createWidget());
       await tester.pump();
 
       await openLoadCardDialog(tester);
-      await acceptLoyaltyTerms(tester);
       await tapPay(tester);
 
       await tester.tap(find.text('Done'));

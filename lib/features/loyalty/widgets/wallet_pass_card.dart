@@ -30,11 +30,12 @@ class WalletPassCard extends StatelessWidget {
             : 360.0;
         final width = math.min(availableWidth, 500.0);
         final height = (width * 0.48).clamp(164.0, 192.0).toDouble();
+        final stacked =
+            width < 320 || MediaQuery.textScalerOf(context).scale(14) > 18;
 
         return Center(
-          child: SizedBox(
-            width: width,
-            height: height,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: height, maxWidth: width),
             child: Material(
               color: Colors.transparent,
               elevation: 9,
@@ -61,11 +62,18 @@ class WalletPassCard extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(18, 15, 18, 16),
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Row(
+                              Flex(
+                                direction: stacked
+                                    ? Axis.vertical
+                                    : Axis.horizontal,
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
+                                  Flexible(
+                                    flex: stacked ? 0 : 1,
                                     child: Row(
                                       children: [
                                         Container(
@@ -93,8 +101,6 @@ class WalletPassCard extends StatelessWidget {
                                             children: [
                                               Text(
                                                 'Clean Stream',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .titleMedium
@@ -108,8 +114,6 @@ class WalletPassCard extends StatelessWidget {
                                               const SizedBox(height: 3),
                                               Text(
                                                 'For $_displayName',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .labelSmall
@@ -128,16 +132,14 @@ class WalletPassCard extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 10, height: 8),
                                   const _PassBadge(label: 'Laundry credit'),
                                 ],
                               ),
-                              const Spacer(),
+                              const SizedBox(height: 8),
                               Text(
                                 'Where freshness flows.',
                                 key: const ValueKey('wallet-pass-slogan'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       color: Colors.white,
@@ -146,10 +148,17 @@ class WalletPassCard extends StatelessWidget {
                                     ),
                               ),
                               const SizedBox(height: 11),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                              Flex(
+                                direction: stacked
+                                    ? Axis.vertical
+                                    : Axis.horizontal,
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: stacked
+                                    ? CrossAxisAlignment.start
+                                    : CrossAxisAlignment.end,
                                 children: [
-                                  Expanded(
+                                  Flexible(
+                                    flex: stacked ? 0 : 1,
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -168,29 +177,24 @@ class WalletPassCard extends StatelessWidget {
                                               ),
                                         ),
                                         const SizedBox(height: 2),
-                                        FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            _formattedBalance,
-                                            key: const ValueKey(
-                                              'wallet-pass-balance',
-                                            ),
-                                            maxLines: 1,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .displaySmall
-                                                ?.copyWith(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w900,
-                                                  height: 1,
-                                                ),
+                                        Text(
+                                          _formattedBalance,
+                                          key: const ValueKey(
+                                            'wallet-pass-balance',
                                           ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .displaySmall
+                                              ?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w900,
+                                                height: 1,
+                                              ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 14),
+                                  const SizedBox(width: 14, height: 8),
                                   const _PassBadge(
                                     label: 'Ready to use',
                                     accented: true,
@@ -234,8 +238,6 @@ class _PassBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w900,

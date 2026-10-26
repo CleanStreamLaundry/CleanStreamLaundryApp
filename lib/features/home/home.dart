@@ -19,24 +19,123 @@ class HomePage extends StatefulWidget {
   HomePageState createState() => HomePageState();
 }
 
-class HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final HomePageController _controller;
   late final MapController _mapController;
+  bool _routeCurrent = true;
+  bool _initialized = false;
+  bool _foreground = true;
+  String? _shownError;
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _errorSnackBar;
+  bool _errorSnackBarVisible = false;
+
+  void refreshAfterWalletActivity() {
+    _controller.refreshAfterWalletActivity();
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mapController = MapController();
     _controller = HomePageController();
     _controller.onZoom = (coords, zoom) => _mapController.move(coords, zoom);
-    _controller.init().catchError((e) => debugPrint('HomePage init error: $e'));
-    _controller.addListener(() {
-      if (mounted) setState(() {});
-    });
+    _controller.addListener(_rebuild);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+  }
+
+  void _rebuild() {
+    if (!mounted) return;
+    setState(() {});
+    final error = _controller.errorMessage;
+    if (error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller.errorMessage == null) _closeErrorSnackBar();
+      });
+    }
+    if (_routeCurrent && error != null && error != _shownError) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_routeCurrent || _controller.errorMessage != error) {
+          return;
+        }
+        if (_errorSnackBar != null) return;
+        final snackBar = ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            onVisible: () {
+              _errorSnackBarVisible = true;
+              if (_controller.errorMessage == null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _controller.errorMessage == null) {
+                    _closeErrorSnackBar();
+                  }
+                });
+              }
+            },
+            content: Text(
+              _controller.balance == null
+                  ? error
+                  : '$error. Showing the last loaded balance.',
+            ),
+            action: SnackBarAction(
+              label: 'Refresh',
+              onPressed: _controller.refresh,
+            ),
+          ),
+        );
+        _errorSnackBar = snackBar;
+        snackBar.closed.then((_) {
+          if (identical(_errorSnackBar, snackBar)) {
+            _errorSnackBar = null;
+            _errorSnackBarVisible = false;
+          }
+        });
+      });
+    }
+    _shownError = error;
+  }
+
+  void _closeErrorSnackBar() {
+    // A queued controller closes the current snack, not its own queue entry.
+    if (!_errorSnackBarVisible) return;
+    _errorSnackBar?.close();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final current =
+        TickerMode.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+    _controller.setActive(current && _foreground);
+    if (!_initialized) {
+      _initialized = true;
+      _controller.init().catchError(
+        (e) => debugPrint('HomePage init error: $e'),
+      );
+    } else if (current && !_routeCurrent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _routeCurrent && _foreground) {
+          _controller.refresh(ifStale: true);
+        }
+      });
+    }
+    _routeCurrent = current;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _controller.setActive(_routeCurrent && _foreground);
+    if (_foreground && _routeCurrent) {
+      _controller.refresh(ifStale: true);
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_rebuild);
     _controller.disposeController();
     _controller.dispose();
     _mapController.dispose();
@@ -45,15 +144,9 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_controller.isLoading) {
-      return BasePage(
-        key: HomePage.pageKey,
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return BasePage(
       key: HomePage.pageKey,
+      headerGradient: Theme.of(context).colorScheme.homeGradient,
       body: Stack(
         children: [
           Positioned(
@@ -63,7 +156,7 @@ class HomePageState extends State<HomePage> {
             height: 106,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: Theme.of(context).colorScheme.primaryGradient,
+                gradient: Theme.of(context).colorScheme.homeGradient,
               ),
             ),
           ),
@@ -74,7 +167,7 @@ class HomePageState extends State<HomePage> {
               builder: (context, constraints) {
                 final metrics = _HomeLayoutMetrics.fromConstraints(
                   constraints,
-                  hasAvailability: _controller.locationSelected,
+                  enlargedText: MediaQuery.textScalerOf(context).scale(14) > 18,
                 );
                 final content = _HomeContent(
                   metrics: metrics,
@@ -83,7 +176,8 @@ class HomePageState extends State<HomePage> {
                   onAddFunds: () => context.go('/loyalty?loadCard=true'),
                   onStartLaundry: () => context.go('/startPage'),
                   onGetDirections: () async {
-                    if (_controller.selectedName != null) {
+                    if (_controller.locationSelected &&
+                        _controller.selectedName != null) {
                       await _controller.openDirectionsFromAddress(
                         _controller.selectedName,
                       );
@@ -151,9 +245,7 @@ class _HomeContent extends StatelessWidget {
       onNearestLocationTap: controller.selectNearestLocation,
       onGetDirections: onGetDirections,
     );
-    final availability = controller.locationSelected
-        ? AvailabilityCard(controller: controller)
-        : null;
+    final availability = AvailabilityCard(controller: controller);
 
     if (metrics.needsScrollFallback) {
       return Column(
@@ -172,10 +264,8 @@ class _HomeContent extends StatelessWidget {
             selectedLocation: controller.selectedCoordinates,
             height: metrics.mapHeight,
           ),
-          if (availability != null) ...[
-            SizedBox(height: metrics.gap),
-            availability,
-          ],
+          SizedBox(height: metrics.gap),
+          availability,
         ],
       );
     }
@@ -197,10 +287,8 @@ class _HomeContent extends StatelessWidget {
             height: null,
           ),
         ),
-        if (availability != null) ...[
-          SizedBox(height: metrics.gap),
-          availability,
-        ],
+        SizedBox(height: metrics.gap),
+        availability,
       ],
     );
   }
@@ -249,7 +337,7 @@ class _HomeLayoutMetrics {
 
   factory _HomeLayoutMetrics.fromConstraints(
     BoxConstraints constraints, {
-    required bool hasAvailability,
+    required bool enlargedText,
   }) {
     final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 390.0;
     final height = constraints.maxHeight.isFinite
@@ -275,7 +363,7 @@ class _HomeLayoutMetrics {
       verticalPadding: verticalPadding,
       gap: gap,
       mapHeight: mapHeight,
-      needsScrollFallback: height < (hasAvailability ? 620.0 : 500.0),
+      needsScrollFallback: enlargedText || height < 580.0,
     );
   }
 }

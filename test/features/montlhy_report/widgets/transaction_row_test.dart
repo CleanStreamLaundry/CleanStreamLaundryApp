@@ -10,26 +10,55 @@ void main() {
   }) {
     return MaterialApp(
       home: Scaffold(
-        body: TransactionRow(
-          label: label,
-          amount: amount,
-          color: color,
-        ),
+        body: TransactionRow(label: label, amount: amount, color: color),
       ),
     );
   }
 
   group('TransactionBreakdownRow', () {
+    testWidgets('large text stacks full amount below label on compact phones', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MediaQuery(
+              data: const MediaQueryData(
+                textScaler: TextScaler.linear(2),
+                boldText: true,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(24),
+                child: TransactionRow(
+                  label: 'Direct Washer Payments',
+                  amount: 1234.56,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getRect(find.text(r'$1234.56')).top,
+        greaterThan(tester.getRect(find.text('Direct Washer Payments')).bottom),
+      );
+    });
     testWidgets('displays the label', (tester) async {
       await tester.pumpWidget(buildWidget(label: 'Direct Washer Payments'));
       expect(find.text('Direct Washer Payments'), findsOneWidget);
     });
 
-    testWidgets('displays amount formatted to two decimal places',
-            (tester) async {
-          await tester.pumpWidget(buildWidget(amount: 2.5));
-          expect(find.text('\$2.50'), findsOneWidget);
-        });
+    testWidgets('displays amount formatted to two decimal places', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildWidget(amount: 2.5));
+      expect(find.text('\$2.50'), findsOneWidget);
+    });
 
     testWidgets('displays zero amount correctly', (tester) async {
       await tester.pumpWidget(buildWidget(amount: 0));

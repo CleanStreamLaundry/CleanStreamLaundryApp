@@ -14,23 +14,26 @@ class TransactionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelText = Text(
+      label,
+      style: TextStyle(fontSize: 14, height: 1.4, color: color),
+    );
+    final amountText = Text(
+      '\$${amount.toStringAsFixed(2)}',
+      textAlign: TextAlign.right,
+      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color),
+    );
+    if (MediaQuery.textScalerOf(context).scale(14) > 21) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [labelText, const SizedBox(height: 4), amountText],
+      );
+    }
     return Row(
       children: [
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 16, color: color),
-          ),
-        ),
-        Text(
-          '\$${amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
+        Expanded(flex: 3, child: labelText),
+        const SizedBox(width: 16),
+        Expanded(flex: 2, child: amountText),
       ],
     );
   }

@@ -19,16 +19,19 @@ class PasswordRequirementsHint extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.grey),
           ),
           child: Text(
             requirement,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
+              letterSpacing: 0,
               fontWeight: FontWeight.w600,
-              color: Colors.grey,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         );

@@ -13,36 +13,66 @@ class SocialSignInButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 16.0),
           child: SizedBox(
             width: double.infinity,
-            height: 36,
             child: ElevatedButton(
-              onPressed: () => controller.authService.googleSignIn(),
+              onPressed: controller.googleSignInPending ||
+                      controller.appleSignInPending
+                  ? null
+                  : () => controller.handleGoogleSignIn(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.grey,
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                backgroundColor: isDark
+                    ? const Color(0xFF131314)
+                    : Colors.white,
+                foregroundColor: isDark
+                    ? const Color(0xFFE3E3E3)
+                    : const Color(0xFF1F1F1F),
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isIOS ? 16 : 12,
+                  vertical: 12,
                 ),
+                side: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF8E918F)
+                      : const Color(0xFF747775),
+                ),
+                shape: const StadiumBorder(),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset(
                     'assets/Google.png',
-                    width: 16,
-                    height: 16,
+                    width: 20,
+                    height: 20,
+                    fit: BoxFit.contain,
+                    excludeFromSemantics: true,
                     key: const Key('google_logo'),
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Sign in with Google',
-                    style: TextStyle(fontSize: 14),
+                  SizedBox(width: isIOS ? 12 : 10),
+                  const Flexible(
+                    child: Text(
+                      'Sign in with Google',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Google Sans',
+                        fontSize: 14,
+                        height: 20 / 14,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -56,7 +86,10 @@ class SocialSignInButtons extends StatelessWidget {
               width: double.infinity,
               height: 36,
               child: ElevatedButton(
-                onPressed: () => controller.authService.appleSignIn(),
+                onPressed: controller.appleSignInPending ||
+                        controller.googleSignInPending
+                    ? null
+                    : () => controller.handleAppleSignIn(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,

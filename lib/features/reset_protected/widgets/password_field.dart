@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class PasswordField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final String visibilityLabel;
   final bool obscureText;
   final VoidCallback onToggleVisibility;
   final ValueChanged<String>? onChanged;
@@ -14,6 +15,7 @@ class PasswordField extends StatelessWidget {
     super.key,
     required this.controller,
     required this.label,
+    this.visibilityLabel = 'password',
     required this.obscureText,
     required this.onToggleVisibility,
     required this.iconColor,
@@ -31,27 +33,37 @@ class PasswordField extends StatelessWidget {
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: labelColor),
+        labelStyle: TextStyle(
+          letterSpacing: 0,
+          color: colorScheme.brightness == Brightness.dark
+              ? colorScheme.fontInverted
+              : (labelColor == Colors.blue ? colorScheme.primary : labelColor),
+        ),
         contentPadding: const EdgeInsets.symmetric(
           vertical: 10,
           horizontal: 16,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.blue, width: 2.0),
-          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2.0),
+          borderRadius: BorderRadius.circular(8),
         ),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: colorScheme.fontSecondary),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
-        prefixIcon: Icon(Icons.lock, color: iconColor),
+        prefixIcon: Icon(
+          Icons.lock,
+          color: iconColor == Colors.blue ? colorScheme.primary : iconColor,
+        ),
         suffixIcon: IconButton(
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          tooltip: '${obscureText ? 'Show' : 'Hide'} $visibilityLabel',
           icon: Icon(
             obscureText ? Icons.visibility_off : Icons.visibility,
-            color: Colors.blue,
+            color: colorScheme.brightness == Brightness.dark
+                ? colorScheme.fontInverted
+                : colorScheme.primary,
           ),
           onPressed: onToggleVisibility,
         ),

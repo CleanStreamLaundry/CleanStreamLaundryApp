@@ -6,5 +6,6 @@ abstract class PaymentService {
   Future<PaymentResult> makePayment(
     double amount, {
     PaymentPurpose purpose = PaymentPurpose.directMachinePayment,
+    Map<String, dynamic>? consent,
   });
 }

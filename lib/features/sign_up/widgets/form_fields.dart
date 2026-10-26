@@ -1,6 +1,5 @@
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class SignUpFormFields extends StatelessWidget {
   final TextEditingController nameController;
@@ -41,18 +40,23 @@ class SignUpFormFields extends StatelessWidget {
 
   InputDecoration _baseDecoration(BuildContext context) {
     return InputDecoration(
-      contentPadding:
-      const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      constraints: const BoxConstraints(minHeight: 48),
+      errorMaxLines: 3,
+      hintMaxLines: 3,
+      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       focusedBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.blue, width: 2.0),
-        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2.0,
+        ),
+        borderRadius: BorderRadius.circular(8),
       ),
       enabledBorder: OutlineInputBorder(
         borderSide: BorderSide(
           color: Theme.of(context).colorScheme.fontSecondary,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }
@@ -67,63 +71,101 @@ class SignUpFormFields extends StatelessWidget {
       children: [
         TextField(
           controller: nameController,
-          inputFormatters: [LengthLimitingTextInputFormatter(36)],
-          maxLength: 36,
-          style: TextStyle(color: colorScheme.fontInverted),
+          style: TextStyle(letterSpacing: 0, color: colorScheme.fontInverted),
           decoration: base.copyWith(
             labelText: 'Name',
-            labelStyle: const TextStyle(color: Colors.blue),
-            prefixIcon: const Icon(Icons.person, color: Colors.blue),
+            labelStyle: TextStyle(
+              letterSpacing: 0,
+              color: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.fontInverted
+                  : colorScheme.primary,
+            ),
+            prefixIcon: Icon(Icons.person, color: colorScheme.primary),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
 
         TextField(
           controller: emailController,
-          style: TextStyle(color: colorScheme.fontInverted),
+          style: TextStyle(letterSpacing: 0, color: colorScheme.fontInverted),
           decoration: base.copyWith(
             labelText: 'Email',
-            labelStyle: const TextStyle(color: Colors.blue),
-            prefixIcon: const Icon(Icons.email, color: Colors.blue),
+            labelStyle: TextStyle(
+              letterSpacing: 0,
+              color: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.fontInverted
+                  : colorScheme.primary,
+            ),
+            prefixIcon: Icon(Icons.email, color: colorScheme.primary),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
 
         TextField(
           controller: passwordController,
           obscureText: obscurePassword,
           onChanged: onPasswordChanged,
-          style: TextStyle(color: colorScheme.fontInverted),
+          style: TextStyle(letterSpacing: 0, color: colorScheme.fontInverted),
           decoration: base.copyWith(
             labelText: passwordLabel,
-            labelStyle: TextStyle(color: labelColor),
-            prefixIcon: Icon(Icons.lock, color: iconColor),
+            labelStyle: TextStyle(
+              letterSpacing: 0,
+              color: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.fontInverted
+                  : (labelColor == Colors.blue
+                        ? colorScheme.primary
+                        : labelColor),
+            ),
+            prefixIcon: Icon(
+              Icons.lock,
+              color: iconColor == Colors.blue ? colorScheme.primary : iconColor,
+            ),
             suffixIcon: IconButton(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              tooltip: obscurePassword ? 'Show password' : 'Hide password',
               icon: Icon(
                 obscurePassword ? Icons.visibility_off : Icons.visibility,
-                color: Colors.blue,
+                color: colorScheme.brightness == Brightness.dark
+                    ? colorScheme.fontInverted
+                    : colorScheme.primary,
               ),
               onPressed: onTogglePassword,
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
 
         TextField(
           controller: confirmController,
           obscureText: obscureConfirmPassword,
           onChanged: onConfirmChanged,
-          style: TextStyle(color: colorScheme.fontInverted),
+          style: TextStyle(letterSpacing: 0, color: colorScheme.fontInverted),
           decoration: base.copyWith(
             labelText: confirmLabel,
-            labelStyle: TextStyle(color: labelColor),
-            prefixIcon: Icon(Icons.lock, color: iconColor),
+            labelStyle: TextStyle(
+              letterSpacing: 0,
+              color: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.fontInverted
+                  : (labelColor == Colors.blue
+                        ? colorScheme.primary
+                        : labelColor),
+            ),
+            prefixIcon: Icon(
+              Icons.lock,
+              color: iconColor == Colors.blue ? colorScheme.primary : iconColor,
+            ),
             suffixIcon: IconButton(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              tooltip: obscureConfirmPassword
+                  ? 'Show confirmation password'
+                  : 'Hide confirmation password',
               icon: Icon(
                 obscureConfirmPassword
                     ? Icons.visibility_off
                     : Icons.visibility,
-                color: Colors.blue,
+                color: colorScheme.brightness == Brightness.dark
+                    ? colorScheme.fontInverted
+                    : colorScheme.primary,
               ),
               onPressed: onToggleConfirm,
             ),

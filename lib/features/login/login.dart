@@ -1,4 +1,3 @@
-import 'package:app_links/app_links.dart';
 import 'package:clean_stream_laundry_app/features/login/controller.dart';
 import 'package:clean_stream_laundry_app/features/login/widgets/links.dart';
 import 'package:clean_stream_laundry_app/features/login/widgets/form_fields.dart';
@@ -8,9 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class Login extends StatefulWidget {
-  final AppLinks appLinks;
-
-  const Login({super.key, required this.appLinks});
+  const Login({super.key});
 
   @override
   State<Login> createState() => _LoginState();
@@ -24,7 +21,6 @@ class _LoginState extends State<Login> {
   void initState() {
     super.initState();
     _controller = LoginController();
-    _controller.init(context, widget.appLinks);
     _controller.addListener(() {
       if (mounted) setState(() {});
     });
@@ -73,7 +69,7 @@ class _LoginState extends State<Login> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Image.asset(
-                    'assets/Logo.png',
+                    'assets/splash-logo.png',
                     height: 300,
                     width: 300,
                     key: const Key('app_logo'),
@@ -86,7 +82,7 @@ class _LoginState extends State<Login> {
                       onPressed: () =>
                           _controller.handleLogin(context, _showMessage),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Log In'),

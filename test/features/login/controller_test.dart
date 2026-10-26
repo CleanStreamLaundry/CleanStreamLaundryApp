@@ -1,34 +1,22 @@
+import 'dart:async';
+
 import 'package:clean_stream_laundry_app/features/login/controller.dart';
 import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late MockProfileService mockProfileService;
-  late FakeAppLinks fakeAppLinks;
-
-  setUpAll(() {
-    registerFallbackValue(FakeUri());
-  });
 
   setUp(() {
     mockAuthService = MockAuthService();
-    mockProfileService = MockProfileService();
-    fakeAppLinks = FakeAppLinks();
-  });
-
-  tearDown(() {
-    fakeAppLinks.dispose();
   });
 
   LoginController buildController() => LoginController(
     authService: mockAuthService,
-    profileService: mockProfileService,
   );
 
   Widget buildWithRouter({
@@ -43,10 +31,8 @@ void main() {
             builder: (context, state) {
               final controller = LoginController(
                 authService: mockAuthService,
-                profileService: mockProfileService,
               );
               onControllerReady(controller);
-              controller.init(context, fakeAppLinks);
               return const SizedBox();
             },
           ),
@@ -67,6 +53,17 @@ void main() {
       ),
     );
   }
+
+  test('constructs with AuthService alone without consuming callbacks', () {
+    final controller = LoginController(authService: mockAuthService);
+    addTearDown(() {
+      controller.disposeController();
+      controller.dispose();
+    });
+
+    expect(controller.authService, same(mockAuthService));
+    verifyZeroInteractions(mockAuthService);
+  });
 
   group('handleLogin', () {
     testWidgets('calls auth service with trimmed email and password',
@@ -141,6 +138,42 @@ void main() {
     });
   });
 
+  for (final result in [true, false, null]) {
+    testWidgets('native Google result $result preserves correct navigation', (tester) async {
+      final pending = Completer<bool>();
+      when(() => mockAuthService.googleSignIn()).thenAnswer((_) => pending.future);
+      final controller = buildController();
+      final router = GoRouter(routes: [
+        GoRoute(path: '/', builder: (context, _) => Scaffold(body: TextButton(
+          onPressed: () => controller.handleGoogleSignIn(context),
+          child: const Text('Google'),
+        ))),
+        GoRoute(path: '/homePage', builder: (_, _) => const Scaffold(body: Text('Home'))),
+      ]);
+      addTearDown(() {
+        router.dispose();
+        controller.disposeController();
+        controller.dispose();
+      });
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.tap(find.text('Google'));
+      await tester.tap(find.text('Google'));
+      verify(() => mockAuthService.googleSignIn()).called(1);
+      expect(controller.googleSignInPending, isTrue);
+      if (result == null) {
+        pending.completeError(StateError('private-provider-detail'));
+      } else {
+        pending.complete(result);
+      }
+      await tester.pumpAndSettle();
+      expect(controller.googleSignInPending, isFalse);
+      expect(find.text('Home'), result == true ? findsOneWidget : findsNothing);
+      expect(find.text('Google sign-in could not finish. Please try again.'),
+          result == null ? findsOneWidget : findsNothing);
+      expect(find.textContaining('private-provider-detail'), findsNothing);
+    });
+  }
+
   group('setErrorColors', () {
     test('sets all color fields to red and updates labels', () {
       final controller = buildController();
@@ -175,68 +208,8 @@ void main() {
     });
   });
 
-  group('Deep link handling', () {
-    testWidgets('calls getSessionFromURI on oauth deep link', (tester) async {
-      when(() => mockAuthService.getSessionFromURI(any()))
-          .thenAnswer((_) async {});
-      when(() => mockAuthService.isLoggedIn())
-          .thenAnswer((_) async => AuthenticationResponses.success);
-      when(() => mockAuthService.getCurrentUser()).thenReturn(null);
-
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      verify(() => mockAuthService.getSessionFromURI(any())).called(1);
-    });
-
-    testWidgets('calls createAccount when oauth user exists', (tester) async {
-      when(() => mockAuthService.getSessionFromURI(any()))
-          .thenAnswer((_) async {});
-      when(() => mockAuthService.isLoggedIn())
-          .thenAnswer((_) async => AuthenticationResponses.success);
-      when(() => mockAuthService.getCurrentUser()).thenReturn(
-        User(
-          id: 'uid',
-          appMetadata: {},
-          userMetadata: {'full_name': 'Jane Doe'},
-          aud: '',
-          createdAt: '',
-        ),
-      );
-      when(() => mockProfileService.createAccount(
-        id: any(named: 'id'),
-        name: any(named: 'name'),
-      )).thenAnswer((_) async {});
-
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://oauth'));
-      await tester.pumpAndSettle();
-
-      verify(() => mockProfileService.createAccount(
-        id: 'uid',
-        name: 'Jane Doe',
-      )).called(1);
-    });
-
-    testWidgets('ignores uri with unrecognised host', (tester) async {
-      await tester.pumpWidget(buildWithRouter(onControllerReady: (_) {}));
-      await tester.pumpAndSettle();
-
-      fakeAppLinks.emit(Uri.parse('clean-stream://unknown-host'));
-      await tester.pumpAndSettle();
-
-      verifyNever(() => mockAuthService.getSessionFromURI(any()));
-    });
-  });
-
-
   group('Lifecycle', () {
-    testWidgets('disposeController cancels subscription without error',
+    testWidgets('disposeController releases local controls without error',
             (tester) async {
           late LoginController controller;
           await tester.pumpWidget(

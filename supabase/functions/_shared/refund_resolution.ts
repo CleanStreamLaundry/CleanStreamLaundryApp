@@ -9,6 +9,7 @@ export interface RefundResolution {
   amount: number;
   status: RefundDecision;
   notificationSent: boolean;
+  notificationState?: string;
 }
 
 export interface RefundResolutionDependencies {
@@ -19,8 +20,25 @@ export interface RefundResolutionDependencies {
     note: string;
     actorUserId: string;
   }): Promise<RefundResolution>;
-  notify(resolution: RefundResolution, note: string): Promise<void>;
-  markNotificationSent(refundId: number): Promise<void>;
+}
+
+export function creditNotificationSummary(credit: { notificationSent?: boolean; notificationState?: unknown }) {
+  const state = typeof credit.notificationState === "string" ? credit.notificationState : "not_queued";
+  const sent = credit.notificationSent === true && ["accepted", "delivered", "legacy_sent"].includes(state);
+  const messages: Record<string, string> = {
+    ready: "The credit decision is saved. Customer notice is queued; delivery is not yet confirmed.",
+    leased: "The credit decision is saved. Customer notice is queued; delivery is not yet confirmed.",
+    sending: "The credit decision is saved. Customer notice delivery is not yet confirmed.",
+    uncertain: "The credit decision is saved. Customer notice delivery is unconfirmed and requires reconciliation; do not repeat the credit decision.",
+    failed: "The credit decision is saved. Customer notice failed; notification follow-up is separate from the credit decision.",
+    suppressed: "The credit decision is saved. Customer notice is suppressed or no longer applicable.",
+  };
+  return {
+    notificationSent: sent,
+    ...(sent ? {} : {
+      notificationWarning: Object.hasOwn(messages, state) ? messages[state] : "The credit decision is saved, but no customer notice is confirmed. Do not repeat the credit decision to send email.",
+    }),
+  };
 }
 
 export class RefundHttpError extends Error {
@@ -85,57 +103,13 @@ export async function handleRefundResolution(
       actorUserId,
     });
 
-    let notificationSent = resolution.notificationSent;
-    let notificationWarning: string | undefined;
-    if (!resolution.alreadyResolved && !notificationSent) {
-      try {
-        await deps.notify(resolution, note);
-        await deps.markNotificationSent(refundId);
-        notificationSent = true;
-      } catch (error) {
-        notificationWarning = error instanceof Error
-          ? error.message
-          : "Customer notification failed";
-      }
-    }
-
     return json({
       ...resolution,
-      notificationSent,
-      ...(notificationWarning ? { notificationWarning } : {}),
+      ...creditNotificationSummary(resolution),
     });
   } catch (error) {
     const status = error instanceof RefundHttpError ? error.status : 500;
     const message = error instanceof Error ? error.message : "Refund failed";
     return json({ error: message }, status);
   }
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "'": "&#39;",
-    '"': "&quot;",
-  })[character]!);
-}
-
-export function refundEmailHtml(
-  decision: RefundDecision,
-  resolution: RefundResolution,
-  note: string,
-): string {
-  const approved = decision === "approved";
-  const title = approved
-    ? "Loyalty Balance Credit Approved"
-    : "Loyalty Balance Credit Request Denied";
-  const outcome = approved
-    ? `$${resolution.amount.toFixed(2)} has been added to your Clean Stream loyalty balance. No money was returned to your original payment method.`
-    : `Your request for a $${resolution.amount.toFixed(2)} Clean Stream loyalty balance credit was not approved.`;
-  const safeNote = note ? `<p><strong>Note:</strong> ${escapeHtml(note)}</p>` : "";
-  return `<h2>${title}</h2>
-    <p>Transaction <strong>${resolution.transactionId}</strong></p>
-    <p>${outcome}</p>
-    ${safeNote}`;
 }

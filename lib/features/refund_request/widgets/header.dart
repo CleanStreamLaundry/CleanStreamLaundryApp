@@ -10,25 +10,21 @@ class Header extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: colorScheme.primary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.primary.withOpacity(0.2)),
+        border: Border(
+          bottom: BorderSide(color: colorScheme.secondary, width: 3),
+        ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.receipt_long_rounded,
-              color: colorScheme.primary,
-              size: 28,
-            ),
+          Icon(
+            Icons.receipt_long_rounded,
+            color: colorScheme.brightness == Brightness.dark
+                ? Colors.white
+                : colorScheme.primary,
+            size: 28,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -38,6 +34,7 @@ class Header extends StatelessWidget {
                 Text(
                   'Submit a Refund Request',
                   style: TextStyle(
+                    letterSpacing: 0,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                     color: colorScheme.fontInverted,
@@ -46,8 +43,9 @@ class Header extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Select a transaction and describe your issue. '
-                      'Our team will review it shortly.',
+                  'Our team will review it shortly.',
                   style: TextStyle(
+                    letterSpacing: 0,
                     fontSize: 13,
                     color: colorScheme.fontSecondary,
                   ),

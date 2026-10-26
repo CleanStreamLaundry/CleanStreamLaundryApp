@@ -6,10 +6,10 @@ import {
 import {
   handleRefundResolution,
   RefundHttpError,
-  refundEmailHtml,
   type RefundResolution,
   type RefundResolutionDependencies,
 } from "./refund_resolution.ts";
+import { renderMail } from "./mail.ts";
 
 const resolution = (overrides: Partial<RefundResolution> = {}): RefundResolution => ({
   success: true,
@@ -20,6 +20,7 @@ const resolution = (overrides: Partial<RefundResolution> = {}): RefundResolution
   amount: 2.5,
   status: "approved",
   notificationSent: false,
+  notificationState: "ready",
   ...overrides,
 });
 
@@ -32,18 +33,19 @@ function request(body: unknown): Request {
 }
 
 function dependencies(overrides: Partial<RefundResolutionDependencies> = {}) {
-  const calls = { notify: 0, mark: 0 };
+  const calls = { resolve: 0 };
   const deps: RefundResolutionDependencies = {
-    authenticate: async () => "admin-1",
-    resolve: async ({ decision }) => resolution({ status: decision }),
-    notify: async () => { calls.notify += 1; },
-    markNotificationSent: async () => { calls.mark += 1; },
     ...overrides,
+    authenticate: overrides.authenticate ?? (async () => "admin-1"),
+    resolve: async (input) => {
+      calls.resolve += 1;
+      return overrides.resolve ? await overrides.resolve(input) : resolution({ status: input.decision });
+    },
   };
   return { calls, deps };
 }
 
-Deno.test("refund resolution notifies only after the database succeeds", async () => {
+Deno.test("refund resolution reports atomic queue receipt without claiming email was sent", async () => {
   const { calls, deps } = dependencies();
   const response = await handleRefundResolution(
     request({ refundId: 12, note: "Machine failed" }),
@@ -54,8 +56,9 @@ Deno.test("refund resolution notifies only after the database succeeds", async (
 
   assertEquals(response.status, 200);
   assertEquals(body.status, "approved");
-  assertEquals(body.notificationSent, true);
-  assertEquals(calls, { notify: 1, mark: 1 });
+  assertEquals(body.notificationSent, false);
+  assertStringIncludes(body.notificationWarning, "queued");
+  assertEquals(calls, { resolve: 1 });
 });
 
 Deno.test("an idempotent retry does not send a duplicate notification", async () => {
@@ -69,15 +72,12 @@ Deno.test("an idempotent retry does not send a duplicate notification", async ()
   );
 
   assertEquals(response.status, 200);
-  assertEquals(calls, { notify: 0, mark: 0 });
+  assertEquals(calls, { resolve: 1 });
 });
 
 Deno.test("notification failure does not hide a completed refund", async () => {
   const { calls, deps } = dependencies({
-    notify: async () => {
-      calls.notify += 1;
-      throw new Error("Email unavailable");
-    },
+    resolve: () => Promise.resolve(resolution({ notificationState: "failed" })),
   });
   const response = await handleRefundResolution(
     request({ refundId: 12 }),
@@ -89,8 +89,8 @@ Deno.test("notification failure does not hide a completed refund", async () => {
   assertEquals(response.status, 200);
   assertEquals(body.success, true);
   assertEquals(body.notificationSent, false);
-  assertStringIncludes(body.notificationWarning, "Email unavailable");
-  assertEquals(calls, { notify: 1, mark: 0 });
+  assertStringIncludes(body.notificationWarning, "Customer notice failed");
+  assertEquals(calls, { resolve: 1 });
 });
 
 Deno.test("invalid refund identifiers are rejected before authentication", async () => {
@@ -120,12 +120,15 @@ Deno.test("authentication and authorization errors reach the caller", async () =
   assertEquals(body.error, "Owner or Admin access required");
 });
 
-Deno.test("refund email escapes administrator notes", () => {
-  const html = refundEmailHtml(
-    "approved",
-    resolution(),
-    '<script>alert("x")</script>',
-  );
+Deno.test("refund email escapes stored administrator notes in the shared brand renderer", async () => {
+  const { payload: { html } } = await renderMail({
+    id: "synthetic-job", lease_id: "synthetic-lease", kind: "credit_decision",
+    email: "customer@example.invalid", consent_id: null,
+    credit_notice: { refund_id: "12", transaction_id: "44", amount_cents: 250,
+      status: "approved", note: '<script>alert("x")</script>' },
+  }, { key: "re_synthetic", from: "synthetic@cleanstreamlaundry.com", replyTo: "support@cleanstreamlaundry.com",
+    postal: "Synthetic", publicUrl: "https://synthetic.invalid/functions/v1/newsletter",
+    pageUrl: "https://cleanstreamlaundry.com/newsletter", tokenSecret: "x".repeat(43) });
   assert(!html.includes("<script>"));
   assertStringIncludes(html, "&lt;script&gt;");
 });

@@ -1,22 +1,47 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Location is one-shot and foreground-only; do not inherit service permission. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_LOCATION"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Non-ad Analytics does not need advertising IDs or ad attribution. -->
+    <uses-permission
+        android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
+        tools:node="remove" />
 
     <application
         android:label="Clean Stream Laundry"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/secure_storage_backup_rules"
+        android:dataExtractionRules="@xml/secure_storage_data_extraction_rules"
         tools:replace="android:label">
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
+        <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="false" />
+        <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false" />
+        <meta-data android:name="google_analytics_default_allow_ad_personalization_signals" android:value="false" />
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+        <meta-data android:name="firebase_inapp_messaging_auto_data_collection_enabled" android:value="false" />
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
-            android:theme="@style/NormalTheme"
+            android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -28,6 +53,7 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

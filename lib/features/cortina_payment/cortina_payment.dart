@@ -35,7 +35,17 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
       terminalId: widget.terminalId,
       uniQr: widget.uniQr,
     )..addListener(_refresh);
-    controller.init();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await controller.init();
+    if (!mounted || !controller.isCurrentScope) return;
+    final restored = controller.restoredOutcome;
+    if (restored != null) {
+      setState(() => _useWallet = controller.restoredWallet);
+      await _showOutcome(restored, _useWallet, recovered: true);
+    }
   }
 
   void _refresh() {
@@ -50,22 +60,33 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
   }
 
   Future<void> _pay(bool wallet) async {
+    if (controller.paymentLocked) return;
     final outcome = wallet
         ? await controller.payWithWallet()
         : await controller.payWithCard();
-    if (!mounted) return;
+    if (!mounted || !controller.isCurrentScope) return;
+    await _showOutcome(outcome, wallet);
+  }
+
+  Future<void> _showOutcome(
+    CortinaPaymentOutcome outcome,
+    bool wallet, {
+    bool recovered = false,
+  }) async {
     final (title, message, success) = switch (outcome) {
       CortinaPaymentOutcome.success => (
         'Machine Started',
-        controller.isDryer
+        recovered
+            ? 'The server confirmed that the machine started.'
+            : controller.isDryer
             ? '${controller.dryerMinutes} minutes were added.'
             : 'Select your cycle on the washer.',
         true,
       ),
       CortinaPaymentOutcome.pending => (
-        'Payment Received',
-        'The machine is still connecting. This screen will retain your transaction.',
-        true,
+        'Payment Unconfirmed',
+        controller.errorMessage ?? CortinaPaymentController.uncertainMessage,
+        false,
       ),
       CortinaPaymentOutcome.refunded => (
         'Vend Canceled',
@@ -84,10 +105,14 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
       ),
     };
     await _showResultDialog(title: title, message: message, success: success);
+    if (!mounted || !controller.isCurrentScope) return;
+    if (outcome == CortinaPaymentOutcome.success) {
+      context.go(wallet ? '/loyalty' : '/homePage');
+    }
   }
 
   void _selectWallet(bool useWallet) {
-    if (controller.isProcessing) return;
+    if (controller.paymentLocked) return;
     setState(() => _useWallet = useWallet);
   }
 
@@ -97,77 +122,88 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
     required bool success,
   }) {
     final colors = Theme.of(context).colorScheme;
-    final statusColor = success ? Colors.green.shade700 : Colors.red.shade700;
     return showDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        key: const ValueKey('cortina-result-dialog'),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 30),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: _brandYellow, width: 3),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    success ? Icons.check_rounded : Icons.error_outline_rounded,
-                    color: statusColor,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
+      useRootNavigator: false,
+      builder: (dialogContext) => AnimatedBuilder(
+        animation: controller,
+        builder: (_, _) {
+          final current = controller.isCurrentScope;
+          final confirmed = success && current;
+          final statusColor = confirmed ? Colors.green.shade700 : Colors.red.shade700;
+          return Dialog(
+            key: const ValueKey('cortina-result-dialog'),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 30),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(color: _brandYellow, width: 3),
             ),
-          ),
-        ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        confirmed ? Icons.check_rounded : Icons.error_outline_rounded,
+                        color: statusColor,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      current ? title : 'Payment Unconfirmed',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      current ? message : CortinaPaymentController.uncertainMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: _pageBackground,
+      backgroundColor: colors.brightness == Brightness.dark
+          ? colors.surface
+          : _pageBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colors.surface,
         centerTitle: true,
         title: const Text(
           'Machine payment',
@@ -202,7 +238,7 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
               ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: controller.init,
+                onPressed: _init,
                 child: const Text('Try Again'),
               ),
             ],
@@ -237,10 +273,13 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                     ),
                     const SizedBox(height: 12),
                     if (quote.isDryer)
-                      DryerAmountSelector(
-                        amountCents: controller.amountCents,
-                        options: quote.dryerOptions,
-                        onChanged: controller.setDryerAmount,
+                      IgnorePointer(
+                        ignoring: controller.paymentLocked,
+                        child: DryerAmountSelector(
+                          amountCents: controller.amountCents,
+                          options: quote.dryerOptions,
+                          onChanged: controller.setDryerAmount,
+                        ),
                       )
                     else
                       WasherCycleNotice(sizeLabel: quote.washerSizeLabel),
@@ -258,6 +297,7 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                       title: 'Credit or debit card',
                       subtitle: 'Secure payment with Stripe',
                       selected: !useWallet,
+                      enabled: !controller.paymentLocked,
                       onTap: () => _selectWallet(false),
                     ),
                     if (controller.isSignedIn) ...[
@@ -265,10 +305,11 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                       _PaymentMethodTile(
                         icon: Icons.account_balance_wallet_rounded,
                         title: 'Loyalty wallet',
-                        subtitle:
-                            '\$${walletBalance.toStringAsFixed(2)} available',
+                        subtitle: controller.walletBalance == null
+                            ? 'Balance unavailable'
+                            : '\$${walletBalance.toStringAsFixed(2)} available',
                         selected: useWallet,
-                        enabled: walletAvailable,
+                        enabled: walletAvailable && !controller.paymentLocked,
                         onTap: () => _selectWallet(true),
                       ),
                     ],
@@ -322,7 +363,9 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
           amount: controller.price,
           isProcessing: controller.isProcessing,
           paymentLabel: useWallet ? 'Loyalty wallet' : 'Card',
-          onPay: controller.isProcessing ? null : () => _pay(useWallet),
+          onPay: controller.paymentLocked
+              ? null
+              : () => _pay(useWallet),
         ),
       ],
     );
@@ -429,7 +472,11 @@ class _PaymentMethodTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final borderColor = selected ? colors.primary : const Color(0xFFD6DCE1);
     return Material(
-      color: enabled ? Colors.white : const Color(0xFFE9EDF0),
+      color: enabled
+          ? colors.surface
+          : colors.brightness == Brightness.dark
+          ? colors.surfaceContainerHighest
+          : const Color(0xFFE9EDF0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: borderColor, width: selected ? 2 : 1),
@@ -491,7 +538,7 @@ class _CheckoutBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 8,
       child: SafeArea(
         top: false,

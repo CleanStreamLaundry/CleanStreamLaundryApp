@@ -14,13 +14,13 @@ class ScannerOverlay extends StatelessWidget {
           left: 0,
           right: 0,
           child: Container(
-            color: Colors.black54,
+            color: Colors.black87,
             padding: const EdgeInsets.all(16),
             child: const Text(
               'Center the machine QR code',
               style: TextStyle(
-                color: Colors.grey,
-                fontSize: 18,
+                color: Colors.white,
+                fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
@@ -38,7 +38,11 @@ class ScannerOverlay extends StatelessWidget {
               onPressed: onCancel,
               icon: const Icon(Icons.close),
               label: const Text('Cancel'),
-              backgroundColor: Colors.red,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
         ),
@@ -49,8 +53,11 @@ class ScannerOverlay extends StatelessWidget {
             width: 250,
             height: 250,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 3),
-              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.secondary,
+                width: 3,
+              ),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
         ),

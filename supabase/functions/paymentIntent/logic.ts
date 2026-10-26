@@ -1,9 +1,15 @@
-import Stripe from "npm:stripe";
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type Stripe from "npm:stripe";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { type FundingAdmission, requireFundingAdmission } from "../_shared/wallet_funding_admission.ts";
+import { requireNewPayments } from "../_shared/new_payment_control.ts";
+import { ActionConsentError, assertConsentProviderBinding, bindConsentProvider, consentMetadata,
+  requireWalletLoadConsent, type WalletLoadConsent, type WalletLoadConsentReceipt } from "../_shared/loyalty_action_consent.ts";
 
 export interface PaymentIntentDeps {
   stripe: Stripe;
   supabaseAdmin?: SupabaseClient;
+  fundingAdmission?: FundingAdmission;
+  walletLoadConsent?: WalletLoadConsent;
 }
 
 export interface PaymentIntentResult {
@@ -28,8 +34,10 @@ export async function createPaymentIntent(
   amount: number,
   userId = "test-user",
   purpose: PaymentPurpose = "directMachinePayment",
-  walletAccountId?: string
+  walletAccountId?: string,
+  consent?: WalletLoadConsentReceipt,
 ): Promise<PaymentIntentResult> {
+  if (purpose === "walletLoad" && !consent) throw new ActionConsentError();
   const metadata: Record<string, string> = {
     user_id: userId,
     purpose: purpose === "walletLoad"
@@ -41,13 +49,22 @@ export async function createPaymentIntent(
   if (walletAccountId) {
     metadata.wallet_account_id = walletAccountId;
   }
+  if (consent) Object.assign(metadata, consentMetadata(consent));
 
-  const intent = await stripe.paymentIntents.create({
+  const intent = consent?.provider_reference
+    ? await stripe.paymentIntents.retrieve(consent.provider_reference)
+    : await stripe.paymentIntents.create({
     amount,
     currency: "usd",
     payment_method_types: ["card"],
     metadata,
-  });
+  }, consent ? { idempotencyKey: `loyalty-load:${consent.context_id}` } : undefined);
+  if (consent) {
+    if (consent.provider_reference && intent.id !== consent.provider_reference) {
+      throw new ActionConsentError("consent_provider_mismatch");
+    }
+    assertConsentProviderBinding(consent, intent.amount, intent.currency, intent.metadata);
+  }
 
   return { clientSecret: intent.client_secret, paymentIntentId: intent.id };
 }
@@ -105,20 +122,43 @@ export async function handleCreatePaymentIntent(
   if (purpose === "walletLoad" && !deps.supabaseAdmin) {
     throw new Error("Supabase admin client required");
   }
+  if (purpose === "walletLoad" && (!Number.isSafeInteger(amount) || amount > 2147483647)) {
+    throw new Error("Invalid amount");
+  }
 
   const userId = deps.supabaseAdmin
     ? await getAuthenticatedUserId(req, deps.supabaseAdmin)
     : "test-user";
+  if (purpose === "walletLoad") {
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+    await requireNewPayments(deps.supabaseAdmin);
+  }
   const walletAccountId = purpose === "walletLoad" && deps.supabaseAdmin
     ? await getOrCreateWalletAccount(deps.supabaseAdmin, userId)
     : undefined;
+  if (purpose === "walletLoad") {
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+  }
+  const consent = purpose === "walletLoad"
+    ? await requireWalletLoadConsent(deps.walletLoadConsent, body?.consent, userId, amount, "payment_intent")
+    : undefined;
+  if (consent && consent.wallet_account_id !== walletAccountId) {
+    throw new ActionConsentError("consent_context_invalid");
+  }
+  if (consent) await requireFundingAdmission(deps.fundingAdmission, userId);
+  await requireNewPayments(deps.supabaseAdmin);
   const result = await createPaymentIntent(
     deps.stripe,
     amount,
     userId,
     purpose,
-    walletAccountId
+    walletAccountId,
+    consent,
   );
+  if (consent) {
+    await bindConsentProvider(deps.supabaseAdmin!, consent, result.paymentIntentId);
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+  }
 
   return new Response(JSON.stringify(result), {
     status: 200,

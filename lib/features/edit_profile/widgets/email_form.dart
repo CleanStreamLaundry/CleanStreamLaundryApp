@@ -13,35 +13,43 @@ class EmailFormField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
     return TextFormField(
       controller: controller,
       enabled: enabled,
       style: TextStyle(
+        letterSpacing: 0,
         color: Theme.of(context).colorScheme.fontSecondary,
         fontSize: 16,
       ),
       decoration: InputDecoration(
         labelText: 'New Email',
         hintText: 'Enter your email address',
+        hintMaxLines: 3,
+        errorMaxLines: 3,
+        errorStyle: isDark
+            ? TextStyle(letterSpacing: 0, color: colorScheme.fontSecondary)
+            : null,
         hintStyle: TextStyle(
-          color: Theme.of(context)
-              .colorScheme
-              .fontSecondary
-              .withValues(alpha: 0.5),
+          letterSpacing: 0,
+          color: colorScheme.fontSecondary,
         ),
         labelStyle: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 0,
+          color: isDark ? colorScheme.fontSecondary : colorScheme.primary,
           fontSize: 14,
         ),
         filled: true,
-        fillColor:
-        Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
+        fillColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.03),
         contentPadding: const EdgeInsets.symmetric(
           vertical: 16,
           horizontal: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
@@ -49,16 +57,15 @@ class EmailFormField extends StatelessWidget {
             color: Theme.of(context).colorScheme.primary,
             width: 2.0,
           ),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(8),
         ),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(
-            color: Theme.of(context)
-                .colorScheme
-                .fontSecondary
-                .withValues(alpha: 0.2),
+            color: Theme.of(
+              context,
+            ).colorScheme.fontSecondary.withValues(alpha: 0.2),
           ),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(8),
         ),
         prefixIcon: Icon(
           Icons.email_outlined,

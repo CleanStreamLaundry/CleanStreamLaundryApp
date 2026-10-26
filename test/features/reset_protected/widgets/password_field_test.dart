@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:clean_stream_laundry_app/features/reset_protected/widgets/password_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,6 +74,81 @@ void main() {
     });
 
     group('Interaction', () {
+      for (final confirmation in [false, true]) {
+        testWidgets('${confirmation ? 'confirmation' : 'default'} action semantics '
+            'follow visibility and preserve callbacks and text', (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+          final controller = TextEditingController();
+          addTearDown(controller.dispose);
+          final changed = <String>[];
+          var obscured = true;
+          var toggles = 0;
+          final description = confirmation ? 'confirmation password' : 'password';
+          await tester.pumpWidget(MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(builder: (context, setState) {
+                void toggle() => setState(() {
+                  toggles++;
+                  obscured = !obscured;
+                });
+                return confirmation
+                    ? PasswordField(
+                        controller: controller,
+                        label: 'Confirm Password',
+                        visibilityLabel: 'confirmation password',
+                        obscureText: obscured,
+                        onToggleVisibility: toggle,
+                        onChanged: changed.add,
+                        iconColor: Colors.blue,
+                        labelColor: Colors.blue,
+                      )
+                    : PasswordField(
+                        controller: controller,
+                        label: 'New Password',
+                        obscureText: obscured,
+                        onToggleVisibility: toggle,
+                        onChanged: changed.add,
+                        iconColor: Colors.blue,
+                        labelColor: Colors.blue,
+                      );
+              }),
+            ),
+          ));
+          await tester.enterText(find.byType(TextField), 'synthetic-password');
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.pumpAndSettle();
+
+          void expectAction(String verb, bool expectedObscurity) {
+            final label = '$verb $description';
+            final button = find.byWidgetPredicate(
+              (widget) => widget is IconButton && widget.tooltip == label,
+            );
+            final data = tester.getSemantics(button).getSemanticsData();
+            expect(data.tooltip, label);
+            expect(data.flagsCollection.isButton, isTrue);
+            expect(data.hasAction(ui.SemanticsAction.tap), isTrue);
+            expect(tester.widget<TextField>(find.byType(TextField)).obscureText,
+                expectedObscurity);
+            expect(controller.text, 'synthetic-password');
+            expect(changed, ['synthetic-password']);
+          }
+
+          expectAction('Show', true);
+          await tester.tap(find.byTooltip('Show $description'));
+          await tester.pumpAndSettle();
+          expectAction('Hide', false);
+          await tester.tap(find.byTooltip('Hide $description'));
+          await tester.pumpAndSettle();
+          expectAction('Show', true);
+          expect(toggles, 2);
+          await tester.pumpWidget(const SizedBox.shrink());
+          } finally {
+            semantics.dispose();
+          }
+        });
+      }
+
       testWidgets('calls onToggleVisibility when suffix icon tapped',
               (tester) async {
             var tapped = false;

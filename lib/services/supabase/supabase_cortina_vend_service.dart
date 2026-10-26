@@ -9,13 +9,15 @@ class SupabaseCortinaVendService implements CortinaVendService {
 
   Future<Map<String, dynamic>> _invoke(
     String route,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    String? accessToken,
+  }) async {
     late final FunctionResponse response;
     try {
       response = await client.functions.invoke(
         'cortina-vend/$route',
         body: body,
+        headers: accessToken == null ? null : {'Authorization': 'Bearer $accessToken'},
       );
     } on FunctionException catch (error) {
       final details = error.details;
@@ -99,6 +101,26 @@ class SupabaseCortinaVendService implements CortinaVendService {
       'sessionId': reference.sessionId,
       'accessToken': reference.accessToken,
     });
+  }
+
+  @override
+  Future<CortinaVendReference> recoverPendingPayment({
+    required String clientRequestId,
+    required int machineId,
+  }) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw StateError('Sign in to recover this payment');
+    }
+    final data = await _invoke('status', {
+      'clientRequestId': clientRequestId,
+      'machineId': machineId,
+    }, accessToken: token);
+    final reference = CortinaVendReference.fromJson(data);
+    if (reference.sessionId.isEmpty || reference.accessToken != clientRequestId) {
+      throw StateError('Payment recovery unavailable');
+    }
+    return reference;
   }
 
   @override

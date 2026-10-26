@@ -38,11 +38,14 @@ function makeStripeMock(intent: {
       retrieve: (paymentIntentId: string) => Promise.resolve({
         id: intent.id ?? paymentIntentId,
         status: intent.status ?? "succeeded",
+        currency: "usd",
+        livemode: false,
         amount_received: intent.amountReceived ?? intent.amount ?? 100,
         amount: intent.amount ?? intent.amountReceived ?? 100,
         latest_charge: intent.latestCharge ?? "ch_test",
         metadata: {
           user_id: intent.userId ?? "user-1",
+          amount_cents: String(intent.amount ?? intent.amountReceived ?? 100),
           ...(intent.purpose ? { purpose: intent.purpose } : {}),
         },
       }),
@@ -85,9 +88,11 @@ Deno.test("handlePaymentIntentStatus — returns normalized status for the owner
   const body = await res.json();
 
   assertEquals(res.status, 200);
-  assertEquals(body.paymentIntentId, "pi_test");
-  assertEquals(body.status, "succeeded");
-  assertEquals(body.walletLoadRecorded, false);
+  assertEquals(body, {
+    paymentIntentId: "pi_test",
+    status: "succeeded",
+    walletLoadRecorded: false,
+  });
   assertEquals(rpcCalls.length, 0);
 });
 

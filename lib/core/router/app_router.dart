@@ -1,4 +1,6 @@
 import 'package:app_links/app_links.dart';
+import 'package:clean_stream_laundry_app/features/admission/controller.dart';
+import 'package:clean_stream_laundry_app/features/admission/gate.dart';
 import 'package:clean_stream_laundry_app/features/admin_wallets/admin_wallets.dart';
 import 'package:clean_stream_laundry_app/features/change_email_verification/change_email_verification.dart';
 import 'package:clean_stream_laundry_app/features/cortina_payment/cortina_payment.dart';
@@ -7,12 +9,15 @@ import 'package:clean_stream_laundry_app/features/legal/legal_page.dart';
 import 'package:clean_stream_laundry_app/features/verify_code/verify_code.dart';
 import 'package:clean_stream_laundry_app/features/email_verification/email_verification.dart';
 import 'package:clean_stream_laundry_app/features/home/home.dart';
+import 'package:clean_stream_laundry_app/features/loading/controller.dart';
 import 'package:clean_stream_laundry_app/features/loading/loading.dart';
 import 'package:clean_stream_laundry_app/features/loyalty/loyalty.dart';
 import 'package:clean_stream_laundry_app/features/scanner/scanner.dart';
 import 'package:clean_stream_laundry_app/features/sign_up/sign_up.dart';
 import 'package:clean_stream_laundry_app/features/login/login.dart';
 import 'package:clean_stream_laundry_app/features/not_found/not_found.dart';
+import 'package:clean_stream_laundry_app/features/newsletter/newsletter_page.dart';
+import 'package:clean_stream_laundry_app/features/topup_refunds/topup_refunds.dart';
 import 'package:clean_stream_laundry_app/features/settings/settings.dart';
 import 'package:clean_stream_laundry_app/features/start_machine/start_machine.dart';
 import 'package:clean_stream_laundry_app/features/machine_payment/machine_payment.dart';
@@ -22,17 +27,52 @@ import 'package:clean_stream_laundry_app/features/maintenance_request/maintenanc
 import 'package:clean_stream_laundry_app/features/password_reset/password_reset.dart';
 import 'package:clean_stream_laundry_app/features/reset_protected/reset_protected.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'web_callback_stub.dart'
+    if (dart.library.js_interop) 'web_callback_web.dart';
+
 class RouterService {
-  GoRouter createRouter(AuthService authenticator) => GoRouter(
-    initialLocation: '/loading',
-    routes: [
+  GoRouter createRouter(
+    AuthService authenticator, {
+    AppLinks? appLinks,
+    AdmissionController? admission,
+    ProfileService? profiles,
+  }) {
+    assert((admission == null) == (profiles == null));
+    late final GoRouter router;
+    final homePageKey = GlobalKey<HomePageState>();
+    var webCallback = takeWebAuthCallback();
+    final hasWebCallback = webCallback != null;
+    String? lastCallback = webCallback == null
+        ? null
+        : LoadingPageController.deepLinkLocation(webCallback);
+    Uri? lastCallbackUri = webCallback;
+    var initialLinkRead = hasWebCallback;
+
+    String callbackLocation(String location, {Uri? originalUri}) {
+      // Native/initial delivery may report the same single-use code twice.
+      final isPlainRecovery =
+          location == '/auth-callback/reset-protected' ||
+          location == '/auth-callback/email-verification';
+      if (!isPlainRecovery && lastCallback == location) {
+        return router.routerDelegate.currentConfiguration.uri.toString();
+      }
+      lastCallback = location;
+      lastCallbackUri = originalUri;
+      return location;
+    }
+
+    final routes = <RouteBase>[
+      for (final path in ['/admission', '/security/mfa'])
+        GoRoute(path: path, builder: (_, _) => const SizedBox.shrink()),
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: Login(appLinks: AppLinks()),
+          child: const Login(),
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
           transitionsBuilder: (_, _, _, child) => child,
@@ -72,30 +112,126 @@ class RouterService {
           transitionsBuilder: (_, _, _, child) => child,
         ),
       ),
-      GoRoute(path: '/loading', builder: (context, state) => LoadingPage()),
       GoRoute(
-        path: '/settings',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: Settings(),
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          transitionsBuilder: (_, _, _, child) => child,
-        ),
-      ),
-      GoRoute(
-        path: '/loyalty',
+        path: '/loading',
         pageBuilder: (context, state) {
-          final openLoadCard = state.uri.queryParameters['loadCard'] == 'true';
-
-          return CustomTransitionPage(
+          final controller = LoadingPageController(
+            authService: authenticator,
+            appLinks: appLinks,
+            initialUri: webCallback ?? (initialLinkRead ? Uri() : null),
+            forwardInitialLink: webCallback == null,
+          );
+          webCallback = null;
+          initialLinkRead = true;
+          return NoTransitionPage(
             key: state.pageKey,
-            child: LoyaltyPage(openLoadCardOnStart: openLoadCard),
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            transitionsBuilder: (_, _, _, child) => child,
+            child: LoadingPage(controller: controller),
           );
         },
+      ),
+      for (final callback in [
+        'oauth',
+        'change-email',
+        'reset-protected',
+        'email-verification',
+      ])
+        GoRoute(
+          path: '/auth-callback/$callback',
+          pageBuilder: (context, state) {
+            final originalUri =
+                lastCallback == state.uri.toString() && lastCallbackUri != null
+                ? lastCallbackUri!
+                : state.uri.replace(
+                    scheme: 'clean-stream',
+                    host: callback,
+                    path: '',
+                  );
+            return NoTransitionPage(
+              key: state.pageKey,
+              child: LoadingPage(
+                key: ValueKey(state.uri),
+                controller: LoadingPageController(
+                  authService: authenticator,
+                  appLinks: appLinks,
+                  initialUri: originalUri,
+                ),
+              ),
+            );
+          },
+        ),
+      GoRoute(path: '/newsletter', builder: (_, _) => const NewsletterPage()),
+      GoRoute(
+        path: '/topup-refunds',
+        builder: (context, _) {
+          Widget page() => TopupRefundsPage(
+            active: admission?.canUseTopupRefunds ?? false,
+            onBack: () => context.go(
+              admission?.canEnterHome == true ? '/loyalty' : '/admission',
+            ),
+          );
+          return admission == null
+              ? page()
+              : ListenableBuilder(
+                  listenable: admission,
+                  builder: (_, _) => page(),
+                );
+        },
+      ),
+      StatefulShellRoute.indexedStack(
+        pageBuilder: (context, state, shell) =>
+            NoTransitionPage(key: state.pageKey, child: shell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/homePage',
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: HomePage(key: homePageKey),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/startPage',
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const StartPage(),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/loyalty',
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: LoyaltyPage(
+                    openLoadCardOnStart:
+                        state.uri.queryParameters['loadCard'] == 'true',
+                    onWalletActivity: () {
+                      homePageKey.currentState?.refreshAfterWalletActivity();
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const Settings(),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: '/admin/wallets',
@@ -164,30 +300,10 @@ class RouterService {
         },
       ),
       GoRoute(
-        path: '/homePage',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: HomePage(),
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          transitionsBuilder: (_, _, _, child) => child,
-        ),
-      ),
-      GoRoute(
-        path: '/startPage',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: StartPage(),
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          transitionsBuilder: (_, _, _, child) => child,
-        ),
-      ),
-      GoRoute(
         path: '/change-email-verification',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: ChangeEmailVerificationPage(appLinks: AppLinks()),
+          child: const ChangeEmailVerificationPage(),
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
           transitionsBuilder: (_, _, _, child) => child,
@@ -230,7 +346,7 @@ class RouterService {
         path: '/editProfile',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: EditProfilePage(),
+          child: EditProfilePage(onDeletionPending: admission?.invalidate),
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
           transitionsBuilder: (_, _, _, child) => child,
@@ -271,39 +387,82 @@ class RouterService {
           );
         },
       ),
-    ],
-    errorBuilder: (context, state) {
-      final uri = state.uri;
-      if (uri.scheme == 'clean-stream' && uri.host == 'reset-protected') {
-        return ResetProtectedPage();
-      }
-      return const NotFound();
-    },
-    redirect: (context, state) {
-      final uri = state.uri;
+    ];
+    const publicPaths = {
+      '/login',
+      '/signup',
+      '/loading',
+      '/email-verification',
+      '/change-email-verification',
+      '/password-reset',
+      '/reset-protected',
+      '/verify-code',
+    };
+    bool isPublic(RouteBase route) =>
+        route is GoRoute &&
+        (publicPaths.contains(route.path) ||
+            route.path.startsWith('/auth-callback/') ||
+            route.path.startsWith('/legal/'));
+    router = GoRouter(
+      initialLocation: '/loading',
+      overridePlatformDefaultLocation: hasWebCallback,
+      routes: admission == null
+          ? routes
+          : [
+              ...routes.where(isPublic),
+              ShellRoute(
+                builder: (_, state, child) => AdmissionGate(
+                  controller: admission,
+                  auth: authenticator,
+                  profiles: profiles!,
+                  location: state.uri.toString(),
+                  child: child,
+                ),
+                routes: routes.where((route) => !isPublic(route)).toList(),
+              ),
+            ],
+      errorBuilder: (context, state) => const NotFound(),
+      redirect: (context, state) {
+        final uri = state.uri;
 
-      // Handle clean-stream://reset-protected deep links
-      if (uri.scheme == 'clean-stream' && uri.host == 'reset-protected') {
-        final query = uri.query;
-        return query.isEmpty ? '/reset-protected' : '/reset-protected?$query';
-      }
-
-      // Handle clean-stream://email-verification deep links
-      if (uri.scheme == 'clean-stream' && uri.host == 'email-verification') {
-        return '/email-verification';
-      }
-
-      // Handle clean-stream://change-email deep links
-      if (uri.scheme == 'clean-stream' && uri.host == 'change-email') {
-        // Optional: check type query param
-        final type = uri.queryParameters['type'];
-        if (type == 'email_change' || type == null) {
-          return '/editProfile';
+        if (uri.hasScheme || uri.hasAuthority) {
+          final location = LoadingPageController.deepLinkLocation(uri);
+          if (location == null) return '/not-found';
+          if (uri.scheme == 'clean-stream') {
+            final extra = state.extra;
+            return callbackLocation(
+              location,
+              originalUri:
+                  extra is Uri &&
+                      LoadingPageController.deepLinkLocation(extra) == location
+                  ? extra
+                  : uri,
+            );
+          }
+          return location;
         }
-      }
-
-      // Otherwise, no redirect
-      return null;
-    },
-  );
+        if (uri.path == '/') return uri.replace(path: '/loading').toString();
+        if (uri.path == '/loading') {
+          final payload = {
+            ...uri.queryParameters,
+            ...Uri.splitQueryString(uri.fragment),
+          };
+          if (const [
+            'code',
+            'access_token',
+            'refresh_token',
+            'error',
+            'error_code',
+            'error_description',
+          ].any(payload.containsKey)) {
+            return callbackLocation(
+              uri.replace(path: '/auth-callback/oauth').toString(),
+            );
+          }
+        }
+        return null;
+      },
+    );
+    return router;
+  }
 }

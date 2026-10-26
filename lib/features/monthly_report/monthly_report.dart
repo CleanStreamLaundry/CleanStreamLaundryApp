@@ -1,6 +1,6 @@
 import 'controller.dart';
-import 'widgets/month_card.dart';
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
+import 'widgets/month_card.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,9 +32,9 @@ class _MonthlyReportState extends State<MonthlyReport> {
   }
 
   Future<void> _showYearPickerSheet(
-      Color cardBackgroundColor,
-      Color cardTextColor,
-      ) async {
+    Color cardBackgroundColor,
+    Color cardTextColor,
+  ) async {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: cardBackgroundColor,
@@ -58,7 +58,7 @@ class _MonthlyReportState extends State<MonthlyReport> {
               ),
               const Divider(height: 1),
               ..._controller.availableYears.map(
-                    (year) => ListTile(
+                (year) => ListTile(
                   key: ValueKey('year-option-$year'),
                   title: Text(
                     year.toString(),
@@ -66,9 +66,9 @@ class _MonthlyReportState extends State<MonthlyReport> {
                   ),
                   trailing: year == _controller.selectedYear
                       ? Icon(
-                    Icons.check,
-                    color: Theme.of(context).colorScheme.primary,
-                  )
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
                       : null,
                   onTap: () {
                     Navigator.of(sheetContext).pop();
@@ -90,10 +90,10 @@ class _MonthlyReportState extends State<MonthlyReport> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final cardBackgroundColor = colorScheme.cardPrimary;
+    final cardBackgroundColor = colorScheme.surface;
     final cardTextColor =
-    ThemeData.estimateBrightnessForColor(cardBackgroundColor) ==
-        Brightness.dark
+        ThemeData.estimateBrightnessForColor(cardBackgroundColor) ==
+            Brightness.dark
         ? Colors.white
         : Colors.black;
 
@@ -101,22 +101,33 @@ class _MonthlyReportState extends State<MonthlyReport> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: colorScheme.primaryGradient),
+          decoration: BoxDecoration(
+            gradient: colorScheme.primaryGradient,
+            border: Border(
+              bottom: BorderSide(color: colorScheme.secondary, width: 3),
+            ),
+          ),
         ),
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(18) > 28
+            ? 112
+            : 64,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
         title: const Text(
-          'Monthly Transaction History',
+          'Monthly history',
+          maxLines: 2,
+          softWrap: true,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        centerTitle: true,
-        elevation: 2,
+        centerTitle: false,
+        elevation: 0,
         actions: [
           IconButton(
             key: const ValueKey('year-filter-button'),
@@ -133,10 +144,10 @@ class _MonthlyReportState extends State<MonthlyReport> {
   }
 
   Widget _buildBody(
-      Color cardBackgroundColor,
-      Color cardTextColor,
-      dynamic colorScheme,
-      ) {
+    Color cardBackgroundColor,
+    Color cardTextColor,
+    dynamic colorScheme,
+  ) {
     final filteredMonths = _controller.filteredMonths;
 
     if (filteredMonths.isEmpty) {
@@ -194,7 +205,9 @@ class _MonthlyReportState extends State<MonthlyReport> {
               data: data,
               cardBackgroundColor: cardBackgroundColor,
               cardTextColor: cardTextColor,
-              primaryColor: colorScheme.primary,
+              primaryColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF8DCDF4)
+                  : colorScheme.primary,
             );
           },
         ),

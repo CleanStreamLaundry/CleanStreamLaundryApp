@@ -15,6 +15,7 @@ class Header extends StatelessWidget {
     final paidBalance = controller.paidBalance ?? 0.0;
     final promoBalance = controller.promoBalance ?? 0.0;
     final rewardProgress = controller.userReward ?? 0.0;
+    final stacked = MediaQuery.textScalerOf(context).scale(14) > 18;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -24,17 +25,24 @@ class Header extends StatelessWidget {
           balance: balance,
         ),
         const SizedBox(height: 10),
-        Row(
+        Flex(
+          direction: stacked ? Axis.vertical : Axis.horizontal,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: stacked
+              ? CrossAxisAlignment.stretch
+              : CrossAxisAlignment.center,
           children: [
-            Expanded(
+            Flexible(
+              flex: stacked ? 0 : 1,
               child: _BalanceTile(
                 icon: Icons.account_balance_wallet_outlined,
                 label: 'Paid',
                 amount: paidBalance,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
+            const SizedBox(width: 8, height: 8),
+            Flexible(
+              flex: stacked ? 0 : 1,
               child: _BalanceTile(
                 icon: Icons.auto_awesome_rounded,
                 label: 'Promo',
@@ -97,8 +105,6 @@ class _BalanceTile extends StatelessWidget {
             Expanded(
               child: Text(
                 '$label $_formattedAmount',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: colors.fontInverted,
                   fontWeight: FontWeight.w900,
@@ -168,8 +174,6 @@ class _RewardProgressCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '\$${_remaining.toStringAsFixed(2)} until next reward',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: colors.fontInverted,
                       fontWeight: FontWeight.w900,

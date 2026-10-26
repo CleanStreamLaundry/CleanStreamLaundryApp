@@ -34,14 +34,14 @@ class _ResendVerificationWidgetState extends State<ResendVerificationWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 48,
+            height: 48,
             decoration: const BoxDecoration(
-              color: Colors.red,
+              color: Color(0xFFB3261E),
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(Icons.close, color: Colors.white, size: 40),
+              child: Icon(Icons.close, color: Colors.white, size: 28),
             ),
           ),
           const SizedBox(height: 16),
@@ -49,25 +49,32 @@ class _ResendVerificationWidgetState extends State<ResendVerificationWidget> {
             'Please resend verification again at another time.',
             textAlign: TextAlign.center,
             style: TextStyle(
+              letterSpacing: 0,
               fontSize: 16,
-              color: Theme.of(context).colorScheme.fontPrimary,
+              color: Theme.of(context).colorScheme.fontInverted,
             ),
           ),
         ],
       );
     }
 
-    return InkWell(
-      onTap: () async {
-        await widget.controller.resendVerification();
-        widget.onStateChange();
-      },
-      child: const Text(
-        'Resend Verification',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.blue,
-          decoration: TextDecoration.underline,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      child: InkWell(
+        onTap: () async {
+          await widget.controller.resendVerification();
+          widget.onStateChange();
+        },
+        child: Text(
+          'Resend Verification',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            letterSpacing: 0,
+            color: Theme.of(context).colorScheme.brightness == Brightness.dark
+                ? Theme.of(context).colorScheme.onSurface
+                : Theme.of(context).colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
         ),
       ),
     );

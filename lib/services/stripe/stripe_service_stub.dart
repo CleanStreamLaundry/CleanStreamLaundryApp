@@ -7,6 +7,7 @@ class StripeService implements PaymentService {
   Future<PaymentResult> makePayment(
     double amount, {
     PaymentPurpose purpose = PaymentPurpose.directMachinePayment,
+    Map<String, dynamic>? consent,
   }) async {
     print("StripeService is not supported on this platform.");
     throw PlatformException("StripeService is not supported on this platform.");

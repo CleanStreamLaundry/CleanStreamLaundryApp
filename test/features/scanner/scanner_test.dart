@@ -73,9 +73,12 @@ void main() {
         if (widget is Container && widget.decoration is BoxDecoration) {
           final decoration = widget.decoration as BoxDecoration;
           final border = decoration.border as Border?;
-          return border?.top.color == Colors.white &&
+          return border?.top.color ==
+                  Theme.of(
+                    tester.element(find.byType(MobileScanner)),
+                  ).colorScheme.secondary &&
               border?.top.width == 3 &&
-              decoration.borderRadius == BorderRadius.circular(12);
+              decoration.borderRadius == BorderRadius.circular(8);
         }
         return false;
       });

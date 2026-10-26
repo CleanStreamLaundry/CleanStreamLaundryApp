@@ -17,21 +17,16 @@ void main() {
 
     testWidgets('displays confirmation email text', (tester) async {
       await tester.pumpWidget(buildWidget());
-      expect(
-        find.textContaining('confirmation email'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('confirmation email'), findsOneWidget);
     });
 
     testWidgets('text is centered', (tester) async {
       await tester.pumpWidget(buildWidget());
-      final text = tester.widget<Text>(
-        find.textContaining('Enter your info'),
-      );
+      final text = tester.widget<Text>(find.textContaining('Enter your info'));
       expect(text.textAlign, TextAlign.center);
     });
 
-    testWidgets('has blue border decoration', (tester) async {
+    testWidgets('has restrained theme accent rule', (tester) async {
       await tester.pumpWidget(buildWidget());
       final container = tester.widget<Container>(
         find.ancestor(
@@ -41,7 +36,14 @@ void main() {
       );
       final decoration = container.decoration as BoxDecoration;
       final border = decoration.border as Border?;
-      expect(border?.top.color, Colors.blue);
+      expect(
+        border?.bottom.color,
+        Theme.of(
+          tester.element(find.byType(SignUpInfoBanner)),
+        ).colorScheme.secondary,
+      );
+      expect(border?.bottom.width, 3);
+      expect(border?.top.style, BorderStyle.none);
     });
   });
 }

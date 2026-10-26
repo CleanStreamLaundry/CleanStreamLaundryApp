@@ -29,7 +29,8 @@ void main() {
     mockAuth = MockAuthService();
     mockAppLinks = MockAppLinks();
 
-    when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => null);
+    when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => null);
+    when(() => mockAuth.onAuthChange).thenAnswer((_) => const Stream.empty());
   });
 
   group('_automaticLogIn', () {
@@ -44,7 +45,7 @@ void main() {
 
       final routes = await _runInit(controller);
 
-      expect(routes, contains('/homePage'));
+      expect(routes, ['/homePage']);
     });
 
     test('navigates to /login when auth returns non-success', () async {
@@ -58,7 +59,7 @@ void main() {
 
       final routes = await _runInit(controller);
 
-      expect(routes, contains('/login'));
+      expect(routes, ['/login']);
     });
 
     test('sets error and notifies listeners when auth throws', () async {
@@ -112,7 +113,7 @@ void main() {
             () async {
           when(() => mockAuth.isLoggedIn())
               .thenAnswer((_) async => AuthenticationResponses.success);
-          when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => null);
+          when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => null);
 
           final controller = LoadingPageController(
             authService: mockAuth,
@@ -128,7 +129,7 @@ void main() {
   group('_coldStartRedirect – reset-protected URI', () {
     test('navigates to /reset-protected and passes URI as extra', () async {
       final uri = Uri.parse('clean-stream://reset-protected?token=abc');
-      when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+      when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
       when(() => mockAuth.isLoggedIn())
           .thenAnswer((_) async => AuthenticationResponses.failure);
 
@@ -148,15 +149,15 @@ void main() {
         isMounted: () => true,
       );
 
-      expect(routes, contains('/reset-protected'));
-      expect(capturedExtras, contains(uri));
+      expect(routes, ['/reset-protected?token=abc']);
+      expect(capturedExtras, [uri]);
     });
   });
 
   group('_coldStartRedirect – email-verification URI', () {
-    test('navigates to /homePage for email-verification deep link', () async {
+    test('navigates to the OTP page for email-verification deep link', () async {
       final uri = Uri.parse('clean-stream://email-verification');
-      when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+      when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
       when(() => mockAuth.isLoggedIn())
           .thenAnswer((_) async => AuthenticationResponses.failure);
 
@@ -167,15 +168,15 @@ void main() {
 
       final routes = await _runInit(controller);
 
-      expect(routes, contains('/homePage'));
+      expect(routes, ['/email-verification']);
     });
   });
 
   group('_coldStartRedirect – change-email URI', () {
-    test('navigates to /email-verification for change-email deep link',
+    test('rejects the wrong scheme for change-email deep link',
             () async {
           final uri = Uri.parse('https://change-email');
-          when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+          when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
           when(() => mockAuth.isLoggedIn())
               .thenAnswer((_) async => AuthenticationResponses.failure);
 
@@ -186,15 +187,15 @@ void main() {
 
           final routes = await _runInit(controller);
 
-          expect(routes, contains('/email-verification'));
+          expect(routes, ['/login']);
         });
   });
 
   group('_coldStartRedirect – oauth URI', () {
-    test('calls getSessionFromURI and navigates to /homePage when logged in',
+    test('rejects OAuth success without a current user after one exchange',
             () async {
           final uri = Uri.parse('clean-stream://oauth?code=xyz');
-          when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+          when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
           when(() => mockAuth.getSessionFromURI(uri)).thenAnswer((_) async {});
           when(() => mockAuth.isLoggedIn())
               .thenAnswer((_) async => AuthenticationResponses.success);
@@ -207,12 +208,12 @@ void main() {
           final routes = await _runInit(controller);
 
           verify(() => mockAuth.getSessionFromURI(uri)).called(1);
-          expect(routes, contains('/homePage'));
+          expect(routes, ['/login']);
         });
 
     test('navigates to /login after oauth when session is not valid', () async {
       final uri = Uri.parse('clean-stream://oauth?code=xyz');
-      when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+      when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
       when(() => mockAuth.getSessionFromURI(uri)).thenAnswer((_) async {});
       when(() => mockAuth.isLoggedIn())
           .thenAnswer((_) async => AuthenticationResponses.failure);
@@ -224,12 +225,12 @@ void main() {
 
       final routes = await _runInit(controller);
 
-      expect(routes, contains('/login'));
+      expect(routes, ['/login']);
     });
 
     test('does not navigate oauth redirect when unmounted', () async {
       final uri = Uri.parse('clean-stream://oauth?code=xyz');
-      when(() => mockAppLinks.getInitialAppLink()).thenAnswer((_) async => uri);
+      when(() => mockAppLinks.getInitialLink()).thenAnswer((_) async => uri);
       when(() => mockAuth.getSessionFromURI(uri)).thenAnswer((_) async {});
       when(() => mockAuth.isLoggedIn())
           .thenAnswer((_) async => AuthenticationResponses.success);
@@ -247,7 +248,7 @@ void main() {
 
   group('_coldStartRedirect error handling', () {
     test('swallows exceptions silently and does not expose error', () async {
-      when(() => mockAppLinks.getInitialAppLink())
+      when(() => mockAppLinks.getInitialLink())
           .thenThrow(Exception('link error'));
       when(() => mockAuth.isLoggedIn())
           .thenAnswer((_) async => AuthenticationResponses.failure);

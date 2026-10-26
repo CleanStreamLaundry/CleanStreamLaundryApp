@@ -3,21 +3,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget buildWidget({
-    bool isSaving = false,
-    VoidCallback? onPressed,
-  }) {
+  Widget buildWidget({bool isSaving = false, VoidCallback? onPressed}) {
     return MaterialApp(
       home: Scaffold(
-        body: SaveButton(
-          isSaving: isSaving,
-          onPressed: onPressed ?? () {},
-        ),
+        body: SaveButton(isSaving: isSaving, onPressed: onPressed ?? () {}),
       ),
     );
   }
 
   group('SaveButton', () {
+    testWidgets('reflows at narrow width with doubled bold text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              textScaler: TextScaler.linear(2),
+              boldText: true,
+            ),
+            child: Scaffold(
+              body: SizedBox(
+                width: 240,
+                child: SaveButton(isSaving: false, onPressed: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('Save Changes'), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(ElevatedButton)).height,
+        greaterThanOrEqualTo(48),
+      );
+    });
+
     group('Idle state', () {
       testWidgets('displays Save Changes text', (tester) async {
         await tester.pumpWidget(buildWidget());
@@ -72,17 +93,18 @@ void main() {
         expect(button.onPressed, isNull);
       });
 
-      testWidgets('does not call onPressed when tapped while saving',
-              (tester) async {
-            var tapped = false;
-            await tester.pumpWidget(
-              buildWidget(isSaving: true, onPressed: () => tapped = true),
-            );
+      testWidgets('does not call onPressed when tapped while saving', (
+        tester,
+      ) async {
+        var tapped = false;
+        await tester.pumpWidget(
+          buildWidget(isSaving: true, onPressed: () => tapped = true),
+        );
 
-            await tester.tap(find.byType(ElevatedButton), warnIfMissed: false);
+        await tester.tap(find.byType(ElevatedButton), warnIfMissed: false);
 
-            expect(tapped, isFalse);
-          });
+        expect(tapped, isFalse);
+      });
     });
   });
 }

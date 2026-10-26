@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-class LocationMap extends StatelessWidget {
+class LocationMap extends StatefulWidget {
   static const LatLng _defaultCenter = LatLng(40.273502, -86.126976);
 
   final List<Map<String, dynamic>> locations;
@@ -20,9 +20,41 @@ class LocationMap extends StatelessWidget {
   });
 
   @override
+  State<LocationMap> createState() => _LocationMapState();
+}
+
+class _LocationMapState extends State<LocationMap> {
+  @override
+  void initState() {
+    super.initState();
+    _syncSelection();
+  }
+
+  @override
+  void didUpdateWidget(covariant LocationMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedLocation == widget.selectedLocation) return;
+    _syncSelection();
+  }
+
+  void _syncSelection() {
+    // Resize events must finish first or they prune tiles using the old camera.
+    final selected = widget.selectedLocation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.microtask(() {
+        if (!mounted || widget.selectedLocation != selected) return;
+        widget.mapController.move(
+          selected ?? LocationMap._defaultCenter,
+          selected == null ? 7.2 : 15,
+        );
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final markers = LocationParser.parseLocations(locations);
-    final initialCenter = selectedLocation ?? _defaultCenter;
+    final markers = LocationParser.parseLocations(widget.locations);
+    final initialCenter = widget.selectedLocation ?? LocationMap._defaultCenter;
 
     return Card(
       elevation: 5,
@@ -35,13 +67,13 @@ class LocationMap extends StatelessWidget {
         side: BorderSide(color: Colors.grey.withValues(alpha: 0.20)),
       ),
       child: SizedBox(
-        height: height,
+        height: widget.height,
         width: double.infinity,
         child: FlutterMap(
-          mapController: mapController,
+          mapController: widget.mapController,
           options: MapOptions(
             initialCenter: initialCenter,
-            initialZoom: selectedLocation == null ? 7.2 : 15,
+            initialZoom: widget.selectedLocation == null ? 7.2 : 15,
             keepAlive: true,
             maxZoom: 15,
           ),

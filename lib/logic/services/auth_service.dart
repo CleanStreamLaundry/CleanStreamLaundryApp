@@ -14,10 +14,17 @@ abstract class AuthService {
   String getLastSignedUpUserId();
   Future<AuthenticationResponses> resendVerification({String? email});
   Stream<bool> get onAuthChange;
+  Session? get currentSession;
+  Stream<AuthState> get authStateChanges;
   bool isEmailVerified();
   Future<AuthenticationResponses> resetPassword(String email);
-  Future<void> appleSignIn();
-  Future<void> googleSignIn();
+  /// True only after native sign-in establishes a Supabase session.
+  Future<bool> appleSignIn();
+  void cancelAppleSignIn();
+
+  /// True only after native sign-in establishes a Supabase session.
+  Future<bool> googleSignIn();
+  void cancelGoogleSignIn();
   Future<void> getSessionFromURI(Uri uri);
   Future<void> refreshSession();
   User? getCurrentUser();
@@ -34,6 +41,13 @@ abstract class AuthService {
   });
   Future<AuthenticationResponses> verifyEmailCode({
     required String email,
+    required String code,
+  });
+  Future<AuthMFAListFactorsResponse> listMfaFactors();
+  AuthMFAGetAuthenticatorAssuranceLevelResponse getMfaAssurance();
+  Future<AuthMFAEnrollResponse> enrollTotp({String? friendlyName});
+  Future<AuthMFAVerifyResponse> verifyTotp({
+    required String factorId,
     required String code,
   });
 }

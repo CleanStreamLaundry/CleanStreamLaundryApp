@@ -23,25 +23,31 @@ class VerificationCodeField extends StatelessWidget {
       keyboardType: TextInputType.number,
       maxLength: 6,
       style: TextStyle(
+        letterSpacing: 0,
         color: scheme.fontInverted,
-        letterSpacing: 8,
         fontSize: 20,
         fontWeight: FontWeight.bold,
       ),
       textAlign: TextAlign.center,
       onChanged: onChanged,
       decoration: InputDecoration(
+        constraints: const BoxConstraints(minHeight: 48),
         labelText: hasError ? error : '6-digit code',
         labelStyle: TextStyle(
-          color: hasError ? Colors.red : scheme.primary,
+          letterSpacing: 0,
+          color: scheme.brightness == Brightness.dark
+              ? scheme.fontInverted
+              : (hasError ? scheme.error : scheme.primary),
         ),
         counterText: '',
         prefixIcon: Icon(
           Icons.lock,
           color: hasError ? Colors.red : scheme.primary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: scheme.primary, width: 2),
         ),
       ),
     );

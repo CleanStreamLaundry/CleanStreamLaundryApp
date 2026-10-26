@@ -15,10 +15,23 @@ class TransactionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (controller.recentTransactions.isEmpty) {
+      if (controller.transactionsError != null) {
+        return SizedBox(
+          height: 76,
+          child: Center(child: Text(controller.transactionsError!)),
+        );
+      }
+      if (controller.isLoading) {
+        return const SizedBox(
+          height: 76,
+          child: Center(child: Text('Loading transactions...')),
+        );
+      }
       return const _EmptyTransactionsCard();
     }
 
     final colors = Theme.of(context).colorScheme;
+    final stacked = MediaQuery.textScalerOf(context).scale(14) > 18;
     final transactions = controller.recentTransactions;
     final listView = ListView.separated(
       cacheExtent: 1000,
@@ -37,8 +50,13 @@ class TransactionList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        Flex(
+          direction: stacked ? Axis.vertical : Axis.horizontal,
+          mainAxisSize: stacked ? MainAxisSize.min : MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: stacked
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.center,
           children: [
             Text(
               'Transactions',
@@ -68,7 +86,20 @@ class TransactionList extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
+        if (controller.transactionsError != null)
+          Text(controller.transactionsError!),
         if (fillAvailableHeight) Expanded(child: listView) else listView,
+        if (controller.showPastTransactions && controller.hasMoreTransactions)
+          TextButton.icon(
+            key: const ValueKey('transactions-next-page'),
+            onPressed: controller.isLoadingMore || controller.isRefreshing
+                ? null
+                : controller.loadMoreTransactions,
+            icon: const Icon(Icons.expand_more),
+            label: Text(
+              controller.isLoadingMore ? 'Loading...' : 'More transactions',
+            ),
+          ),
       ],
     );
   }

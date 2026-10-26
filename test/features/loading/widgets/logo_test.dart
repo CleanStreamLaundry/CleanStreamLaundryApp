@@ -30,6 +30,9 @@ void main() {
       await tester.pumpWidget(_buildLogo());
 
       expect(find.byType(Image), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image));
+      expect((image.image as AssetImage).assetName, 'assets/splash-logo.png');
+      expect(image.height, 250);
     });
 
     testWidgets('scale swaps begin/end after animation completes', (tester) async {

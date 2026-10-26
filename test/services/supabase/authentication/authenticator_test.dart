@@ -18,6 +18,96 @@ void main() {
     registerFallbackValue(OtpType.recovery);
   });
 
+  group('read-only typed session access', () {
+    test('currentSession returns the exact SDK snapshot or null', () {
+      final client = SupabaseMock();
+      final auth = GoTrueMock();
+      when(() => client.auth).thenReturn(auth);
+      final service = SupabaseAuthService(client: client);
+      final session = Session(
+        accessToken: 'fake',
+        tokenType: 'bearer',
+        refreshToken: 'fake',
+        user: const User(
+          id: 'synthetic-user',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '',
+        ),
+      );
+      when(() => auth.currentSession).thenReturn(session);
+      expect(identical(service.currentSession, session), isTrue);
+      when(() => auth.currentSession).thenReturn(null);
+      expect(service.currentSession, isNull);
+      verify(() => client.auth).called(2);
+      verify(() => auth.currentSession).called(2);
+      verifyNoMoreInteractions(client);
+      verifyNoMoreInteractions(auth);
+    });
+
+    test(
+      'typed events/errors pass through while the bool stream is preserved',
+      () async {
+        final client = SupabaseMock();
+        final auth = GoTrueMock();
+        final source = StreamController<AuthState>.broadcast();
+        when(() => client.auth).thenReturn(auth);
+        when(() => auth.onAuthStateChange).thenAnswer((_) => source.stream);
+        final service = SupabaseAuthService(client: client);
+        final typed = <AuthState>[];
+        final booleans = <bool>[];
+        final errors = <Object>[];
+        final typedSubscription = service.authStateChanges.listen(
+          typed.add,
+          onError: errors.add,
+        );
+        final boolSubscription = service.onAuthChange.listen(
+          booleans.add,
+          onError: errors.add,
+        );
+        final session = Session(
+          accessToken: 'fake',
+          tokenType: 'bearer',
+          refreshToken: 'fake',
+          user: const User(
+            id: 'synthetic-user',
+            appMetadata: {},
+            userMetadata: {},
+            aud: 'authenticated',
+            createdAt: '',
+          ),
+        );
+        final states = [
+          AuthState(AuthChangeEvent.initialSession, session),
+          AuthState(AuthChangeEvent.mfaChallengeVerified, session),
+          const AuthState(AuthChangeEvent.signedOut, null),
+        ];
+        for (final state in states) {
+          source.add(state);
+        }
+        final error = AuthRetryableFetchException(message: 'synthetic offline');
+        source.addError(error);
+        await Future<void>.delayed(Duration.zero);
+        expect(typed.length, states.length);
+        for (var i = 0; i < states.length; i++) {
+          expect(identical(typed[i], states[i]), isTrue);
+        }
+        expect(booleans, [true, true, false]);
+        expect(errors.length, 2);
+        expect(errors.every((item) => identical(item, error)), isTrue);
+        await typedSubscription.cancel();
+        await boolSubscription.cancel();
+        expect(source.hasListener, isFalse);
+        await source.close();
+        verify(() => client.auth).called(2);
+        verify(() => auth.onAuthStateChange).called(2);
+        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(auth);
+      },
+    );
+  });
+
   group("authentication Tests", () {
     setUp(() {
       client = SupabaseMock();
@@ -236,6 +326,48 @@ void main() {
       );
 
       expect(response, AuthenticationResponses.success);
+    });
+
+    test('signup awaiting confirmation does not request a second email', () async {
+      const email = 'new-customer@example.test';
+      when(() => supabaseAuth.signUp(
+        email: email,
+        password: 'ValidPassword1!',
+        data: {'full_name': 'New Customer'},
+      )).thenAnswer((_) async => AuthResponse(user: const User(
+        id: 'new-customer',
+        appMetadata: {},
+        userMetadata: {},
+        aud: 'authenticated',
+        createdAt: '',
+      )));
+
+      expect(
+        await authenticator.signUp(email, 'ValidPassword1!', 'New Customer'),
+        AuthenticationResponses.success,
+      );
+      expect(authenticator.getLastSignedUpUserId(), 'new-customer');
+      verify(() => supabaseAuth.signUp(
+        email: email,
+        password: 'ValidPassword1!',
+        data: {'full_name': 'New Customer'},
+      )).called(1);
+      verifyNever(() => supabaseAuth.resend(
+        type: OtpType.signup,
+        email: any(named: 'email'),
+      ));
+    });
+
+    test('signed-out customer can explicitly resend confirmation', () async {
+      when(() => supabaseAuth.currentUser).thenReturn(null);
+      expect(
+        await authenticator.resendVerification(email: 'new-customer@example.test'),
+        AuthenticationResponses.success,
+      );
+      verify(() => supabaseAuth.resend(
+        type: OtpType.signup,
+        email: 'new-customer@example.test',
+      )).called(1);
     });
 
     test("Sign up test has no digit", () async {
@@ -887,72 +1019,6 @@ void main() {
 
       controller.add(AuthState(AuthChangeEvent.signedOut, null));
     });
-
-    test("googleSignIn calls signInWithOAuth", () async {
-      when(
-        () => client.auth.signInWithOAuth(
-          any(),
-          redirectTo: any(named: 'redirectTo'),
-        ),
-      ).thenAnswer((_) async => true);
-
-      await authenticator.googleSignIn();
-
-      verify(
-        () => client.auth.signInWithOAuth(
-          any(),
-          redirectTo: any(named: 'redirectTo'),
-        ),
-      ).called(1);
-    });
-
-    test("Tests that all errors are properly handled", () async {
-      when(
-        () => client.auth.signInWithOAuth(any()),
-      ).thenThrow(Exception("Test Error"));
-      await authenticator.googleSignIn();
-      //If test reaches here it passed because nothing failed
-    });
-
-    test("appleSignIn calls signInWithOAuth", () async {
-      when(
-        () => client.auth.signInWithOAuth(
-          any(),
-          redirectTo: any(named: 'redirectTo'),
-        ),
-      ).thenAnswer((_) async => true);
-
-      await authenticator.appleSignIn();
-
-      verify(
-        () => client.auth.signInWithOAuth(
-          any(),
-          redirectTo: any(named: 'redirectTo'),
-        ),
-      ).called(1);
-    });
-
-    test(
-      "Tests that all errors are properly handled with apple sign in",
-      () async {
-        when(
-          () => client.auth.signInWithOAuth(any()),
-        ).thenThrow(Exception("Test Error"));
-        await authenticator.appleSignIn();
-        //If test reaches here it passed because nothing failed
-      },
-    );
-
-    test(
-      "Tests that all errors are properly handled with google sign in",
-      () async {
-        when(
-          () => client.auth.signInWithOAuth(any()),
-        ).thenThrow(Exception("Test Error"));
-        await authenticator.googleSignIn();
-        //If test reaches here it passed because nothing failed
-      },
-    );
 
     test("Tests to see that the redirect was called", () async {
       when(() => supabaseAuth.getSessionFromUrl(any())).thenAnswer(

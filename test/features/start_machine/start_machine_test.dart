@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:clean_stream_laundry_app/features/start_machine/start_machine.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
@@ -32,13 +34,16 @@ void main() {
     await GetIt.instance.reset();
   });
 
-  Widget createWidget() {
+  Widget createWidget({bool doorAccessEnabled = true}) {
     return MaterialApp.router(
       routerConfig: GoRouter(
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => StartPage(doorUnlocker: mockUnlocker),
+            builder: (context, state) => StartPage(
+              doorUnlocker: mockUnlocker,
+              doorAccessEnabled: doorAccessEnabled,
+            ),
           ),
           GoRoute(
             path: '/scanner',
@@ -47,7 +52,10 @@ void main() {
           ),
           GoRoute(
             path: '/startPage',
-            builder: (context, state) => StartPage(doorUnlocker: mockUnlocker),
+            builder: (context, state) => StartPage(
+              doorUnlocker: mockUnlocker,
+              doorAccessEnabled: doorAccessEnabled,
+            ),
           ),
         ],
       ),
@@ -60,6 +68,49 @@ void main() {
   }
 
   group('Static UI', () {
+    testWidgets(
+      'beta keeps laundry actions without exposing mock door access',
+      (tester) async {
+        await tester.pumpWidget(createWidget(doorAccessEnabled: false));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Tap to Pay'), findsOneWidget);
+        expect(find.text('Scan QR code'), findsOneWidget);
+        expect(find.text('How it works'), findsOneWidget);
+        expect(find.text('After Hours'), findsNothing);
+        expect(find.text('Unlock Door'), findsNothing);
+        verifyNever(() => mockUnlocker.unlockNearestDoor());
+        verifyNever(() => mockProfileService.getUserBalanceById(any()));
+
+        await tester.tap(find.text('Scan QR code'));
+        await tester.pumpAndSettle();
+        expect(find.text('Scanner Page'), findsOneWidget);
+      },
+    );
+
+    testWidgets('action tiles expose labeled button semantics', (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+
+        final nodeIds = <int>{};
+        for (final title in ['Tap to Pay', 'Scan QR code', 'Unlock Door']) {
+          final finder = find.bySemanticsLabel(RegExp('^$title\\n'));
+          expect(finder, findsOneWidget);
+          final node = tester.getSemantics(finder);
+          final data = node.getSemanticsData();
+          expect(data.label, startsWith('$title\n'));
+          expect(data.flagsCollection.isButton, isTrue);
+          expect(data.hasAction(SemanticsAction.tap), isTrue);
+          nodeIds.add(node.id);
+        }
+        expect(nodeIds, hasLength(3));
+      } finally {
+        semantics.dispose();
+      }
+    });
+
     testWidgets('displays Start Laundry header', (tester) async {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
@@ -79,7 +130,7 @@ void main() {
       expect(find.text('Tap to Pay'), findsOneWidget);
       expect(find.byIcon(Icons.tap_and_play), findsOneWidget);
       expect(
-        find.text('Pay at the machine reader with your mobile wallet.'),
+        find.text('Use your mobile wallet at the reader.'),
         findsOneWidget,
       );
     });

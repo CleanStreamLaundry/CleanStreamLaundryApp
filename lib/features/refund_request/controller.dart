@@ -47,12 +47,12 @@ class RefundController extends ChangeNotifier {
     try {
       final result =
       await transactionService.getRefundableTransactionsForUser();
-      recentTransactions = result.transactions;
-      recentTransactionIDs = result.ids;
-
-      recentTransactions.removeWhere(
-            (t) => t.contains('added to Loyalty Card'),
-      );
+      final eligible = [
+        for (var i = 0; i < result.transactions.length; i++)
+          if (!result.transactions[i].contains('added to Loyalty Card')) i,
+      ];
+      recentTransactions = [for (final i in eligible) result.transactions[i]];
+      recentTransactionIDs = [for (final i in eligible) result.ids[i]];
     } catch (e) {
       // silently ignore — page stays usable with empty list
     } finally {
@@ -71,13 +71,8 @@ class RefundController extends ChangeNotifier {
     return recentTransactionIDs[selectedTransactionIndex!].toString();
   }
 
-  Future<String?> getUserName() async {
-    final userId = authService.getCurrentUserId;
-    if (userId == null) return null;
-    return profileService.getUserNameById(userId);
-  }
-  
   Future<bool> submitRefund() async {
+    if (isLoading) return false;
     final userId = authService.getCurrentUserId;
     if (userId == null) return false;
 
@@ -87,23 +82,29 @@ class RefundController extends ChangeNotifier {
     try {
       final transactionId = getTransactionID();
       final description = descriptionController.text;
-      final username = await getUserName();
-
       final amount = await transactionService.recordRefundRequest(
         transaction_id: transactionId,
         description: description,
       );
+      if (amount == null) return false;
 
-      await edgeFunctionService.runEdgeFunction(
-        name: 'refund-email',
-        body: {
-          'username': username,
-          'user_id': userId,
-          'transaction_id': transactionId,
-          'amount': amount,
-          'description': description,
-        },
-      );
+      try {
+        if (authService.getCurrentUserId != userId) return true;
+        final username = await profileService.getUserNameById(userId);
+        if (authService.getCurrentUserId != userId) return true;
+        await edgeFunctionService.runEdgeFunction(
+          name: 'refund-email',
+          body: {
+            'username': username,
+            'user_id': userId,
+            'transaction_id': transactionId,
+            'amount': amount,
+            'description': description,
+          },
+        );
+      } on Exception {
+        // The claim is already saved; notification failure must not invite a retry.
+      }
 
       return true;
     } finally {

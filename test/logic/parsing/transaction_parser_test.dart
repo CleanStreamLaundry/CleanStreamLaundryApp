@@ -7,6 +7,30 @@ void main(){
 
   group("Test for TransactionParser",(){
 
+    test('formats fixed dates with literal English month and padded day', () {
+      // Future records isolate formatting from rolling history retention.
+      final result = Intl.withLocale(
+        'en_US',
+        () => TransactionParser.formatTransactionsList([
+          {
+            'amount': 2.75,
+            'description': 'Dryer',
+            'created_at': '2099-01-02T03:04:05',
+          },
+          {
+            'amount': 10,
+            'description': 'Loyalty Card',
+            'created_at': '2099-12-31T23:59:00',
+          },
+        ], 'transactionHistory'),
+      );
+
+      expect(result, [
+        r'$2.75 - Dryer on Jan 02, 2099',
+        r'$10.00 added to Loyalty Card on Dec 31, 2099',
+      ]);
+    });
+
     test("Test that transactions are parsed correctly",(){
 
       final result = TransactionParser.formatTransaction(({"amount": 2.75, "description": "Dryer", "created_at": DateTime.now().toString()}), "transactionHistory");

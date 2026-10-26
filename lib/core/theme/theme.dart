@@ -69,6 +69,21 @@ extension ModeChangerText on ColorScheme {
 }
 
 extension GradientScheme on ColorScheme {
+  // Home-only corrections preserve the other tabs' established presentation.
+  Color get homeCard =>
+      brightness == Brightness.dark ? const Color(0xFF2C2C2C) : cardPrimary;
+
+  Color get homeAccent =>
+      brightness == Brightness.dark ? const Color(0xFF8DCDF4) : primary;
+
+  LinearGradient get homeGradient => brightness == Brightness.dark
+      ? const LinearGradient(
+          colors: [Color(0xFF2073A9), Color(0xFF145678)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        )
+      : primaryGradient;
+
   LinearGradient get primaryGradient {
     return brightness == Brightness.dark
         ? LinearGradient(

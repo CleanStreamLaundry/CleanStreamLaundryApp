@@ -12,8 +12,14 @@ import 'package:go_router/go_router.dart';
 
 class StartPage extends StatefulWidget {
   final DoorUnlocker? doorUnlocker;
+  // Keep the unfinished Kisi flow out of customer builds until it is integrated.
+  final bool doorAccessEnabled;
 
-  const StartPage({super.key, this.doorUnlocker});
+  const StartPage({
+    super.key,
+    this.doorUnlocker,
+    this.doorAccessEnabled = false,
+  });
 
   @override
   State<StartPage> createState() => _StartPageState();
@@ -21,6 +27,7 @@ class StartPage extends StatefulWidget {
 
 class _StartPageState extends State<StartPage> {
   late final StartPageController _controller;
+  bool _routeCurrent = false;
 
   @override
   void initState() {
@@ -29,7 +36,17 @@ class _StartPageState extends State<StartPage> {
     _controller.addListener(() {
       if (mounted) setState(() {});
     });
-    _controller.loadUserData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final current =
+        TickerMode.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+    if (widget.doorAccessEnabled && current && !_routeCurrent) {
+      _controller.loadUserData();
+    }
+    _routeCurrent = current;
   }
 
   @override
@@ -39,6 +56,7 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _onUnlockPressed() async {
+    if (!widget.doorAccessEnabled) return;
     if (!_controller.hasSufficientBalance) {
       _showLowBalanceDialog();
       return;
@@ -71,6 +89,7 @@ class _StartPageState extends State<StartPage> {
   void _showLowBalanceDialog() {
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Low Balance'),
@@ -136,6 +155,7 @@ class _StartPageState extends State<StartPage> {
                 final baseScale = (contentWidth / 340)
                     .clamp(0.94, 1.0)
                     .toDouble();
+                final contentHeight = widget.doorAccessEnabled ? 610.0 : 390.0;
                 final baseMetrics = _StartLayoutMetrics(scale: baseScale);
                 final verticalPadding = baseMetrics.gap(4);
                 final canvasHeight = math.max(
@@ -144,7 +164,7 @@ class _StartPageState extends State<StartPage> {
                 );
                 final heightScale = canvasHeight <= 0
                     ? 1.0
-                    : (canvasHeight / baseMetrics.baseContentHeight)
+                    : (canvasHeight / baseMetrics.size(contentHeight))
                           .clamp(1.0, 1.05)
                           .toDouble();
                 final layoutScale = (baseScale * heightScale)
@@ -152,7 +172,7 @@ class _StartPageState extends State<StartPage> {
                     .toDouble();
                 final scaledMetrics = _StartLayoutMetrics(scale: layoutScale);
                 final sectionGapBoost =
-                    ((canvasHeight - scaledMetrics.baseContentHeight) / 5.35)
+                    ((canvasHeight - scaledMetrics.size(contentHeight)) / 5.35)
                         .clamp(0.0, 14.0)
                         .toDouble();
                 final metrics = _StartLayoutMetrics(
@@ -161,7 +181,7 @@ class _StartPageState extends State<StartPage> {
                 );
                 final targetHeight = math.max(
                   canvasHeight,
-                  metrics.baseContentHeight,
+                  metrics.size(contentHeight),
                 );
                 final media = MediaQuery.of(context);
                 final textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -206,23 +226,27 @@ class _StartPageState extends State<StartPage> {
                                 ),
                                 SizedBox(height: metrics.sectionGap(10)),
                                 _HowItWorksSection(metrics: metrics),
-                                SizedBox(height: metrics.sectionGap(10)),
-                                _SectionHeading(
-                                  metrics: metrics,
-                                  icon: Icons.dark_mode_rounded,
-                                  title: 'After Hours',
-                                ),
-                                SizedBox(height: metrics.compactSectionGap(6)),
-                                _OutlinedActionCard(
-                                  metrics: metrics,
-                                  cardKey: const ValueKey('unlock-door-card'),
-                                  icon: Icons.lock_outline_rounded,
-                                  title: 'Unlock Door',
-                                  description: 'Unlock the facility door.',
-                                  onPressed: _onUnlockPressed,
-                                ),
-                                SizedBox(height: metrics.sectionGap(8)),
-                                _AfterHoursSteps(metrics: metrics),
+                                if (widget.doorAccessEnabled) ...[
+                                  SizedBox(height: metrics.sectionGap(10)),
+                                  _SectionHeading(
+                                    metrics: metrics,
+                                    icon: Icons.dark_mode_rounded,
+                                    title: 'After Hours',
+                                  ),
+                                  SizedBox(
+                                    height: metrics.compactSectionGap(6),
+                                  ),
+                                  _OutlinedActionCard(
+                                    metrics: metrics,
+                                    cardKey: const ValueKey('unlock-door-card'),
+                                    icon: Icons.lock_outline_rounded,
+                                    title: 'Unlock Door',
+                                    description: 'Unlock the facility door.',
+                                    onPressed: _onUnlockPressed,
+                                  ),
+                                  SizedBox(height: metrics.sectionGap(8)),
+                                  _AfterHoursSteps(metrics: metrics),
+                                ],
                               ],
                             ),
                           ),
@@ -257,8 +281,6 @@ class _StartLayoutMetrics {
 
   double font(double value) =>
       (value * scale).clamp(value * 0.88, value * 1.03).toDouble();
-
-  double get baseContentHeight => size(610);
 }
 
 class _StartHeader extends StatelessWidget {
@@ -520,125 +542,129 @@ class _PrimaryScanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      elevation: 10,
-      shadowColor: colors.primary.withValues(alpha: 0.24),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onPressed,
+    return Semantics(
+      button: true,
+      enabled: true,
+      child: Material(
+        color: Colors.transparent,
+        elevation: 10,
+        shadowColor: colors.primary.withValues(alpha: 0.24),
         borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          height: metrics.size(120),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [colors.primary, const Color(0xFF007DCE)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            height: metrics.size(120),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [colors.primary, const Color(0xFF007DCE)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
             ),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      metrics.gap(14),
-                      metrics.gap(12),
-                      metrics.gap(12),
-                      metrics.gap(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: metrics.size(54),
-                          height: metrics.size(54),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(15),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        metrics.gap(14),
+                        metrics.gap(12),
+                        metrics.gap(12),
+                        metrics.gap(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: metrics.size(54),
+                            height: metrics.size(54),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: colors.primary,
+                              size: metrics.size(32),
+                            ),
                           ),
-                          child: Icon(
-                            Icons.qr_code_scanner_rounded,
-                            color: colors.primary,
-                            size: metrics.size(32),
-                          ),
-                        ),
-                        SizedBox(width: metrics.gap(14)),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Scan QR code',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontSize: metrics.font(23),
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                              ),
-                              SizedBox(height: metrics.gap(4)),
-                              Text(
-                                'Use your loyalty balance.',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.92,
+                          SizedBox(width: metrics.gap(14)),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Scan QR code',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontSize: metrics.font(23),
+                                        fontWeight: FontWeight.w900,
                                       ),
-                                      height: 1.12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ],
+                                ),
+                                SizedBox(height: metrics.gap(4)),
+                                Text(
+                                  'Use your loyalty balance.',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.92,
+                                        ),
+                                        height: 1.12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        SizedBox(width: metrics.gap(6)),
+                          SizedBox(width: metrics.gap(6)),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white.withValues(alpha: 0.88),
+                            size: metrics.size(30),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    height: metrics.size(30),
+                    padding: EdgeInsets.symmetric(horizontal: metrics.gap(12)),
+                    color: const Color(0xFF0065AA).withValues(alpha: 0.78),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                         Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.white.withValues(alpha: 0.88),
-                          size: metrics.size(30),
+                          Icons.verified_user_outlined,
+                          color: Colors.white,
+                          size: metrics.size(15),
+                        ),
+                        SizedBox(width: metrics.gap(8)),
+                        Flexible(
+                          child: Text(
+                            'Fast  •  Secure  •  No extra fees',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-                Container(
-                  height: metrics.size(30),
-                  padding: EdgeInsets.symmetric(horizontal: metrics.gap(12)),
-                  color: const Color(0xFF0065AA).withValues(alpha: 0.78),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.verified_user_outlined,
-                        color: Colors.white,
-                        size: metrics.size(15),
-                      ),
-                      SizedBox(width: metrics.gap(8)),
-                      Flexible(
-                        child: Text(
-                          'Fast  •  Secure  •  No extra fees',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -854,77 +880,81 @@ class _OutlinedActionCard extends StatelessWidget {
         ? const Color(0xFF262626)
         : Colors.white;
 
-    return Material(
-      key: cardKey,
-      color: cardColor,
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onPressed,
+    return Semantics(
+      button: true,
+      enabled: true,
+      child: Material(
+        key: cardKey,
+        color: cardColor,
+        elevation: 3,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
-        child: Container(
-          constraints: BoxConstraints(minHeight: metrics.size(84)),
-          padding: EdgeInsets.symmetric(
-            horizontal: metrics.gap(15),
-            vertical: metrics.gap(10),
-          ),
-          decoration: BoxDecoration(
-            border: Border.all(color: colors.primary.withValues(alpha: 0.28)),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            children: [
-              Container(
-                height: metrics.size(48),
-                width: metrics.size(48),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.09),
-                  borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            constraints: BoxConstraints(minHeight: metrics.size(84)),
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.gap(15),
+              vertical: metrics.gap(10),
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.primary.withValues(alpha: 0.28)),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  height: metrics.size(48),
+                  width: metrics.size(48),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: colors.primary,
+                    size: metrics.size(28),
+                  ),
                 ),
-                child: Icon(
-                  icon,
+                SizedBox(width: metrics.gap(14)),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: colors.fontInverted,
+                          fontSize: metrics.font(20),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: metrics.gap(3)),
+                      Text(
+                        description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.fontSecondary,
+                          height: 1.1,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: metrics.gap(8)),
+                Icon(
+                  Icons.chevron_right_rounded,
                   color: colors.primary,
-                  size: metrics.size(28),
+                  size: metrics.size(26),
                 ),
-              ),
-              SizedBox(width: metrics.gap(14)),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: colors.fontInverted,
-                        fontSize: metrics.font(20),
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: metrics.gap(3)),
-                    Text(
-                      description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.fontSecondary,
-                        height: 1.1,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: metrics.gap(8)),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colors.primary,
-                size: metrics.size(26),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

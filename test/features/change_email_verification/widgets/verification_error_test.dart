@@ -4,11 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Widget buildWidget() {
-    return const MaterialApp(
-      home: Scaffold(
-        body: VerificationError(),
-      ),
-    );
+    return const MaterialApp(home: Scaffold(body: VerificationError()));
   }
 
   group('VerificationError', () {
@@ -40,7 +36,7 @@ void main() {
       await tester.pumpWidget(buildWidget());
 
       final icon = tester.widget<Icon>(find.byIcon(Icons.close));
-      expect(icon.size, equals(40));
+      expect(icon.size, equals(28));
       expect(icon.color, equals(Colors.white));
     });
 
@@ -50,14 +46,14 @@ void main() {
       final container = tester.widget<Container>(
         find
             .ancestor(
-          of: find.byIcon(Icons.close),
-          matching: find.byType(Container),
-        )
+              of: find.byIcon(Icons.close),
+              matching: find.byType(Container),
+            )
             .first,
       );
 
       final decoration = container.decoration as BoxDecoration;
-      expect(decoration.color, equals(Colors.red));
+      expect(decoration.color, const Color(0xFFB3261E));
       expect(decoration.shape, equals(BoxShape.circle));
     });
 
@@ -67,14 +63,14 @@ void main() {
       final container = tester.widget<Container>(
         find
             .ancestor(
-          of: find.byIcon(Icons.close),
-          matching: find.byType(Container),
-        )
+              of: find.byIcon(Icons.close),
+              matching: find.byType(Container),
+            )
             .first,
       );
 
-      expect(container.constraints?.maxWidth, equals(80));
-      expect(container.constraints?.maxHeight, equals(80));
+      expect(container.constraints?.maxWidth, equals(48));
+      expect(container.constraints?.maxHeight, equals(48));
     });
   });
 }

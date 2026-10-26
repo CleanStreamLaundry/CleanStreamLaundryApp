@@ -11,8 +11,9 @@ class PaymentProcessor {
 
   Future<PaymentResult> processPayment(
     double amount,
-    String description,
-  ) async {
+    String description, {
+    Map<String, dynamic>? consent,
+  }) async {
     try {
       final purpose = description == "Loyalty Card"
           ? PaymentPurpose.walletLoad
@@ -20,6 +21,7 @@ class PaymentProcessor {
       final result = await _paymentService.makePayment(
         amount,
         purpose: purpose,
+        consent: consent,
       );
 
       if (result == PaymentResult.success &&

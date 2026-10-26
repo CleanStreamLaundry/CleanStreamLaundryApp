@@ -63,7 +63,7 @@ void main() {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
       expect(
-        find.textContaining('send you a reset link'),
+        find.text('Enter your email address and we\'ll send you a 6-digit reset code.'),
         findsOneWidget,
       );
     });
@@ -74,10 +74,10 @@ void main() {
       expect(find.byType(TextFormField), findsOneWidget);
     });
 
-    testWidgets('displays Send Reset Link button', (tester) async {
+    testWidgets('displays Send Reset Code button', (tester) async {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
-      expect(find.text('Send Reset Link'), findsOneWidget);
+      expect(find.text('Send Reset Code'), findsOneWidget);
     });
 
     testWidgets('displays Back to Login text button', (tester) async {
@@ -110,7 +110,7 @@ void main() {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(find.text('Please enter your email'), findsOneWidget);
@@ -121,7 +121,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextFormField), 'not-an-email');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(
@@ -134,7 +134,7 @@ void main() {
       await tester.pumpWidget(createWidget());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       verifyNever(() => mockAuthService.resetPassword(any()));
@@ -153,7 +153,7 @@ void main() {
 
           await tester.enterText(
               find.byType(TextFormField), '  test@example.com  ');
-          await tester.tap(find.text('Send Reset Link'));
+          await tester.tap(find.text('Send Reset Code'));
           await tester.pumpAndSettle();
 
           verify(() => mockAuthService.resetPassword('test@example.com'))
@@ -169,7 +169,7 @@ void main() {
 
       await tester.enterText(
           find.byType(TextFormField), 'test@example.com');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(
@@ -187,7 +187,7 @@ void main() {
 
       await tester.enterText(
           find.byType(TextFormField), 'test@example.com');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(find.text('Verify Code Page'), findsOneWidget);
@@ -203,7 +203,7 @@ void main() {
 
           await tester.enterText(
               find.byType(TextFormField), 'test@example.com');
-          await tester.tap(find.text('Send Reset Link'));
+          await tester.tap(find.text('Send Reset Code'));
           await tester.pumpAndSettle();
 
           expect(find.text('Failed to send reset email.'), findsOneWidget);
@@ -218,7 +218,7 @@ void main() {
 
       await tester.enterText(
           find.byType(TextFormField), 'test@example.com');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Error:'), findsOneWidget);
@@ -235,11 +235,11 @@ void main() {
 
           await tester.enterText(
               find.byType(TextFormField), 'test@example.com');
-          await tester.tap(find.text('Send Reset Link'));
+          await tester.tap(find.text('Send Reset Code'));
           await tester.pump();
 
           expect(find.byType(CircularProgressIndicator), findsOneWidget);
-          expect(find.text('Send Reset Link'), findsNothing);
+          expect(find.text('Send Reset Code'), findsNothing);
 
           completer.complete(AuthenticationResponses.success);
           await tester.pumpAndSettle();
@@ -255,7 +255,7 @@ void main() {
 
       await tester.enterText(
           find.byType(TextFormField), 'test@example.com');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pump();
 
       final field = tester.widget<TextFormField>(find.byType(TextFormField));
@@ -275,7 +275,7 @@ void main() {
 
       await tester.enterText(
           find.byType(TextFormField), 'test@example.com');
-      await tester.tap(find.text('Send Reset Link'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pump();
 
       final button = tester.widget<TextButton>(

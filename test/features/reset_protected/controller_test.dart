@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clean_stream_laundry_app/features/reset_protected/controller.dart';
 import 'package:clean_stream_laundry_app/logic/enums/authentication_response_enum.dart';
 import 'package:flutter/material.dart';
@@ -123,6 +125,87 @@ void main() {
 
 
   group('submit', () {
+    for (final response in AuthenticationResponses.values.where(
+      (value) => value != AuthenticationResponses.success,
+    )) {
+      test('does not report success for $response', () async {
+        when(() => mockAuthService.updatePassword(any()))
+            .thenAnswer((_) async => response);
+        final controller = buildController();
+        addTearDown(() {
+          controller.disposeController();
+          controller.dispose();
+        });
+        controller.passwordController.text = 'StrongPass1!';
+        controller.confirmController.text = 'StrongPass1!';
+        final loadingStates = <bool>[];
+        controller.addListener(() => loadingStates.add(controller.isLoading));
+
+        if (response == AuthenticationResponses.compromisedPassword) {
+          expect(await controller.submit(),
+              'This password was found in a data breach. Choose a different password.');
+        } else if (response == AuthenticationResponses.weakPassword) {
+          expect(await controller.submit(),
+              'This password does not meet security requirements. Choose a stronger password.');
+        } else {
+          await expectLater(
+            controller.submit(),
+            throwsA(isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'Failed to reset password',
+            )),
+          );
+        }
+
+        expect(controller.isLoading, isFalse);
+        expect(loadingStates, [true, false]);
+        verify(() => mockAuthService.updatePassword('StrongPass1!')).called(1);
+      });
+    }
+
+    for (final disposal in ['controller', 'notifier', 'page']) {
+      for (final outcome in ['success', 'failure', 'throw']) {
+        test('pending $outcome after $disposal disposal does not notify', () async {
+          final response = Completer<AuthenticationResponses>();
+          when(() => mockAuthService.updatePassword(any()))
+              .thenAnswer((_) => response.future);
+          final controller = buildController();
+          controller.passwordController.text = 'StrongPass1!';
+          controller.confirmController.text = 'StrongPass1!';
+          var notifications = 0;
+          controller.addListener(() => notifications++);
+          final serviceError = Exception('network');
+          final pending = controller.submit();
+          expect(controller.isLoading, isTrue);
+          expect(notifications, 1);
+          final settled = expectLater(
+            pending,
+            outcome == 'success'
+                ? completion(isNull)
+                : throwsA(outcome == 'throw' ? same(serviceError) : isA<StateError>()),
+          );
+
+          if (disposal != 'notifier') controller.disposeController();
+          if (disposal != 'controller') controller.dispose();
+          if (disposal == 'controller') addTearDown(controller.dispose);
+          if (disposal == 'notifier') addTearDown(controller.disposeController);
+          if (outcome == 'throw') {
+            response.completeError(serviceError);
+          } else {
+            response.complete(outcome == 'success'
+                ? AuthenticationResponses.success
+                : AuthenticationResponses.failure);
+          }
+
+          await settled;
+          expect(controller.isLoading, isFalse);
+          expect(notifications, 1);
+          verify(() => mockAuthService.updatePassword('StrongPass1!')).called(1);
+        });
+      }
+    }
+
     test('returns error message when password field is empty', () async {
       final controller = buildController();
       controller.passwordController.text = '';

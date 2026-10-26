@@ -1,4 +1,7 @@
 import 'controller.dart';
+import 'package:clean_stream_laundry_app/core/di/di.dart';
+import 'package:clean_stream_laundry_app/features/release_controls/firebase_settings.dart';
+import 'package:clean_stream_laundry_app/services/firebase/firebase_service.dart';
 import 'widgets/notification_lead.dart';
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/core/theme/theme_manager.dart';
@@ -26,6 +29,9 @@ class _SettingsState extends State<Settings> {
   void initState() {
     super.initState();
     _controller = SettingsController();
+    if (getIt.isRegistered<FirebaseService>()) {
+      getIt<FirebaseService>().log(UsageEvent.settingsOpened);
+    }
     _controller.addListener(() {
       if (mounted) setState(() {});
     });
@@ -41,6 +47,7 @@ class _SettingsState extends State<Settings> {
   Future<void> _showSignOutConfirmation() async {
     final shouldSignOut = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AlertDialog(
         title: Text(
           'Sign Out',
@@ -53,13 +60,18 @@ class _SettingsState extends State<Settings> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
+            style: Theme.of(ctx).brightness == Brightness.dark
+                ? TextButton.styleFrom(
+                    foregroundColor: Theme.of(ctx).colorScheme.fontSecondary,
+                  )
+                : null,
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             child: const Text('Sign Out'),
           ),
@@ -67,9 +79,13 @@ class _SettingsState extends State<Settings> {
       ),
     );
 
-    if (shouldSignOut == true) {
+    if (shouldSignOut == true && mounted) {
+      final router = GoRouter.of(context);
+      final auth = _controller.authService;
       await _controller.signOut();
-      if (mounted) context.go('/login');
+      // Admission can dispose Settings before logout completes. A newer
+      // signed-in session must keep its route.
+      if (auth.currentSession == null) router.go('/login');
     }
   }
 
@@ -87,6 +103,8 @@ class _SettingsState extends State<Settings> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const _SettingsHeader(),
+                    if (getIt.isRegistered<FirebaseService>())
+                      FirebaseSettings(service: getIt<FirebaseService>()),
                     const SizedBox(height: 18),
                     _SettingsSection(
                       title: 'Preferences',
@@ -102,6 +120,7 @@ class _SettingsState extends State<Settings> {
                           title: 'Notify Before Finish',
                           subtitle:
                               "Minutes you're notified before machine finish",
+                          trailingWidth: 118,
                           trailing: _NotificationLeadTrailing(
                             isLoading: _controller.isLoadingDelay,
                             value: _controller.notificationLeadTime,
@@ -115,6 +134,27 @@ class _SettingsState extends State<Settings> {
                     _SettingsSection(
                       title: 'Account',
                       children: [
+                        SettingsCard(
+                          icon: Icons.mail_outline,
+                          title: 'Newsletter',
+                          onTap: () => context.go('/newsletter'),
+                          showChevron: true,
+                          showDivider: true,
+                        ),
+                        SettingsCard(
+                          icon: Icons.receipt_long_outlined,
+                          title: 'Top-up refunds',
+                          onTap: () => context.go('/topup-refunds'),
+                          showChevron: true,
+                          showDivider: true,
+                        ),
+                        SettingsCard(
+                          icon: Icons.security_outlined,
+                          title: 'Two-factor Authentication',
+                          onTap: () => context.go('/security/mfa'),
+                          showChevron: true,
+                          showDivider: true,
+                        ),
                         SettingsCard(
                           icon: Icons.person_outline,
                           title: 'Edit Profile',
@@ -255,7 +295,9 @@ class _SettingsSection extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              color: colorScheme.fontSecondary.withValues(alpha: 0.68),
+              color: isDark
+                  ? colorScheme.fontSecondary
+                  : colorScheme.fontSecondary.withValues(alpha: 0.68),
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -310,27 +352,21 @@ class _NotificationLeadTrailing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const SizedBox(
-        width: 118,
-        child: Center(
-          child: SizedBox(
-            height: 22,
-            width: 22,
-            child: CircularProgressIndicator(strokeWidth: 3),
-          ),
+      return const Center(
+        child: SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(strokeWidth: 3),
         ),
       );
     }
 
-    return SizedBox(
-      width: 118,
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: NotificationLead(
-          value: value,
-          onIncrement: onIncrement,
-          onDecrement: onDecrement,
-        ),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: NotificationLead(
+        value: value,
+        onIncrement: onIncrement,
+        onDecrement: onDecrement,
       ),
     );
   }

@@ -55,6 +55,9 @@ class DryerAmountSelector extends StatelessWidget {
                 OutlinedButton(
                   onPressed: () => onChanged(option.amountCents),
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: option.amountCents == amountCents
+                        ? Colors.white
+                        : null,
                     backgroundColor: option.amountCents == amountCents
                         ? Theme.of(context).colorScheme.primaryContainer
                         : null,

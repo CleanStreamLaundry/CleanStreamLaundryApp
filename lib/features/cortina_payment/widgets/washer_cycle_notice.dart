@@ -7,10 +7,11 @@ class WasherCycleNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         border: Border.all(color: const Color(0xFFD6DCE1)),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -23,10 +24,12 @@ class WasherCycleNotice extends StatelessWidget {
               color: const Color(0xFFF3C404).withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.tune_rounded,
               size: 22,
-              color: Color(0xFF165F8C),
+              color: colors.brightness == Brightness.dark
+                  ? colors.secondary
+                  : const Color(0xFF165F8C),
             ),
           ),
           const SizedBox(width: 12),

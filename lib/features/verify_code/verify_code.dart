@@ -10,8 +10,7 @@ class CodeVerificationPage extends StatefulWidget {
   const CodeVerificationPage({super.key, required this.email});
 
   @override
-  State<CodeVerificationPage> createState() =>
-      _CodeVerificationPageState();
+  State<CodeVerificationPage> createState() => _CodeVerificationPageState();
 }
 
 class _CodeVerificationPageState extends State<CodeVerificationPage> {
@@ -34,8 +33,7 @@ class _CodeVerificationPageState extends State<CodeVerificationPage> {
   }
 
   void _showMessage(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _onVerifyPressed() async {
@@ -71,82 +69,122 @@ class _CodeVerificationPageState extends State<CodeVerificationPage> {
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.fontInverted,
-        title: const Text('Verify Code'),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(20) * 2 + 16,
+        backgroundColor: Colors.transparent,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(gradient: scheme.primaryGradient),
+        ),
+        foregroundColor: Colors.white,
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0,
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(3),
+          child: Container(height: 3, color: scheme.secondary),
+        ),
+        title: const Text('Verify Code', maxLines: 2, softWrap: true),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 40),
-            Text(
-              'Enter Verification Code',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: scheme.fontInverted,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'We sent a 6-digit code to',
-              style: TextStyle(
-                  color: scheme.fontInverted.withOpacity(0.7)),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.email,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: scheme.primary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            VerificationCodeField(
-              controller: _controller.codeController,
-              error: _controller.error,
-              onChanged: (_) => _controller.clearError(),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed:
-                _controller.isLoading ? null : _onVerifyPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: scheme.primary,
-                  foregroundColor: scheme.onPrimary,
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: _controller.isLoading
-                    ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2),
-                )
-                    : const Text('Verify'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_controller.error != null)
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
               Text(
-                _controller.error!,
-                style: const TextStyle(color: Colors.red),
+                'Enter Verification Code',
+                style: TextStyle(
+                  letterSpacing: 0,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: scheme.fontInverted,
+                ),
               ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: _onResendPressed,
-              child: Text(
-                'Resend code',
-                style: TextStyle(color: scheme.primary),
+              const SizedBox(height: 12),
+              Text(
+                'We sent a 6-digit code to',
+                style: TextStyle(
+                  letterSpacing: 0,
+                  color: scheme.fontInverted.withOpacity(0.7),
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                widget.email,
+                style: TextStyle(
+                  letterSpacing: 0,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.fontInverted,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              VerificationCodeField(
+                controller: _controller.codeController,
+                error: _controller.error,
+                onChanged: (_) => _controller.clearError(),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _controller.isLoading ? null : _onVerifyPressed,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    backgroundColor: scheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _controller.isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Verify'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_controller.error != null)
+                Text(
+                  _controller.error!,
+                  style: TextStyle(
+                    letterSpacing: 0,
+                    color: scheme.brightness == Brightness.dark
+                        ? scheme.fontInverted
+                        : scheme.error,
+                  ),
+                ),
+              const SizedBox(height: 16),
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  textStyle: const TextStyle(letterSpacing: 0, fontSize: 14),
+                ),
+                onPressed: _onResendPressed,
+                child: Text(
+                  'Resend code',
+                  style: TextStyle(
+                    letterSpacing: 0,
+                    color: scheme.brightness == Brightness.dark
+                        ? scheme.fontInverted
+                        : scheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

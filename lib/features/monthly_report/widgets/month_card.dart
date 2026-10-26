@@ -24,34 +24,43 @@ class MonthCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: cardTextColor.withValues(alpha: .16)),
+      ),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
       color: cardBackgroundColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  month,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: cardTextColor,
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  Text(
+                    month,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                    ),
                   ),
-                ),
-                Text(
-                  '\$${total.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: cardTextColor,
+                  Text(
+                    '\$${total.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: cardTextColor,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const Divider(height: 24),
             TransactionRow(

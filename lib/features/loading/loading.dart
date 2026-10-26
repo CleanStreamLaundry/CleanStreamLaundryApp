@@ -19,10 +19,13 @@ class _LoadingPageState extends State<LoadingPage> {
   @override
   void initState() {
     super.initState();
+    final router = GoRouter.of(context);
+    final entryUri = router.routerDelegate.currentConfiguration.uri;
     _controller = widget.controller ?? LoadingPageController();
     _controller.init(
       navigate: (route, {extra}) => context.go(route, extra: extra),
-      isMounted: () => mounted,
+      isMounted: () =>
+          mounted && router.routerDelegate.currentConfiguration.uri == entryUri,
     );
     _controller.addListener(() {
       if (mounted) setState(() {});
@@ -38,10 +41,13 @@ class _LoadingPageState extends State<LoadingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: _controller.error != null
-          ? ErrorView(error: _controller.error!)
-          : const Logo(),
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: _controller.error != null
+            ? ErrorView(error: _controller.error!)
+            : const Logo(),
+      ),
     );
   }
 }

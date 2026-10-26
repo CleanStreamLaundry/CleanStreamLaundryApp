@@ -23,9 +23,14 @@ class NotificationService {
 
   final profileService = GetIt.instance<ProfileService>();
   final List<AppNotification> _pendingNotifications = [];
+  void Function(String)? onPushOpened;
+  late final Future<void> initialized;
 
   NotificationService() {
-    _init();
+    initialized = _init();
+    // Lazy optional bootstrap must not surface an unhandled initialization error.
+    // Explicit display callers still observe failure by awaiting initialized.
+    initialized.catchError((Object _) {});
   }
 
   Future<bool> _requestPermission() async {
@@ -61,9 +66,9 @@ class NotificationService {
     );
 
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
       defaultPresentAlert: true,
     );
 
@@ -72,7 +77,12 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    await flutterLocalNotificationsPlugin.initialize(initSettings);
+    await flutterLocalNotificationsPlugin.initialize(settings: initSettings,
+      onDidReceiveNotificationResponse: (response) {
+        final route = response.payload;
+        if (route == '/homePage' || route == '/settings') onPushOpened?.call(route!);
+      },
+    );
 
     const channel = AndroidNotificationChannel(
       'your_channel_id',
@@ -86,6 +96,25 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(channel);
+    final launch = await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+    final route = launch?.notificationResponse?.payload;
+    if (launch?.didNotificationLaunchApp == true &&
+        (route == '/homePage' || route == '/settings')) {
+      onPushOpened?.call(route!);
+    }
+  }
+
+  Future<void> showPushNotification(String route) async {
+    if (route != '/homePage' && route != '/settings') return;
+    await initialized;
+    await flutterLocalNotificationsPlugin.show(
+      id: 2147483000, title: 'Clean Stream', body: 'An update is available in the app.',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails('your_channel_id', 'Your Channel',
+          importance: Importance.high, priority: Priority.high),
+        iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ), payload: route,
+    );
   }
 
   Future<void> scheduleNotification({
@@ -106,10 +135,10 @@ class NotificationService {
     Future.delayed(delay, () async {
       _removePendingNotification(id);
       await flutterLocalNotificationsPlugin.show(
-        id,
-        title,
-        body,
-        const NotificationDetails(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             'your_channel_id',
             'Your Channel',
@@ -165,10 +194,10 @@ class NotificationService {
     Future.delayed(arrivalTime, () async {
       _removePendingNotification(id);
       await flutterLocalNotificationsPlugin.show(
-        id,
-        notifTitle,
-        notifBody,
-        const NotificationDetails(
+        id: id,
+        title: notifTitle,
+        body: notifBody,
+        notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             'your_channel_id',
             'Your Channel',

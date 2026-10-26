@@ -5,7 +5,26 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseMock extends Mock implements SupabaseClient {}
 class GoTrueMock extends Mock implements GoTrueClient {}
-class RealtimeChannelMock extends Mock implements RealtimeChannel {}
+
+class FakeCreditResponse extends Fake implements PostgrestFilterBuilder<dynamic> {
+  FakeCreditResponse({this.error, this.receipt = const {
+    'amount': 4, 'refund_id': 9, 'status': 'pending',
+  }});
+
+  final Object? error;
+  final Object? receipt;
+
+  @override
+  Future<U> then<U>(
+    FutureOr<U> Function(dynamic) onValue, {
+    Function? onError,
+  }) {
+    final response = error == null
+        ? Future<dynamic>.value(receipt)
+        : Future<dynamic>.error(error!);
+    return response.then(onValue, onError: onError);
+  }
+}
 
 class QueryBuilderMock extends Mock implements SupabaseQueryBuilder {
 

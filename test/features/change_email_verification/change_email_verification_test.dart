@@ -13,7 +13,6 @@ import 'mocks.dart';
 
 void main() {
   late MockAuthService mockAuthService;
-  late FakeAppLinks fakeAppLinks;
   late MockLocationService mockLocationService;
   late MockMachineService mockMachineService;
   late MockProfileService mockProfileService;
@@ -24,7 +23,6 @@ void main() {
 
   setUp(() {
     mockAuthService = MockAuthService();
-    fakeAppLinks = FakeAppLinks();
     mockLocationService = MockLocationService();
     mockMachineService = MockMachineService();
     mockProfileService = MockProfileService();
@@ -34,22 +32,29 @@ void main() {
     GetIt.instance.registerSingleton<MachineService>(mockMachineService);
     GetIt.instance.registerSingleton<ProfileService>(mockProfileService);
 
-    when(() => mockLocationService.getLocations())
-        .thenAnswer((_) async => <Map<String, dynamic>>[]);
-    when(() => mockMachineService.getWasherCountByLocation(any()))
-        .thenAnswer((_) async => 0);
-    when(() => mockMachineService.getIdleWasherCountByLocation(any()))
-        .thenAnswer((_) async => 0);
-    when(() => mockMachineService.getDryerCountByLocation(any()))
-        .thenAnswer((_) async => 0);
-    when(() => mockMachineService.getIdleDryerCountByLocation(any()))
-        .thenAnswer((_) async => 0);
+    when(
+      () => mockLocationService.getLocations(),
+    ).thenAnswer((_) async => <Map<String, dynamic>>[]);
+    when(
+      () => mockMachineService.getWasherCountByLocation(any()),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockMachineService.getIdleWasherCountByLocation(any()),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockMachineService.getDryerCountByLocation(any()),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockMachineService.getIdleDryerCountByLocation(any()),
+    ).thenAnswer((_) async => 0);
     when(() => mockAuthService.refreshSession()).thenAnswer((_) async => {});
     when(() => mockAuthService.getCurrentUser()).thenAnswer((_) => null);
+    when(
+      () => mockAuthService.onAuthChange,
+    ).thenAnswer((_) => const Stream.empty());
   });
 
   tearDown(() {
-    fakeAppLinks.dispose();
     GetIt.instance.reset();
   });
 
@@ -59,13 +64,9 @@ void main() {
       routes: [
         GoRoute(
           path: '/change-email-verification',
-          builder: (context, state) =>
-              ChangeEmailVerificationPage(appLinks: fakeAppLinks),
+          builder: (context, state) => const ChangeEmailVerificationPage(),
         ),
-        GoRoute(
-          path: '/homePage',
-          builder: (context, state) => HomePage(),
-        ),
+        GoRoute(path: '/homePage', builder: (context, state) => HomePage()),
       ],
     );
 
@@ -78,10 +79,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.email), findsOneWidget);
-      expect(
-        find.text('Please verify your new email address'),
-        findsOneWidget,
-      );
+      expect(find.text('Please verify your new email address'), findsOneWidget);
       expect(
         find.text(
           'Check your new email\'s inbox and click the verification link.',
@@ -96,8 +94,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final icon = tester.widget<Icon>(find.byIcon(Icons.email));
-      expect(icon.size, equals(80));
-      expect(icon.color, equals(Colors.blueAccent));
+      expect(icon.size, equals(40));
+      expect(
+        icon.color,
+        Theme.of(tester.element(find.byIcon(Icons.email))).colorScheme.primary,
+      );
     });
 
     testWidgets('text uses center alignment', (tester) async {
@@ -119,28 +120,29 @@ void main() {
   });
 
   group('Lifecycle', () {
-    testWidgets('uses theme surface color as scaffold background',
-            (tester) async {
-          await tester.pumpWidget(createTestWidget());
-          await tester.pumpAndSettle();
+    testWidgets('uses theme surface color as scaffold background', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
 
-          final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-          expect(scaffold.backgroundColor, isNotNull);
-        });
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(scaffold.backgroundColor, isNotNull);
+    });
 
-    testWidgets('properly disposes controller on navigation away',
-            (tester) async {
-          await tester.pumpWidget(createTestWidget());
-          await tester.pumpAndSettle();
+    testWidgets('navigates away without callback lifecycle plumbing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
 
-          final context =
-          tester.element(find.byType(ChangeEmailVerificationPage));
-          GoRouter.of(context).go('/homePage');
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 300));
-          await tester.pump(const Duration(milliseconds: 300));
+      final context = tester.element(find.byType(ChangeEmailVerificationPage));
+      GoRouter.of(context).go('/homePage');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
 
-          expect(find.byType(ChangeEmailVerificationPage), findsNothing);
-        });
+      expect(find.byType(ChangeEmailVerificationPage), findsNothing);
+    });
   });
 }

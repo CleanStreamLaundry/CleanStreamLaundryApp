@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockMaintenanceController extends Mock implements MaintenanceController {}
+
 class FakeBuildContext extends Fake implements BuildContext {}
 
 void main() {
@@ -24,14 +25,23 @@ void main() {
   setUp(() {
     controller = MockMaintenanceController();
 
-    when(() => controller.categories).thenReturn(['Electrical', 'Washer', 'Dryer']);
+    when(
+      () => controller.categories,
+    ).thenReturn(['Electrical', 'Washer', 'Dryer']);
     when(() => controller.selectedCategory).thenReturn(null);
-    when(() => controller.descriptionController).thenReturn(TextEditingController());
+    when(
+      () => controller.descriptionController,
+    ).thenReturn(TextEditingController());
     when(() => controller.selectedImage).thenReturn(null);
     when(() => controller.attemptedSubmit).thenReturn(false);
     when(() => controller.isFormValid).thenReturn(true);
-    when(() => controller.locations).thenReturn(['123 Main St', '456 Oak Ave']);
+    when(() => controller.locations).thenReturn([
+      (id: '1', address: '123 Main St'),
+      (id: '2', address: '456 Oak Ave'),
+    ]);
     when(() => controller.selectedLocation).thenReturn(null);
+    when(() => controller.generation).thenReturn(0);
+    when(() => controller.isCurrent(any())).thenReturn(true);
 
     when(() => controller.selectCategory(any())).thenReturn(null);
     when(() => controller.selectLocation(any())).thenReturn(null);
@@ -40,6 +50,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(FakeBuildContext());
+    registerFallbackValue(MaintenanceController.noApplicableLocation);
   });
 
   testWidgets('MaintenanceForm renders all fields', (tester) async {
@@ -51,7 +62,38 @@ void main() {
     expect(find.text('Attach a Photo (Optional)'), findsOneWidget);
   });
 
-  testWidgets('Dropdown shows categories and triggers selection', (tester) async {
+  testWidgets('unframed form reflows validation and photo prompt at 2x', (
+    tester,
+  ) async {
+    when(() => controller.attemptedSubmit).thenReturn(true);
+    when(() => controller.isFormValid).thenReturn(false);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            textScaler: TextScaler.linear(2),
+            boldText: true,
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: SizedBox(
+                width: 280,
+                child: MaintenanceForm(controller: controller),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Card), findsNothing);
+    expect(find.text('Please fill in all fields'), findsOneWidget);
+    expect(find.text('Tap to take or upload a photo'), findsOneWidget);
+  });
+
+  testWidgets('Dropdown shows categories and triggers selection', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildForm());
 
     await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -64,7 +106,9 @@ void main() {
     verify(() => controller.selectCategory('Washer')).called(1);
   });
 
-  testWidgets('LocationSelector opens bottom sheet and shows options', (tester) async {
+  testWidgets('LocationSelector opens bottom sheet and shows options', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildForm());
 
     await tester.tap(find.text('Select Location'));
@@ -75,7 +119,9 @@ void main() {
     verifyNever(() => controller.selectLocation(any()));
   });
 
-  testWidgets('Selecting a location calls controller.selectLocation', (tester) async {
+  testWidgets('Selecting a location calls controller.selectLocation', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildForm());
 
     await tester.tap(find.text('Select Location'));
@@ -84,7 +130,9 @@ void main() {
     await tester.tap(find.text('123 Main St'));
     await tester.pumpAndSettle();
 
-    verify(() => controller.selectLocation('123 Main St')).called(1);
+    verify(
+      () => controller.selectLocation((id: '1', address: '123 Main St')),
+    ).called(1);
   });
 
   testWidgets('Typing in description updates controller', (tester) async {
@@ -96,7 +144,9 @@ void main() {
     expect(textController.text, 'Test description');
   });
 
-  testWidgets('Shows image preview when selectedImage is present', (tester) async {
+  testWidgets('Shows image preview when selectedImage is present', (
+    tester,
+  ) async {
     final fakeFile = File('fake_path.jpg');
     when(() => controller.selectedImage).thenReturn(fakeFile);
 
@@ -104,7 +154,9 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
-  testWidgets('Shows error message when form invalid and attemptedSubmit', (tester) async {
+  testWidgets('Shows error message when form invalid and attemptedSubmit', (
+    tester,
+  ) async {
     when(() => controller.attemptedSubmit).thenReturn(true);
     when(() => controller.isFormValid).thenReturn(false);
 
@@ -113,7 +165,9 @@ void main() {
     expect(find.text('Please fill in all fields'), findsOneWidget);
   });
 
-  testWidgets('Tapping image picker calls controller.pickImage', (tester) async {
+  testWidgets('Tapping image picker calls controller.pickImage', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildForm());
     await tester.tap(find.text('Tap to take or upload a photo'));
     await tester.pump();

@@ -15,12 +15,13 @@ class StartPageController extends ChangeNotifier {
     ProfileService? profileService,
     AuthService? authService,
     DoorUnlocker? doorUnlocker,
-  })  : profileService = profileService ?? GetIt.instance<ProfileService>(),
-        authService = authService ?? GetIt.instance<AuthService>(),
-        doorUnlocker = doorUnlocker ?? DoorUnlocker();
+  }) : profileService = profileService ?? GetIt.instance<ProfileService>(),
+       authService = authService ?? GetIt.instance<AuthService>(),
+       doorUnlocker = doorUnlocker ?? DoorUnlocker();
 
   Map<String, dynamic>? balance;
   bool cancelSearch = false;
+  int _readGeneration = 0;
 
   double? get balanceValue => balance?['balance'] as double?;
 
@@ -30,10 +31,14 @@ class StartPageController extends ChangeNotifier {
   }
 
   Future<void> loadUserData() async {
+    final generation = ++_readGeneration;
     final userId = authService.getCurrentUserId;
     if (userId == null) return;
 
     final fetched = await profileService.getUserBalanceById(userId);
+    if (generation != _readGeneration || userId != authService.getCurrentUserId) {
+      return;
+    }
     balance = fetched;
     notifyListeners();
   }
@@ -46,5 +51,11 @@ class StartPageController extends ChangeNotifier {
   void cancelUnlock() {
     cancelSearch = true;
     doorUnlocker.cancelUnlockingDoor();
+  }
+
+  @override
+  void dispose() {
+    _readGeneration++;
+    super.dispose();
   }
 }

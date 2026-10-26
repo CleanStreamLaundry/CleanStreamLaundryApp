@@ -9,36 +9,59 @@ class NotFound extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final authService = GetIt.instance<AuthService>();
 
-    return Container(
-      color: Colors.white,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 80),
-            const SizedBox(height: 20),
-            const Text(
-              '404 - Page Not Found',
-              style: TextStyle(
-                fontSize: 24,
-                color: Colors.blue,
-              ),
+    final colors = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: colors.surface,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: colors.error, size: 48),
+                const SizedBox(height: 20),
+                Text(
+                  '404 - Page Not Found',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(48, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () async {
+                    late final AuthenticationResponses response;
+                    try {
+                      response = await authService.isLoggedIn();
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      rethrow;
+                    }
+                    if (!context.mounted) return;
+                    if (response == AuthenticationResponses.success) {
+                      context.go("/homePage");
+                    } else {
+                      context.go("/login");
+                    }
+                  },
+                  child: const Text("Go to Home"),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                if (await authService.isLoggedIn() == AuthenticationResponses.success){
-                  context.go("/homePage");
-                }else{
-                  context.go("/login");
-                }
-              },
-              child: const Text("Go to Home"),
-            ),
-          ],
+          ),
         ),
       ),
     );

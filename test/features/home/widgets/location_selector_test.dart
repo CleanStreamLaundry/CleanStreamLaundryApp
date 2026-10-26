@@ -67,6 +67,42 @@ void main() {
   }
 
   group('LocationSelector', () {
+    testWidgets(
+      'selected details follow id rather than first duplicate address',
+      (tester) async {
+        final rows = [
+          {
+            'id': 1,
+            'Address': '123 Main St',
+            'Name': 'First laundry',
+            'Details': 'First entrance',
+          },
+          {
+            'id': 2,
+            'Address': '123 Main St',
+            'Name': 'Second laundry',
+            'Details': 'Second entrance',
+          },
+        ];
+        when(
+          () => mockLocationService.getLocations(),
+        ).thenAnswer((_) async => rows);
+        final controller = await buildController();
+        controller.selectLocation('123 Main St', locationId: 2);
+        await tester.pumpWidget(buildWidget(controller: controller));
+        expect(find.text('Second laundry'), findsOneWidget);
+        expect(find.text('First laundry'), findsNothing);
+        expect(find.text('Nearest location'), findsNothing);
+        await tester.tap(
+          find.byKey(const ValueKey('home-location-details-button')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Second entrance'), findsOneWidget);
+        expect(find.text('First entrance'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        controller.dispose();
+      },
+    );
     group('Initial state', () {
       testWidgets('shows Select Location placeholder', (tester) async {
         final controller = await buildController();

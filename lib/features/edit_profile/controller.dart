@@ -3,12 +3,36 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
-import 'package:clean_stream_laundry_app/logic/services/edge_function_service.dart';
+import 'package:clean_stream_laundry_app/logic/models/admission_status.dart';
+import 'package:clean_stream_laundry_app/logic/models/loyalty_action_context.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditProfileController extends ChangeNotifier {
   final authService = GetIt.instance<AuthService>();
   final profileService = GetIt.instance<ProfileService>();
-  final edgeFunctionService = GetIt.instance<EdgeFunctionService>();
+  late final StreamSubscription<AuthState> _deletionAuthSub;
+  int _deletionGeneration = 0;
+  bool _disposed = false;
+  bool _deletionAuthAvailable = true;
+  bool isDeleting = false;
+  bool _deletionInProgress = false;
+  bool needsDeletionStatusCheck = false;
+  String? deletionMessage;
+  LoyaltyActionContext? deletionContext;
+
+  EditProfileController() {
+    _deletionAuthSub = authService.authStateChanges.listen(
+      (_) => _deletionGeneration++,
+      onError: (Object _) {
+        _deletionAuthAvailable = false;
+        _deletionGeneration++;
+      },
+      onDone: () {
+        _deletionAuthAvailable = false;
+        _deletionGeneration++;
+      },
+    );
+  }
 
   final nameController = TextEditingController();
   final emailController = TextEditingController();
@@ -23,7 +47,7 @@ class EditProfileController extends ChangeNotifier {
 
   bool get hasChanges =>
       nameController.text.trim() != currentName ||
-          emailController.text.trim() != currentEmail;
+      emailController.text.trim() != currentEmail;
 
   Future<void> init() async {
     await loadUserData();
@@ -34,6 +58,9 @@ class EditProfileController extends ChangeNotifier {
   }
 
   Future<void> disposeController() async {
+    _disposed = true;
+    _deletionGeneration++;
+    await _deletionAuthSub.cancel();
     nameController.dispose();
     emailController.dispose();
     await authSub?.cancel();
@@ -95,19 +122,101 @@ class EditProfileController extends ChangeNotifier {
     }
   }
 
-  Future<bool> deleteAccount() async {
-    final userId = await authService.getCurrentUserId;
+  Future<AdmissionStatus?> deleteAccount({
+    required Future<bool> Function() confirm,
+    required bool Function() isPageCurrent,
+  }) async {
+    if (_disposed || _deletionInProgress || isSaving) return null;
+    final session = authService.currentSession;
+    final generation = _deletionGeneration;
+    bool isCurrent() =>
+        !_disposed &&
+        _deletionAuthAvailable &&
+        generation == _deletionGeneration &&
+        session != null &&
+        session.expiresAt != null &&
+        session.accessToken.isNotEmpty &&
+        !session.isExpired &&
+        session.user.id == authService.getCurrentUserId &&
+        session.user.id == authService.currentSession?.user.id &&
+        session.accessToken == authService.currentSession?.accessToken &&
+        isPageCurrent();
+    if (!isCurrent()) return null;
+    _deletionInProgress = true;
+    isDeleting = true;
+    deletionMessage = null;
+    final checkOnly = needsDeletionStatusCheck;
+    notifyListeners();
+    try {
+      if (!checkOnly) {
+        try {
+          final details = await profileService.getLoyaltyActionContext('account_deletion');
+          if (!isCurrent()) return null;
+          if (details.subjectId != session!.user.id) throw StateError('Account changed');
+          if (details.action != 'account_deletion') throw StateError('Unexpected consent');
+          deletionContext = details;
+          isDeleting = false;
+          notifyListeners();
+        } catch (_) {
+          if (isCurrent()) {
+            deletionMessage = 'Unable to load deletion terms and balances. Please try again.';
+          }
+          return null;
+        }
+      }
+      if (!checkOnly && !await confirm()) return null;
+      await Future<void>.delayed(Duration.zero);
+      if (!isCurrent()) return null;
+      isDeleting = true;
+      notifyListeners();
+      if (!isCurrent()) return null;
 
-    final response = await edgeFunctionService.runEdgeFunction(
-      name: "delete-account",
-      body: {"user_id": userId},
-    );
-
-    if (response?.status == 200) {
-      await authService.logout();
-      return true;
+      // Read before every new intent, including after leaving/reopening the page.
+      final status = await profileService.getAdmissionStatus();
+      await Future<void>.delayed(Duration.zero);
+      if (!isCurrent()) return null;
+      if (status.subjectId != session!.user.id) {
+        throw StateError('Admission subject mismatch');
+      }
+      if (status.accountState == 'pending_deletion') return status;
+      if (status.accountAccess != 'eligible') {
+        deletionMessage =
+            'Account access must be verified before requesting deletion.';
+        return null;
+      }
+      needsDeletionStatusCheck = false;
+      if (checkOnly) {
+        deletionMessage =
+            'No pending deletion was found. You can make a new request after confirming again.';
+        return null;
+      }
+      if (!isCurrent()) return null;
+      needsDeletionStatusCheck = true;
+      final result = await profileService.requestAccountDeletion(
+        consent: deletionContext!.acknowledge(),
+      );
+      await Future<void>.delayed(Duration.zero);
+      if (!isCurrent()) return null;
+      if (result.subjectId != session.user.id ||
+          result.accountState != 'pending_deletion' ||
+          result.accountAccess != 'restricted' ||
+          result.restoreUntil == null) {
+        throw StateError('Deletion was not acknowledged');
+      }
+      return result;
+    } catch (_) {
+      await Future<void>.delayed(Duration.zero);
+      if (isCurrent()) {
+        needsDeletionStatusCheck = true;
+        deletionMessage =
+            'The outcome could not be confirmed. Check account status before making another request.';
+      }
+      return null;
+    } finally {
+      deletionContext = null;
+      _deletionInProgress = false;
+      isDeleting = false;
+      if (!_disposed) notifyListeners();
     }
-
-    return false;
   }
 }

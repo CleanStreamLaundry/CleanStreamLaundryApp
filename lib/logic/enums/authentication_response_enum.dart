@@ -6,5 +6,7 @@ enum AuthenticationResponses {
   lessThanMinLength,
   noDigit,
   noUppercase,
-  invalidSpecialCharacter, error
+  invalidSpecialCharacter, error,
+  weakPassword,
+  compromisedPassword
 }

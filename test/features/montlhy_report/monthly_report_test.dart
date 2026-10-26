@@ -42,10 +42,10 @@ void main() {
   }
 
   group('AppBar', () {
-    testWidgets('displays Monthly Transaction History title', (tester) async {
+    testWidgets('displays compact Monthly history title', (tester) async {
       await tester.pumpWidget(createWidget([]));
       await tester.pumpAndSettle();
-      expect(find.text('Monthly Transaction History'), findsOneWidget);
+      expect(find.text('Monthly history'), findsOneWidget);
     });
 
     testWidgets('displays back button', (tester) async {

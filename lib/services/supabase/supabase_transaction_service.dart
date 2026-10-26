@@ -1,13 +1,11 @@
-import 'dart:async';
 import 'package:clean_stream_laundry_app/logic/parsing/transaction_parser.dart';
 import 'package:clean_stream_laundry_app/logic/services/transaction_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SupabaseTransactionService extends TransactionService{
-
+class SupabaseTransactionService extends TransactionService {
   late final SupabaseClient _client;
 
-  SupabaseTransactionService({required SupabaseClient client}){
+  SupabaseTransactionService({required SupabaseClient client}) {
     _client = client;
   }
 
@@ -26,23 +24,32 @@ class SupabaseTransactionService extends TransactionService{
   }
 
   @override
-  Future<({List<String> transactions, List<int> ids})> getRefundableTransactionsForUser() async {
+  Future<({List<String> transactions, List<int> ids})>
+  getRefundableTransactionsForUser() async {
     final user = _client.auth.currentUser;
+    if (user == null) return (transactions: <String>[], ids: <int>[]);
 
     final response = await _client
         .from('transactions')
-        .select('id, amount, description, created_at')
-        .eq('user_id', user!.id)
+        .select('id, amount, description, created_at, cortina_status')
+        .eq('user_id', user.id)
         .neq('requested_refund', true)
         .order('created_at', ascending: false);
 
-    final raw = List<Map<String, dynamic>>.from(response).take(100);
-
-    final transactions = TransactionParser.formatTransactionsList(raw, "refundHistory")
-    ..removeWhere((e) => e.isEmpty || e.contains("added to Loyalty Card"));
-
-    final ids = TransactionParser.createTransactionIDList(raw)
-      ..removeWhere((e) => e.isNegative);
+    final transactions = <String>[];
+    final ids = <int>[];
+    for (final row in List<Map<String, dynamic>>.from(response).take(100)) {
+      if (row['cortina_status'] != null && row['cortina_status'] != 'started') {
+        continue;
+      }
+      final text = TransactionParser.formatTransaction(row, 'refundHistory');
+      final id = TransactionParser.getTransactionIDs(row);
+      if (text.isEmpty || text.contains('added to Loyalty Card') || id < 0) {
+        continue;
+      }
+      transactions.add(text);
+      ids.add(id);
+    }
 
     return (transactions: transactions, ids: ids);
   }
@@ -78,81 +85,30 @@ class SupabaseTransactionService extends TransactionService{
 
     final data = await _client
         .from('transactions')
-        .select('amount')
+        .select('cortina_vend_session_id')
         .eq('id', transaction_id)
+        .eq('user_id', user.id)
         .single();
 
-    await _client
-        .from('transactions')
-        .update({'requested_refund': true})
-        .eq('id', transaction_id)
-        .select();
-
-    final amount = data['amount'].toString();
-
-    await _client.from('Refunds').insert({
-      'user_id': user.id,
-      'transaction_id': transaction_id,
-      'description': description,
-      'amount': amount
-    });
-
-    await _client.rpc('increment_user_refund_attempts', params: {'uid': user.id});
-
-    return amount;
-  }
-
-  @override
-  Future<void> subscribeForPaymentConfirmation( bool channelSubscribed,Completer<int>? paymentCompleter ) async {
-
-    if (_client.auth.currentUser == null) {
-      final completer = Completer<void>();
-      late final StreamSubscription authSub;
-
-      authSub = _client.auth.onAuthStateChange.listen((data) {
-        if (_client.auth.currentUser != null) {
-          authSub.cancel();
-          completer.complete();
-        }
-      });
-
-      await completer.future;
-    }
-
-    if (!channelSubscribed) {
-      await _startPaymentChannel(paymentCompleter);
-      channelSubscribed = true;
-    }
-  }
-
-  Future<void> _startPaymentChannel(Completer<int>? paymentCompleter) async {
-    final completer = Completer<void>();
-
-    _client.channel('payments')
-        .onBroadcast(
-      event: 'payment_success',
-      callback: (payload) {
-        final nestedPayload = payload['payload'];
-        if (nestedPayload is Map) {
-          final uid = nestedPayload['user_id'];
-          if (uid == _client.auth.currentUser?.id) {
-            if (paymentCompleter != null && !paymentCompleter.isCompleted) {
-              paymentCompleter.complete(200);
-            }
-          }
-        }
+    final result = await _client.rpc(
+      data['cortina_vend_session_id'] == null
+          ? 'request_legacy_loyalty_credit'
+          : 'request_cortina_loyalty_credit',
+      params: {
+        'target_transaction_id': transaction_id,
+        'request_description': description,
       },
-    )
-        .subscribe((status, [error]) {
-      if (status == RealtimeSubscribeStatus.subscribed) {
-        completer.complete();
-      } else if (status == RealtimeSubscribeStatus.closed ||
-          status == RealtimeSubscribeStatus.channelError) {
-        completer.completeError('Channel subscription failed');
-      }
-    });
-
-    await completer.future;
+    );
+    if (result is! Map<String, dynamic> ||
+        !RegExp(r'^[1-9][0-9]*$').hasMatch('${result['refund_id']}') ||
+        !const {'pending', 'approved', 'denied'}.contains(result['status'])) {
+      throw const FormatException('Invalid claim receipt');
+    }
+    final amount = num.tryParse('${result['amount']}');
+    if (amount == null || !amount.isFinite || amount <= 0) {
+      throw const FormatException('Invalid claim receipt');
+    }
+    return result['amount'].toString();
   }
 
 }

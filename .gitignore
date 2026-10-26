@@ -49,8 +49,7 @@ app.*.map.json
 
 # See https://www.dartlang.org/guides/libraries/private-files
 
-# If you're building an application, you may want to check-in your pubspec.lock
-pubspec.lock
+# Application dependency versions are reproducible through tracked pubspec.lock.
 
 # Directory created by dartdoc
 # If you don't generate documentation locally you can remove this line.
@@ -58,6 +57,20 @@ doc/api/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+
+# Local native outputs, backups, environment configuration and signing material.
+/ios/build/
+/android/build/
+/application.backup
+/config/firebase/dev/
+/config/firebase/prod/
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
 
 # Avoid committing generated Javascript files:
 *.dart.js

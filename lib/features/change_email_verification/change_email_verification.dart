@@ -1,13 +1,10 @@
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:app_links/app_links.dart';
 import 'controller.dart';
 import 'widgets/resend_verification.dart';
 
 class ChangeEmailVerificationPage extends StatefulWidget {
-  final AppLinks appLinks;
-
-  const ChangeEmailVerificationPage({super.key, required this.appLinks});
+  const ChangeEmailVerificationPage({super.key});
 
   @override
   State<ChangeEmailVerificationPage> createState() =>
@@ -21,17 +18,7 @@ class _ChangeEmailVerificationPageState
   @override
   void initState() {
     super.initState();
-    _controller = ChangeEmailVerificationController(
-      appLinks: widget.appLinks,
-      context: context,
-    );
-    _controller.init();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _controller = ChangeEmailVerificationController();
   }
 
   void _refresh() {
@@ -42,37 +29,52 @@ class _ChangeEmailVerificationPageState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.email, size: 80, color: Colors.blueAccent),
-              const SizedBox(height: 24),
-              Text(
-                'Please verify your new email address',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Theme.of(context).colorScheme.fontInverted,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.email,
+                  size: 40,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Check your new email\'s inbox and click the verification link.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(context).colorScheme.fontSecondary,
+                const SizedBox(height: 16),
+                Divider(
+                  color: Theme.of(context).colorScheme.secondary,
+                  thickness: 3,
+                  height: 3,
                 ),
-              ),
-              const SizedBox(height: 24),
-              ResendVerificationWidget(
-                controller: _controller,
-                onStateChange: _refresh,
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  'Please verify your new email address',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    letterSpacing: 0,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.fontInverted,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Check your new email\'s inbox and click the verification link.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    letterSpacing: 0,
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.fontSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ResendVerificationWidget(
+                  controller: _controller,
+                  onStateChange: _refresh,
+                ),
+              ],
+            ),
           ),
         ),
       ),

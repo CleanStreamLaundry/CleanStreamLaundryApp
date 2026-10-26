@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Widget buildWidget() {
-    return const MaterialApp(
-      home: Scaffold(body: DisclaimerCard()),
-    );
+    return const MaterialApp(home: Scaffold(body: DisclaimerCard()));
   }
 
   group('RefundDisclaimerCard', () {
@@ -15,47 +13,59 @@ void main() {
       expect(find.byIcon(Icons.info_outline_rounded), findsOneWidget);
     });
 
-    testWidgets('displays review period text', (tester) async {
+    testWidgets('displays same-day on-site reporting requirement', (tester) async {
       await tester.pumpWidget(buildWidget());
       expect(
         find.textContaining(
-            'Refund requests are reviewed within 3–5 business days.'),
+          'Report a machine failure while you are at the location and on the same local calendar day.',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('displays loyalty card refund text', (tester) async {
+    testWidgets('explains replacement machine or wallet remedy', (tester) async {
       await tester.pumpWidget(buildWidget());
       expect(
         find.textContaining(
-            'Approved refunds will be returned to your loyalty card balance.'),
+          'an available replacement machine for the same amount, or credit your wallet if you already completed a replacement load.',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('displays denial policy text', (tester) async {
+    testWidgets('preserves payment errors and mandatory rights', (tester) async {
       await tester.pumpWidget(buildWidget());
       expect(
         find.textContaining(
-            'We reserve the right to deny requests that do not meet our refund policy criteria.'),
+          'Payment errors and rights required by law are reviewed separately.',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('has yellow background container', (tester) async {
+    testWidgets('has a restrained theme accent rule without a nested card', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildWidget());
 
       final container = tester.widget<Container>(
         find
             .ancestor(
-          of: find.byIcon(Icons.info_outline_rounded),
-          matching: find.byType(Container),
-        )
+              of: find.byIcon(Icons.info_outline_rounded),
+              matching: find.byType(Container),
+            )
             .first,
       );
       final decoration = container.decoration as BoxDecoration;
-      expect(decoration.color, const Color(0xFFFFFDE7).withOpacity(0.8));
-      expect(decoration.borderRadius, BorderRadius.circular(14));
+      expect(decoration.color, isNull);
+      expect(decoration.borderRadius, isNull);
+      expect(
+        (decoration.border! as Border).left.color,
+        Theme.of(
+          tester.element(find.byType(DisclaimerCard)),
+        ).colorScheme.secondary,
+      );
+      expect((decoration.border! as Border).left.width, 3);
     });
   });
 }

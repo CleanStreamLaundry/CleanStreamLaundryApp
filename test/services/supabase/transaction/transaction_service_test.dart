@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'mocks.dart';
-import 'dart:async';
 
 
 void main() {
@@ -12,7 +11,6 @@ void main() {
   late FakeFilterBuilder fakeFilterBuilder;
   late SupabaseTransactionService transactionHandler;
   late GoTrueMock supabaseAuth;
-  late RealtimeChannelMock channelMock;
 
   setUp(() {
     final now = DateTime.now().toUtc();
@@ -30,26 +28,11 @@ void main() {
     ]);
     transactionHandler = SupabaseTransactionService(client: supabaseMock);
     supabaseAuth = GoTrueMock();
-    channelMock = RealtimeChannelMock();
 
     when(() => supabaseMock.from('transactions')).thenAnswer((_) => queryBuilderMock);
     when(() => supabaseMock.from('Refunds')).thenAnswer((_) => queryBuilderMock);
     when(() => queryBuilderMock.select(any())).thenAnswer((_) => fakeFilterBuilder);
     when(() => supabaseMock.auth).thenReturn(supabaseAuth);
-    when(() => supabaseMock.channel(any())).thenReturn(channelMock);
-    when(() => channelMock.onBroadcast(
-      event: any(named: 'event'),
-      callback: any(named: 'callback'),
-    )).thenReturn(channelMock);
-
-    when(() => channelMock.subscribe(any())).thenAnswer((invocation) {
-      final callback = invocation.positionalArguments[0] as void Function(
-          RealtimeSubscribeStatus,
-          [dynamic]
-          );
-      callback(RealtimeSubscribeStatus.subscribed);
-      return channelMock;
-    });
 
     final mockUser = User(
       id: '11111111-1111-1111-1111-111111111111',
@@ -94,68 +77,25 @@ void main() {
     });
 
     test("Tests if logic is correct for recording refunds",() async {
-      final mockFilterBuilder = FakeFilterBuilder([]);
+      when(() => supabaseMock.rpc(any(), params: any(named: 'params')))
+          .thenAnswer((_) => FakeCreditResponse());
 
-      when(() => queryBuilderMock.update(any())).thenAnswer((_) => mockFilterBuilder);
-      when(() => supabaseMock.rpc(any(), params: any(named: 'params'))).thenAnswer((_) => mockFilterBuilder);
-
-      await transactionHandler.recordRefundRequest(
-          transaction_id: "3kl24jkl23",
+      final amount = await transactionHandler.recordRefundRequest(
+          transaction_id: "3",
           description: "Test refund"
       );
 
+      expect(amount, '4');
       verify(() => supabaseMock.auth.currentUser!);
-      verify(() => supabaseMock.from("Refunds"));
-      verify(() => queryBuilderMock.update(any()));
-      verify(() => supabaseMock.rpc(any(), params: any(named: 'params')));
+      verifyNever(() => supabaseMock.from("Refunds"));
+      verifyNever(() => queryBuilderMock.update(any()));
+      verify(() => supabaseMock.rpc('request_legacy_loyalty_credit', params: {
+        'target_transaction_id': '3', 'request_description': 'Test refund',
+      })).called(1);
     });
 
   });
 
-  test("Tests payment confirmation subscription", () async {
-    final paymentCompleter = Completer<int>();
-
-    await transactionHandler.subscribeForPaymentConfirmation(false, paymentCompleter);
-
-    // Simulate a payment_success event
-    final callback = verify(() => channelMock.onBroadcast(
-        event: 'payment_success',
-        callback: captureAny(named: 'callback')
-    )).captured.single as void Function(Map<String, dynamic>);
-
-    callback({
-      'payload': {'user_id': supabaseAuth.currentUser!.id}
-    });
-
-    final result = await paymentCompleter.future;
-    expect(result, 200);
-
-    verify(() => supabaseMock.channel('payments')).called(1);
-  });
-
-  test("Tests payment subscription failure branch", () async {
-    final paymentCompleter = Completer<int>();
-
-    // Override subscribe to simulate a failed subscription
-    when(() => channelMock.subscribe(any())).thenAnswer((invocation) {
-      final callback = invocation.positionalArguments[0]
-      as void Function(RealtimeSubscribeStatus, [dynamic]);
-
-      // Simulate channel error
-      callback(RealtimeSubscribeStatus.channelError);
-
-      return channelMock;
-    });
-
-    // subscribeForPaymentConfirmation should throw due to channel error
-    expect(
-          () async => await transactionHandler.subscribeForPaymentConfirmation(false, paymentCompleter),
-      throwsA(predicate((e) => e.toString() == 'Channel subscription failed')),
-    );
-
-    // The paymentCompleter should NOT be completed
-    expect(paymentCompleter.isCompleted, false);
-  });
 
 
 }

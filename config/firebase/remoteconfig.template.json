@@ -1,0 +1,12 @@
+{
+  "conditions": [],
+  "parameters": {
+    "release_policy_v1": {
+      "defaultValue": {
+        "value": "{\"schema\":1,\"android\":{\"minimum\":\"0.0.0\",\"recommended\":\"0.0.0\",\"blocked_builds\":[],\"maintenance\":false,\"update_url\":\"\"},\"ios\":{\"minimum\":\"0.0.0\",\"recommended\":\"0.0.0\",\"blocked_builds\":[],\"maintenance\":false,\"update_url\":\"\"}}"
+      },
+      "description": "Client release controls; not backend authorization.",
+      "valueType": "STRING"
+    }
+  }
+}

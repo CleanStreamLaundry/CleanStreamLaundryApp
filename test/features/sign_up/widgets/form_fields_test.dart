@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:clean_stream_laundry_app/features/sign_up/widgets/form_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +151,80 @@ void main() {
     });
 
     group('Interaction', () {
+      testWidgets('password and confirmation actions have distinct stateful semantics',
+          (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+        var obscurePassword = true;
+        var obscureConfirm = true;
+        var passwordToggles = 0;
+        var confirmToggles = 0;
+        final passwordChanges = <String>[];
+        final confirmChanges = <String>[];
+        Widget currentFields() => buildWidget(
+          obscurePassword: obscurePassword,
+          obscureConfirm: obscureConfirm,
+          onTogglePassword: () {
+            passwordToggles++;
+            obscurePassword = !obscurePassword;
+          },
+          onToggleConfirm: () {
+            confirmToggles++;
+            obscureConfirm = !obscureConfirm;
+          },
+          onPasswordChanged: passwordChanges.add,
+          onConfirmChanged: confirmChanges.add,
+        );
+        await tester.pumpWidget(currentFields());
+        await tester.enterText(find.byType(TextField).at(2), 'first-password');
+        await tester.enterText(find.byType(TextField).at(3), 'confirmation-value');
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+
+        void expectActions() {
+          for (final entry in <String, bool>{
+            'password': obscurePassword,
+            'confirmation password': obscureConfirm,
+          }.entries) {
+            final label = '${entry.value ? 'Show' : 'Hide'} ${entry.key}';
+            final button = find.byWidgetPredicate(
+              (widget) => widget is IconButton && widget.tooltip == label,
+            );
+            final data = tester.getSemantics(button).getSemanticsData();
+            expect(data.tooltip, label);
+            expect(data.flagsCollection.isButton, isTrue);
+            expect(data.hasAction(ui.SemanticsAction.tap), isTrue);
+          }
+          expect(tester.widget<TextField>(find.byType(TextField).at(2)).obscureText,
+              obscurePassword);
+          expect(tester.widget<TextField>(find.byType(TextField).at(3)).obscureText,
+              obscureConfirm);
+          expect(passwordCtrl.text, 'first-password');
+          expect(confirmCtrl.text, 'confirmation-value');
+          expect(passwordChanges, ['first-password']);
+          expect(confirmChanges, ['confirmation-value']);
+        }
+
+        expectActions();
+        for (final label in [
+          'Show password',
+          'Show confirmation password',
+          'Hide password',
+          'Hide confirmation password',
+        ]) {
+          await tester.ensureVisible(find.byTooltip(label));
+          await tester.tap(find.byTooltip(label));
+          await tester.pumpWidget(currentFields());
+          await tester.pumpAndSettle();
+          expectActions();
+        }
+        expect(passwordToggles, 2);
+        expect(confirmToggles, 2);
+        } finally {
+          semantics.dispose();
+        }
+      });
+
       testWidgets('calls onTogglePassword when first suffix icon tapped',
               (tester) async {
             var tapped = false;
@@ -195,11 +271,16 @@ void main() {
         expect(nameCtrl.text, 'John Doe');
       });
 
-      testWidgets('name field enforces 36 character limit', (tester) async {
+      testWidgets('name field has no length cap or counter', (tester) async {
         await tester.pumpWidget(buildWidget());
         final field =
         tester.widget<TextField>(find.byType(TextField).at(0));
-        expect(field.maxLength, 36);
+        final name = 'A' * 200;
+        await tester.enterText(find.byType(TextField).first, name);
+        await tester.pump();
+        expect(nameCtrl.text, name);
+        expect(field.maxLength, isNull);
+        expect(find.text('200/36'), findsNothing);
       });
     });
 

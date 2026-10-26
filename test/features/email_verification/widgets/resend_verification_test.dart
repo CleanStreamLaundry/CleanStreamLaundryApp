@@ -72,7 +72,12 @@ void main() {
       await tester.pumpWidget(buildWidget(controller: controller));
 
       final text = tester.widget<Text>(find.text('Resend Verification'));
-      expect(text.style?.color, equals(Colors.blue));
+      expect(
+        text.style?.color,
+        Theme.of(
+          tester.element(find.text('Resend Verification')),
+        ).colorScheme.primary,
+      );
       expect(text.style?.decoration, equals(TextDecoration.underline));
     });
 
@@ -191,7 +196,7 @@ void main() {
       );
 
       final decoration = container.decoration as BoxDecoration;
-      expect(decoration.color, equals(Colors.red));
+      expect(decoration.color, const Color(0xFFB3261E));
       expect(decoration.shape, equals(BoxShape.circle));
     });
 

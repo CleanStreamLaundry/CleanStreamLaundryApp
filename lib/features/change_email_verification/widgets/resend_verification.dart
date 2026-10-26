@@ -29,21 +29,31 @@ class _ResendVerificationWidgetState extends State<ResendVerificationWidget> {
       return const Icon(Icons.check_circle, size: 40, color: Colors.green);
     }
 
-    return InkWell(
-      onTap: () async {
-        await widget.controller.resendVerification();
-        widget.onStateChange();
-      },
-      child: widget.controller.lastResponse == null
-          ? const Text(
-        'Resend Verification',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-            color: Colors.blue, decoration: TextDecoration.underline),
-      )
-          : widget.controller.lastResponse == AuthenticationResponses.failure
-          ? const VerificationError()
-          : const SizedBox.shrink(),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      child: InkWell(
+        onTap: () async {
+          await widget.controller.resendVerification();
+          widget.onStateChange();
+        },
+        child: widget.controller.lastResponse == null
+            ? Text(
+                'Resend Verification',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  letterSpacing: 0,
+                  color:
+                      Theme.of(context).colorScheme.brightness ==
+                          Brightness.dark
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              )
+            : widget.controller.lastResponse == AuthenticationResponses.failure
+            ? const VerificationError()
+            : const SizedBox.shrink(),
+      ),
     );
   }
 }

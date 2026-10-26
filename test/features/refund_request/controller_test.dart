@@ -54,6 +54,9 @@ void main() {
 
       expect(controller.recentTransactions.length, 1);
       expect(controller.recentTransactions.first, '\$5.00 - Washer on Jan 02');
+      expect(controller.recentTransactionIDs, [2]);
+      controller.selectTransaction(controller.recentTransactions.single);
+      expect(controller.getTransactionID(), '2');
     });
 
     test('sets isFetchingTransactions to false after completion', () async {
@@ -381,6 +384,103 @@ void main() {
       await expectLater(controller.submitRefund(), throwsException);
 
       expect(controller.isLoading, isFalse);
+    });
+  });
+
+  group('saved claim notification failures', () {
+    setUp(() {
+      when(() => mockAuthService.getCurrentUserId).thenReturn('user-1');
+      when(() => mockProfileService.getUserNameById('user-1'))
+          .thenAnswer((_) async => 'John Doe');
+      when(() => mockTransactionService.recordRefundRequest(
+        transaction_id: '123',
+        description: 'Machine did not run',
+      )).thenAnswer((_) async => '5.00');
+      when(() => mockEdgeFunctionService.runEdgeFunction(
+        name: 'refund-email',
+        body: any(named: 'body'),
+      )).thenAnswer((_) async => null);
+    });
+
+    RefundController readyController() => buildController()
+      ..recentTransactions = ['Washer']
+      ..recentTransactionIDs = [123]
+      ..selectTransaction('Washer')
+      ..descriptionController.text = 'Machine did not run';
+
+    for (final failedStage in ['profile', 'email']) {
+      test('$failedStage failure preserves saved claim success', () async {
+        if (failedStage == 'profile') {
+          when(() => mockProfileService.getUserNameById('user-1'))
+              .thenThrow(Exception('Profile unavailable'));
+        } else {
+          when(() => mockEdgeFunctionService.runEdgeFunction(
+            name: 'refund-email', body: any(named: 'body'),
+          )).thenThrow(Exception('Notification unavailable'));
+        }
+        final controller = readyController();
+        expect(await controller.submitRefund(), isTrue);
+        expect(controller.isLoading, isFalse);
+        verify(() => mockTransactionService.recordRefundRequest(
+          transaction_id: '123', description: 'Machine did not run',
+        )).called(1);
+      });
+    }
+
+    for (final pendingStage in ['claim', 'profile']) {
+      test('account switch during $pendingStage skips notification, not success', () async {
+        final pending = Completer<String?>();
+        if (pendingStage == 'claim') {
+          when(() => mockTransactionService.recordRefundRequest(
+            transaction_id: '123', description: 'Machine did not run',
+          )).thenAnswer((_) => pending.future);
+        } else {
+          when(() => mockProfileService.getUserNameById('user-1'))
+              .thenAnswer((_) => pending.future);
+        }
+        final controller = readyController();
+        final submission = controller.submitRefund();
+        await Future<void>.delayed(Duration.zero);
+        when(() => mockAuthService.getCurrentUserId).thenReturn('user-2');
+        pending.complete(pendingStage == 'claim' ? '5.00' : 'John Doe');
+
+        expect(await submission, isTrue);
+        expect(controller.isLoading, isFalse);
+        verify(() => mockTransactionService.recordRefundRequest(
+          transaction_id: '123', description: 'Machine did not run',
+        )).called(1);
+        verifyNever(() => mockProfileService.getUserNameById('user-2'));
+        verifyNever(() => mockEdgeFunctionService.runEdgeFunction(
+          name: 'refund-email', body: any(named: 'body'),
+        ));
+      });
+    }
+
+    test('a submission already in progress cannot create a second claim', () async {
+      final saved = Completer<String?>();
+      when(() => mockTransactionService.recordRefundRequest(
+        transaction_id: '123', description: 'Machine did not run',
+      )).thenAnswer((_) => saved.future);
+      final controller = readyController();
+      final first = controller.submitRefund();
+      expect(await controller.submitRefund(), isFalse);
+      saved.complete('5.00');
+      expect(await first, isTrue);
+      verify(() => mockTransactionService.recordRefundRequest(
+        transaction_id: '123', description: 'Machine did not run',
+      )).called(1);
+    });
+
+    test('a missing receipt is not reported as a saved claim', () async {
+      when(() => mockTransactionService.recordRefundRequest(
+        transaction_id: '123', description: 'Machine did not run',
+      )).thenAnswer((_) async => null);
+      final controller = readyController();
+      expect(await controller.submitRefund(), isFalse);
+      expect(controller.isLoading, isFalse);
+      verifyNever(() => mockEdgeFunctionService.runEdgeFunction(
+        name: 'refund-email', body: any(named: 'body'),
+      ));
     });
   });
 

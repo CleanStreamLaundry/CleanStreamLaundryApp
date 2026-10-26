@@ -11,11 +11,21 @@ class Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final stacked = MediaQuery.textScalerOf(context).scale(14) > 18;
     final username = controller.username?.trim();
     final balance = controller.balance?["balance"];
     final formattedBalance = balance is num
         ? '\$${balance.toStringAsFixed(2)}'
         : 'Loading...';
+    final balanceText = Text(
+      formattedBalance,
+      maxLines: stacked ? null : 1,
+      style: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.w800,
+        color: colorScheme.homeAccent,
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -35,29 +45,38 @@ class Header extends StatelessWidget {
           elevation: 5,
           shadowColor: Colors.black.withValues(alpha: 0.20),
           surfaceTintColor: Colors.transparent,
-          color: colorScheme.cardPrimary,
+          color: colorScheme.homeCard,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(
-              color: colorScheme.primary.withValues(alpha: 0.12),
+              color: colorScheme.homeAccent.withValues(alpha: 0.12),
             ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
+            child: Flex(
+              direction: stacked ? Axis.vertical : Axis.horizontal,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: stacked
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: colorScheme.primary.withValues(alpha: 0.10),
+                  backgroundColor: colorScheme.homeAccent.withValues(
+                    alpha: 0.10,
+                  ),
                   child: Icon(
                     Icons.account_balance_wallet_outlined,
-                    color: colorScheme.primary,
+                    color: colorScheme.homeAccent,
                     size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                SizedBox(width: 12, height: stacked ? 8 : 0),
+                Flexible(
+                  flex: stacked ? 0 : 1,
+                  fit: stacked ? FlexFit.loose : FlexFit.tight,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -70,31 +89,33 @@ class Header extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          formattedBalance,
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: colorScheme.primary,
+                      if (stacked)
+                        balanceText
+                      else
+                        SizedBox(
+                          // Fitting "Loading..." must not resize the map below.
+                          height:
+                              MediaQuery.textScalerOf(context).scale(28) *
+                              (DefaultTextStyle.of(context).style.height ??
+                                  1.2),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: balanceText,
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8, height: stacked ? 8 : 0),
                 FilledButton.tonalIcon(
                   key: const ValueKey('home-add-funds-button'),
                   onPressed: onAddFunds,
                   icon: const Icon(Icons.add_circle_outline_rounded),
-                  label: const Text(
+                  label: Text(
                     'Add funds',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: stacked ? null : 1,
+                    overflow: stacked ? null : TextOverflow.ellipsis,
                   ),
                 ),
               ],

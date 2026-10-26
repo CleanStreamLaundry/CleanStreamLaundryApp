@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clean_stream_laundry_app/features/settings/controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -25,6 +27,42 @@ void main() {
   );
 
   group('loadNotificationLeadTime', () {
+    test(
+      'shows the saved preference without waiting for the role lookup',
+      () async {
+        when(
+          () => mockProfileService.getNotificationLeadTime(),
+        ).thenAnswer((_) async => 7);
+        final role = Completer<String?>();
+        when(
+          () => mockProfileService.getCurrentUserRole(),
+        ).thenAnswer((_) => role.future);
+        final controller = buildController();
+        final loading = controller.loadNotificationLeadTime();
+        await Future<void>.delayed(Duration.zero);
+        expect(controller.isLoadingDelay, isFalse);
+        expect(controller.notificationLeadTime, 7);
+        expect(controller.canUseAdminWallets, isFalse);
+        role.complete('Owner');
+        await loading;
+        expect(controller.canUseAdminWallets, isTrue);
+        controller.dispose();
+      },
+    );
+
+    test('ignores late preference completion after disposal', () async {
+      final pending = Completer<int>();
+      when(
+        () => mockProfileService.getNotificationLeadTime(),
+      ).thenAnswer((_) => pending.future);
+      final controller = buildController();
+      final loading = controller.loadNotificationLeadTime();
+      controller.dispose();
+      pending.complete(7);
+      await loading;
+      verifyNever(() => mockProfileService.getCurrentUserRole());
+    });
+
     test('sets notificationLeadTime from service', () async {
       when(
         () => mockProfileService.getNotificationLeadTime(),

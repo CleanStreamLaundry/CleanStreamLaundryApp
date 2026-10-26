@@ -18,7 +18,7 @@ class FormFields extends StatelessWidget {
           ),
           decoration: InputDecoration(
             labelText: controller.emailLabel,
-            labelStyle: TextStyle(color: controller.labelColor),
+            labelStyle: TextStyle(color: Theme.of(context).colorScheme.fontSecondary),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -44,7 +44,7 @@ class FormFields extends StatelessWidget {
           ),
           decoration: InputDecoration(
             labelText: controller.passwordLabel,
-            labelStyle: TextStyle(color: controller.labelColor),
+            labelStyle: TextStyle(color: Theme.of(context).colorScheme.fontSecondary),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -61,6 +61,9 @@ class FormFields extends StatelessWidget {
             ),
             prefixIcon: Icon(Icons.lock, color: controller.iconColor),
             suffixIcon: IconButton(
+              tooltip: controller.obscurePassword
+                  ? 'Show password'
+                  : 'Hide password',
               icon: Icon(
                 controller.obscurePassword
                     ? Icons.visibility_off

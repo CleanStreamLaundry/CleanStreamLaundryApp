@@ -174,7 +174,14 @@ void main() {
 
           await enterConfirm(tester, 'StrongPass1!');
 
-          expect(find.text("Passwords don't match"), findsNothing);
+          expect(find.descendant(
+            of: find.byType(TextField),
+            matching: find.text("Passwords don't match"),
+          ), findsNothing);
+          expect(find.descendant(
+            of: find.byType(SnackBar),
+            matching: find.text("Passwords don't match"),
+          ), findsOneWidget);
         });
 
     testWidgets('does not call service when validation fails', (tester) async {
@@ -190,6 +197,29 @@ void main() {
 
   group('Submit', () {
     const validPassword = 'StrongPass1!';
+
+    for (final entry in {
+      AuthenticationResponses.compromisedPassword:
+          'This password was found in a data breach. Choose a different password.',
+      AuthenticationResponses.weakPassword:
+          'This password does not meet security requirements. Choose a stronger password.',
+    }.entries) {
+      testWidgets('shows controlled password rejection for ${entry.key}', (tester) async {
+        when(() => mockAuthService.updatePassword(any()))
+            .thenAnswer((_) async => entry.key);
+        await tester.pumpWidget(createWidget());
+        await tester.pumpAndSettle();
+        await enterPassword(tester, validPassword);
+        await enterConfirm(tester, validPassword);
+        await tapSubmit(tester);
+        await tester.pumpAndSettle();
+        expect(find.text(entry.value), findsOneWidget);
+        expect(find.text('Password reset successful'), findsNothing);
+        expect(find.text('Login Page'), findsNothing);
+        expect(tester.takeException(), isNull);
+        verify(() => mockAuthService.updatePassword(validPassword)).called(1);
+      });
+    }
 
     testWidgets('calls updatePassword with correct value', (tester) async {
       when(() => mockAuthService.updatePassword(any()))
@@ -253,6 +283,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Failed to reset password'), findsOneWidget);
+      expect(find.text('network'), findsNothing);
     });
 
     testWidgets('shows loading indicator while submitting', (tester) async {

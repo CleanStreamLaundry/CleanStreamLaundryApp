@@ -3,6 +3,7 @@ import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/transaction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:clean_stream_laundry_app/services/firebase/firebase_service.dart';
 
 class SettingsController extends ChangeNotifier {
   static const int maxNotificationLeadTime = 30;
@@ -23,8 +24,10 @@ class SettingsController extends ChangeNotifier {
   int notificationLeadTime = 5;
   bool isLoadingDelay = true;
   bool canUseAdminWallets = false;
+  bool _disposed = false;
 
   Future<void> loadNotificationLeadTime() async {
+    final userId = authService.getCurrentUserId;
     var value = notificationLeadTime;
     String? role;
 
@@ -34,15 +37,19 @@ class SettingsController extends ChangeNotifier {
       value = 5;
     }
 
+    if (_disposed || userId != authService.getCurrentUserId) return;
+    notificationLeadTime = value.clamp(0, maxNotificationLeadTime).toInt();
+    isLoadingDelay = false;
+    notifyListeners();
+
     try {
       role = await profileService.getCurrentUserRole();
     } catch (_) {
       role = null;
     }
 
-    notificationLeadTime = value.clamp(0, maxNotificationLeadTime).toInt();
+    if (_disposed || userId != authService.getCurrentUserId) return;
     canUseAdminWallets = role == 'Admin' || role == 'Owner';
-    isLoadingDelay = false;
     notifyListeners();
   }
 
@@ -69,6 +76,15 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (GetIt.instance.isRegistered<FirebaseService>()) {
+      await GetIt.instance<FirebaseService>().disablePush();
+    }
     await authService.logout();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

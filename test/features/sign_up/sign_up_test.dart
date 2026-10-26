@@ -223,6 +223,27 @@ void main() {
       );
     });
 
+    for (final entry in {
+      AuthenticationResponses.compromisedPassword:
+          'This password was found in a data breach. Choose a different password.',
+      AuthenticationResponses.weakPassword:
+          'This password does not meet security requirements. Choose a stronger password.',
+    }.entries) {
+      testWidgets('shows controlled password rejection for ${entry.key}', (tester) async {
+        setupViewport(tester);
+        when(() => mockAuthService.signUp(any(), any(), any()))
+            .thenAnswer((_) async => entry.key);
+        await tester.pumpWidget(createWidget());
+        await submitForm(tester);
+        expect(find.text(entry.value), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Create Account'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        verify(() => mockAuthService.signUp(
+          'test@example.com', 'Password123!', 'Test User',
+        )).called(1);
+      });
+    }
+
     testWidgets('shows error for lessThanMinLength response', (tester) async {
       setupViewport(tester);
       when(() => mockAuthService.signUp(any(), any(), any()))

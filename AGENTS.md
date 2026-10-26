@@ -1,86 +1,108 @@
 # Agent Guide
 
-Be warm, direct, repo-aware, and verification-minded. Leave the project easier to work on, not larger by default. This guide governs this repository; it does not authorize deployments or queued features.
+Be warm, direct, repo-aware, and verification-minded. This guide governs this repository; it does not authorize deployments or queued features.
 
 ## Smallest Safe Change
 
-- Read related implementation and tests before editing. Identify what works and reuse it.
-- Write the least new code necessary for the requested behavior. Preserve working behavior and public contracts unless the task explicitly changes them.
-- Prefer existing controllers, services, helpers, components, and theme tokens. No speculative frameworks, parallel implementations, or abstractions for hypothetical requirements.
-- Refactor only when required by the task or when it demonstrably reduces duplication, dependencies, or complexity without regressions. Keep optional refactors separate.
-- Use clear names, focused functions, explicit responsibilities, and consistent error handling. Fewer lines are evidence, not a reason for clever compression or weaker safety.
-- Remove replaced code and unused dependencies after verification. Do not retain competing refresh/payment paths.
-- Keep diffs focused: no unrelated renaming, formatting, generated files, or dependency churn. Justify new abstractions/packages by the complexity they remove.
-- Report what was reused, removed, and added; why a simpler solution was insufficient; and what proves compatibility.
+- Read related implementation/tests first; reuse working controllers, services, helpers, components and theme tokens. Write the least new code necessary; preserve behavior/public contracts unless assigned otherwise.
+- No speculative frameworks, parallel implementations or hypothetical abstractions. Refactor only for the task or demonstrably lower duplication/dependencies/complexity without regressions; keep optional refactors separate. Use clear names, focused responsibilities and consistent errors, not clever compression.
+- Remove verified replaced/unused code and dependencies, including competing refresh/payment paths. No unrelated renaming, formatting, generated-file or dependency churn. Justify additions by complexity removed; report reuse/removal/additions, why simpler was insufficient and compatibility evidence.
 
-## Work Efficiently
+## Product and UI Acceptance
 
-- Deliver coherent feature batches, not repeated proposal/review cycles for tiny edits. Once scope and contracts are clear, implement and verify.
-- Keep only critical-path agents active. Default to one implementation lane plus independent QA; add parallel work only when its benefit exceeds coordination cost.
-- Set delegated reasoning effort explicitly: `medium` for routine implementation, docs, styling, and straightforward tests; `high` for auth, payments, database changes, concurrency, and difficult QA. Reserve extra-high for a concrete unresolved problem, not the default. Keep the inherited model unless the user requests another.
-- Assign effort by task risk, not the composer's setting. Escalate only when evidence warrants it. If an agent's effort cannot be changed in place, finish its bounded batch and set the next agent appropriately rather than restarting completed work.
-- Run focused checks once during implementation and once independently in QA. Composer reviews the diff and evidence instead of routinely running a third copy. Rerun only after a relevant change or to investigate a concrete failure.
-- Reserve full suites, native builds, and broad security checks for shared-contract changes or release checkpoints. Never weaken financial, authorization, or data-integrity verification to save usage.
-- Reuse accepted evidence while its inputs are unchanged. Check owned files and relevant dependencies, not repeated whole-workspace fingerprint inventories.
-- Read targeted sections, keep handoffs concise, and maintain one current status record. Do not duplicate long logs, historical narratives, or complete context across agents.
-- After two unsuccessful attempts at the same check, record the blocker and change approach or move to unblocked work. Do not spend repeated runs proving the same environment failure.
+- A request to remove one control or polish a screen does not authorize removing
+  other actions, changing defaults, or replacing the workflow. Preserve the
+  owner's choices; ask before an additional product change. Agent implementation
+  notes are not owner approval.
+  Requested corrections and routine behavior-preserving fixes need no additional
+  approval.
+- Apply the [finished-UI checklist](docs/theming.md#finished-ui-checklist) before
+  calling UI work done. Tests/build success prove function, not visual quality.
+  Inspect every changed screen's actual rendered states, including headers,
+  against the request and existing brand; do not
+  accept visibly awkward wrapping, oversized copy, misalignment or lost controls.
+- Review real-font renders before the expensive native build, then inspect the
+  installed result. Show a final screenshot for a requested visual refinement;
+  distinguish functional checks from owner design approval.
+- For before/after requests, freeze the current source before editing and use
+  matching data, dimensions, fonts and accessibility settings. Label fixture
+  captures separately from device screenshots. A screen-specific color request
+  must not silently restyle other tabs through shared theme tokens.
+- Before adding a cache for navigation flashes, trace page/controller disposal
+  through the actual router. Retain existing account-scoped state where possible;
+  test first-return frames, not just settled screens or isolated page fixtures.
 
-## Read Only What You Need
+## Order, Ownership and Resources
+
+- Honor explicit stage order: implementation/setup, known fixes, testing/verification. No early QA, analysis, builds, simulator/browser checks or broad audits; necessary source reading is implementation. Announce each stage complete. Record the current stage, evidence, assignments, gates and blockers in [operations](docs/operations.md), not here. Assign unavailable approvals/access/devices to the user with dependent work; park unsafe activation, never remove safeguards or call blocked work done.
+- Runtime waits for the documentation gate's recorded evidence, not inferred approval. Provider production labels are not release status. After approved development activation, do not hold completed features off solely for testing; retain authorization and concrete missing-input/destructive guards, recording each disable reason.
+- Check `git status --short` before/after edits; preserve dirty/untracked user/other-task work. Composer verifies isolated writable roots and assigns an absolute root, owned files and one writer per file. Read-only inputs are not edit targets; use reviewed baselines, not unreviewed dirty copies/other lanes.
+- Backend owns migrations, RLS, Storage, functions and shared financial/Auth contracts. Composer coordinates router/startup/DI, manifests, native configuration, dependencies and integration.
+- Finish each requested deliverable/acceptance check before another audit/refactor loop; deliver coherent batches. Separate local gaps, external setup and rollout. Default to one critical-path implementation lane plus independent QA; additional requested lanes need disjoint ownership and useful benefit.
+- Serialize memory-intensive checks in one composer-assigned slot; no parallel browsers/native builds. Prefer one QA-owned queue: authors freeze batches and supply exact commands/prerequisites; QA writes only test outputs. Preauthorized transfer names the next owner; release with terminal results immediately after all owned processes exit, before hashes/handoffs.
+- Delegate `medium` for routine implementation/docs/styling/tests; `high` for Auth/payments/database/concurrency/difficult QA. Extra-high needs a concrete unresolved problem. Keep inherited model unless requested otherwise; effort follows risk, not composer settings. Escalate with evidence; finish bounded work before replacing an agent whose effort cannot change.
+- After the Mac restart, one bounded check at a time; no automatic pool/simulator/native-build/preview restart. Reuse caches without full copies; keep isolated work/handoffs in workspace `.campaign-work/`. Verify surviving files/process handles after interruptions; past receipts are not reproducible evidence.
+- Keep `FLUTTER_TOOL_ARGS=--old_gen_heap_size=512` across pinned Flutter tests, analysis and native wrappers, including indirect Gradle invocations. Match the verified cache; toggling the value rebuilds Flutter/resolves SDK dependencies. Do not delete/rebootstrap it.
+- Freeze dependency discovery per batch; record compatibility/scope deferrals. Reuse unchanged accepted evidence, not repeated discovery, whole-workspace fingerprints or author/QA/composer reruns. One focused QA run suffices after source-only author review; rerun changed inputs/concrete failures. After two failed attempts, record blocker and change approach or do unblocked work. Never save usage by weakening financial/authorization/data-integrity checks.
+- Search the named source/evidence directory, not all of `.campaign-work`; SDK, Pub, Pods, Gradle and DerivedData copies overwhelm unrelated searches. Request only the status fields or log lines needed for the next decision.
+
+## Project and References
+
+- Flutter delivery is iOS/Android only; browser app/hosting is deferred. Preserve cross-platform code without expanding scope. Sibling `CleanStreamWeb-CortinaQR` owns React public pages, browser checkout and administration, not separate `CleanStreamWeb` main.
+- `lib/main.dart` starts; GetIt: `lib/core/di/di.dart`; GoRouter: `lib/core/router/app_router.dart`; startup `/loading` then normally `/homePage` or `/login`.
+- Features: `lib/features/<feature>/` pages/controllers/widgets; models/interfaces: `lib/logic/`; implementations: `lib/services/`. Reuse DI; update affected test constructors with contracts. Shared widgets: `lib/features/widgets/`; theme: `lib/core/theme/`; persistence: `lib/core/storage/`; assets: `assets/`, `pubspec.yaml`, `web/`, `android/`, `ios/`.
+- Auth spans router, loading controller, auth service and `clean-stream://` links: inspect all four. Financial changes span interfaces, implementations, Edge Functions and SQL; read payments first. Backend endpoints/functions and migrations remain app-owned; website consumes shared contracts.
+- Terms/Privacy review drafts live in `lib/features/legal/legal_drafts.dart` and
+  website `PublicLegalPage.tsx`; keep the wording aligned without a runtime
+  sibling-repository dependency. Draft approval is separate from publication or
+  changing the immutable Supabase loyalty agreement and acceptance version.
+- A lifecycle/policy change must include the public deletion page, current
+  acceptance document, customer notices and server deadline, not just the draft.
+  Preserve historical policy/receipts; identify local candidates versus deployed
+  versions. Sign-in provider disclosure must match both the existing browser
+  flow and native setup, not merely an installed package or an enabled console toggle.
+- Per-action legal acknowledgement must use the displayed server policy snapshot,
+  not local draft copy. Bind receipts to caller/action/amount or displayed balances;
+  retain unknown-outcome reconciliation. Unpublished surrender wording does not
+  authorize changing balances or erasing historical acceptances.
+
+Read the relevant reference for the boundary being changed. **Before Auth/admission, async/account, database/payment, native/dependency/tool or fixture work, read the matching focused sections of [Engineering Lessons](docs/engineering-lessons.md).** These required lessons do not grant approvals.
 
 | Work | Reference |
 | --- | --- |
-| Backend, auth, RLS, keys, account lifecycle | [Supabase](docs/supabase.md) |
-| Branding, dark mode, components, loading states | [Theming](docs/theming.md) |
+| Backend, Auth, RLS, keys, lifecycle | [Supabase](docs/supabase.md) |
+| Portal roles, financial privacy, staff scope | [Admin Permissions](docs/admin-permissions.md) |
+| Branding, themes, components/loading | [Theming](docs/theming.md) |
 | Wallet, Stripe, Cortina, refunds | [Payments](docs/payments.md) |
-| Consent, welcome/lifecycle email, newsletter | [Email](docs/email.md) |
-| Firebase environments, notifications, release controls | [Firebase](docs/firebase.md) |
-| Package security, toolchains, upgrade batches | [Dependencies](docs/dependencies.md) |
-| Assignments, gates, commands, blockers, rollout | [Operations](docs/operations.md) |
+| Loyalty terms, publication and consent | [Loyalty Terms](docs/loyalty-terms.md) |
+| Consent, lifecycle email, newsletter | [Email](docs/email.md) |
+| Firebase, notifications, release controls | [Firebase](docs/firebase.md) |
+| Security, toolchains, upgrades | [Dependencies](docs/dependencies.md) |
+| Assignments, gates, commands, rollout | [Operations](docs/operations.md) |
 
-[APP_FIX_PRIORITIES.md](APP_FIX_PRIORITIES.md) is the user's return-to list, not agent instructions or an automatic work queue. Do not duplicate it here or implement unassigned items merely because they are listed.
+[APP_FIX_PRIORITIES.md](APP_FIX_PRIORITIES.md) is the user's return-to list, not instructions/automatic work. Do not duplicate it or implement unassigned items. Keep one current operations record; replace stale entries, link superseded evidence, consult history only as needed. Keep handoffs/log excerpts concise; link full inventories.
 
-Keep operations focused on current assignments, approvals and evidence summaries. Preserve superseded detail in a linked verification record; consult that history only when the current task needs it.
+On resume, read only operations' Current Checkpoint and Remaining Work first. Open a named historical receipt only for the boundary being changed; do not reread Evidence History or restart its superseded pending items.
 
-## Project Map
+## Safety
 
-- Flutter mobile/web client. Support iOS and Android; preserve Flutter web compatibility. The companion React website owns browser checkout and administration.
-- `lib/main.dart` starts the app; `lib/core/di/di.dart` uses GetIt; `lib/core/router/app_router.dart` uses GoRouter. Startup currently enters `/loading`, then normally `/homePage` or `/login`.
-- Features use `lib/features/<feature>/` pages, controllers, and widgets. Read the existing feature before introducing structure.
-- Models/interfaces: `lib/logic/`; implementations: `lib/services/`. Reuse DI and update affected test constructors when changing a contract.
-- Shared shell/widgets: `lib/features/widgets/`; themes: `lib/core/theme/`; small local persistence: `lib/core/storage/`.
-- Assets: `assets/`; icon/splash configuration: `pubspec.yaml`; generated/platform assets: `web/`, `android/`, `ios/`.
-- Auth entry spans the router, loading controller, auth service, and `clean-stream://` deep links. Check all four before changing OAuth, verification, reset, or post-login redirects.
-- For web callbacks, verify the actual document URL, base path, and Flutter URL strategy as well as the router URI. Hash routes and top-level OAuth parameters are different inputs. Keep one callback consumer and test exchange, cleanup, reload, and failure without relying only on mocked route strings.
-- Financial changes cross interfaces, implementations, Edge Functions, and SQL. Read the payments reference first; never infer success from UI state.
-
-## Safety and Coordination
-
-- Check `git status --short` before/after edits. Preserve dirty and untracked user/other-task work; never reset or overwrite it.
-- Composer assigns one writer per file and verifies the isolated writable root before dispatch. Every assignment names that absolute root and owned files; read-only input paths are not edit targets. Use a reviewed baseline, never unreviewed dirty copies or another lane's changes.
-- Backend owns migrations, RLS, Storage, functions, and shared financial/auth contracts. Composer coordinates router/startup/DI, manifests, native configuration, dependencies, and integration.
-- Runtime work waits for the documentation gate in [operations.md](docs/operations.md). A gate passes only with recorded evidence, not inferred approval.
-- Verify the actual Supabase project before any remote action. Docs orient you; deployed state must be inspected before risky changes. Never substitute another accessible project.
-- Preserve unrelated cloud projects and connector accounts. When authorized, use the correct signed-in browser console instead of replacing another project's connection.
-- Flutter `.env` is bundled as an asset. Its values are public client configuration, not secrets. Never put privileged Supabase, Stripe, or provider credentials there, in logs, or in docs.
-- No paid services, production deployment, destructive migration, or legacy-key retirement without explicit approval. Rehearse recovery and reconcile pending payments before release.
-- No new Supabase Realtime. Refresh content quietly on meaningful events; bound polling to pending payments. Do not add general timers, another database, or live infrastructure by default.
-- Keep SDK Auth session-change listeners; they are not Realtime database subscriptions. Public policy reads must not depend on refreshing a signed-in session. Verify transport behavior, not just request headers.
-- Nonpersistent Auth clients can still share browser broadcast state. Disabling storage or token refresh does not establish isolation; verify cross-client effects in a browser before relying on temporary clients.
-- Keep account/payment truth server-side. Do not weaken authorization, idempotency, financial checks, or recovery to reduce code.
-- Bind asynchronous mutations to the intended caller before dispatch and guard late completion against account/route changes, including A-to-B-to-A. UI cleanup or a response timeout cannot undo SDK/server side effects already started.
-- Audit effective table/column grants, policies, triggers, and executable functions together. RLS being enabled or a column-level revoke alone does not prove sensitive fields are protected; check inherited/table-wide privileges and trusted-function paths.
-- Verify current official vendor docs before SDK/API changes. Prefer narrow MCP inspection where useful, then local tools. A failed/skipped check is not a pass.
+- Verify actual Clean Stream project before remote action; inspect deployed state before risky changes. Never substitute Gundex/another accessible project or replace unrelated connector accounts. When authorized, use the correct signed-in browser console.
+- Before calling a scheduled workflow complete, trace its prerequisite records to
+  their actual writer and verify activation separately from installation. Derive
+  factual inventory from existing data; never manufacture human review or
+  provider-erasure evidence to bypass a missing prerequisite.
+- Bundled Flutter `.env` is public client configuration. No privileged Supabase/Stripe/provider credentials in assets, logs or docs.
+- No paid services, production deployment, destructive migration or legacy-key retirement without explicit approval. Rehearse recovery and reconcile pending payments before release. Access/development approval does not imply billing or destructive approval.
+- No new Supabase Realtime, general timers, another database or live infrastructure by default. Quiet event-driven refresh; polling only for pending payments. Keep SDK Auth session listeners (not database subscriptions); public policy reads must not require signed-in refresh. Verify transport, not headers alone.
+- Account/payment truth stays server-side. Duplicate events require matching stored owner/binding; recheck current state after awaits before vend approval. Protect historical partial-write audit evidence too. Never weaken authorization, financial checks or recovery. Distinguish collection, wallet spending and machine activity; join verified provider IDs before counting money. Cached diagnostics/portal access do not prove API entitlement.
+- Bind mutations to intended caller before dispatch; guard late completion against account/route changes, including A-to-B-to-A. Cleanup/timeouts cannot undo dispatched side effects. Read guards must not add money-write deadlines/retries.
+- Start Auth transport work with real-SDK/fake-HTTP happy path before mocked races. Test actual shared router/admission, including open protected modals/payment pages inside its navigator. Invalidate cached admission after lifecycle mutations; unresolved presentation may persist, resolved restrictions must expose recovery. New startup privacy choices outrank saved snapshots.
+- Verify current official vendor docs before SDK/API changes. Failed/skipped checks are not passes.
 
 ## Verification and Handoff
 
-- Start with the nearest `flutter test test/<area>`, then related integration tests. Use Flutter's toolchain for Flutter code.
-- Run `flutter analyze` and broader tests for shared contracts; native builds belong to release gates. Environment caveats and backend/web commands are in operations.
-- Isolated checks must use the repository's actual analysis configuration and pinned toolchain. Compare existing diagnostics separately; a clean reduced harness is not a clean integrated repository.
-- Verify completed test-case counts, not only exit status or runner summaries. An interrupted loader or zero-case run is not a passing regression check.
-- Check newly used framework APIs against the pinned CI/minimum SDK source, not only a newer installed SDK or current API documentation. Do not raise requirements or hide diagnostics just to make a candidate pass.
-- When tests disagree with current behavior, verify the intended contract before editing either. Do not change working behavior or weaken assertions just to obtain a green run. For async findings, test delayed completion/failure through public behavior; a diagnostic alone is not proof of a user-visible bug.
-- Docs-only edits need source/link/consistency checks, not app builds. Never mutate a remote service to validate docs.
-- Handoff: owned files, changed/preserved behavior, reuse/removal, commands/results, unrun checks, risks/blockers, and doc updates. Distinguish local from deployed evidence.
-- Hand off each independently verified batch promptly; do not hold an urgent fix behind unrelated queued checks. Freeze accepted artifacts and identify exact bytes before deployment.
-- Stop at checkpoints: docs, baseline/contracts, each wave, significant verification failure, pre-release, and key retirement. Resolve failures before dependent work.
-- Update this guide only with durable verified lessons. Put transient evidence in operations and details in the relevant reference. Remove stale/repeated guidance instead of appending a diary.
+- In the authorized stage, nearest `flutter test test/<area>`, then related integration; Flutter toolchain and actual repository analysis configuration/pins. Honor `dart_test.yaml`/CI partitions and synthetic `firebase-configured` notification fixtures. Shared contracts need `flutter analyze`/broader tests; native builds/full suites/broad security checks belong to shared-contract or release gates. Reduced harnesses are not integrated acceptance; separate baseline diagnostics.
+- Read completed output, exact case counts and exit status. Interrupted loaders, zero cases and running commands are not passes; correct inaccurate receipts. Verify intended contracts before changing behavior/assertions to make tests green.
+- Docs-only work: source/link/consistency checks, no builds or remote mutation. Distinguish local/deployed evidence and unrun/blocked checks.
+- Handoff promptly: owned/frozen exact paths/bytes, behavior preserved/changed, reuse/removal, commands/counts/exit/cleanup, risks/blockers and docs. Send before next batch; inspect named active paths after READY, not stale queued messages. Do not idle disjoint work for pending checks.
+- Stop at docs, baseline/contracts, waves, significant failure, pre-release and key-retirement checkpoints; resolve failures before dependent work. Update guides only with durable verified lessons, references with detail and operations with evidence; remove repetition, not safeguards.

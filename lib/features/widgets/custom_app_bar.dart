@@ -8,8 +8,9 @@ const double _customAppBarHeight = 60;
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final NotificationService? notificationService;
+  final Gradient? gradient;
 
-  const CustomAppBar({super.key, this.notificationService});
+  const CustomAppBar({super.key, this.notificationService, this.gradient});
 
   @override
   Widget build(BuildContext context) {
@@ -19,11 +20,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: _customAppBarHeight,
       backgroundColor: colorScheme.primary,
       foregroundColor: Colors.white,
+      actionsIconTheme: IconThemeData(color: colorScheme.fontInverted),
       elevation: 0,
       centerTitle: false,
       titleSpacing: 12,
       flexibleSpace: Container(
-        decoration: BoxDecoration(gradient: colorScheme.primaryGradient),
+        decoration: BoxDecoration(
+          gradient: gradient ?? colorScheme.primaryGradient,
+        ),
       ),
       title: InkWell(
         onTap: () => _goTo(context, '/homePage'),

@@ -1,199 +1,308 @@
-import {
-    assertEquals,
-    assertRejects,
-  } from "https://deno.land/std@0.182.0/testing/asserts.ts";
-  import {
-    validateUserId,
-    deleteUser,
-    handleDeleteUser
-  } from "./logic.ts";
+import { assertEquals } from "https://deno.land/std@0.182.0/testing/asserts.ts";
+import { type DeleteUserDeps, handleDeleteUser } from "./logic.ts";
 
-  function makeAdminMock(
-    result: { data?: unknown; error?: { message: string } | null } = {}
-  ) {
-    return {
-      rpc: (_name: string, _params: unknown) =>
-        Promise.resolve({ data: "wallet-123", error: null }),
-      auth: {
-        admin: {
-          deleteUser: (_id: string) =>
-            Promise.resolve({
-              data: result.data ?? { user: { id: _id } },
-              error: result.error ?? null,
-            }),
-        },
+const pending = {
+  subject_id: "caller",
+  account_access: "restricted",
+  next_step: "blocked",
+  reason: "explicit_restore_required",
+  account_state: "pending_deletion",
+  restore_until: "2026-10-30T00:00:00Z",
+};
+
+const invalidAcknowledgements: [string, unknown][] = [
+  ["truthy string", "success"],
+  ["truthy boolean", true],
+  ["truthy number", 1],
+  ["array", [pending]],
+  ["unrelated object", { success: true }],
+  [
+    "missing reason",
+    Object.fromEntries(
+      Object.entries(pending).filter(([key]) => key !== "reason"),
+    ),
+  ],
+  ["extra key", { ...pending, success: true }],
+  [
+    "replaced key",
+    Object.fromEntries(
+      Object.entries(pending).map((
+        [key, value],
+      ) => [key === "reason" ? "unrelated" : key, value]),
+    ),
+  ],
+  ["wrong subject", { ...pending, subject_id: "other" }],
+  ["active status", {
+    ...pending,
+    account_state: "legacy_active",
+    account_access: "eligible",
+    next_step: "home",
+    reason: null,
+    restore_until: null,
+  }],
+  ["non-pending state", { ...pending, account_state: "legacy_active" }],
+  ["eligible pending", { ...pending, account_access: "eligible" }],
+  ["home pending", { ...pending, next_step: "home", reason: null }],
+  ["unknown next step", { ...pending, next_step: "restore", reason: null }],
+  ["null blocked reason", { ...pending, reason: null }],
+  ["non-pending blocked reason", { ...pending, reason: "account_restricted" }],
+  ["reason array", { ...pending, reason: ["explicit_restore_required"] }],
+  ["prerequisite with blocked reason", {
+    ...pending,
+    next_step: "challenge_totp",
+  }],
+];
+for (
+  const restore_until of [
+    null,
+    1793318400000,
+    "",
+    "not-a-date",
+    "2026-10-30",
+    "2026-10-30T00:00:00",
+    "2026-10-30T01:00:00+01:00",
+    "2026-02-30T00:00:00Z",
+    "2026-13-01T00:00:00Z",
+    "2026-10-30T24:00:00Z",
+    "2026-10-30T00:60:00Z",
+    "2026-10-30T00:00:00.1234567Z",
+  ]
+) {
+  invalidAcknowledgements.push([
+    `invalid deadline ${JSON.stringify(restore_until)}`,
+    { ...pending, restore_until },
+  ]);
+}
+
+for (const [name, data] of invalidAcknowledgements) {
+  Deno.test(`pending acknowledgement rejects ${name} without retry`, async () => {
+    let dispatches = 0;
+    const { deps } = fixture({
+      requestDeletion: () => {
+        dispatches++;
+        return Promise.resolve({ data, error: null });
       },
-    } as any;
-  }
-
-  function makeRequest(body: unknown) {
-    return new Request("http://localhost/delete-user", {
-      method: "POST",
-      body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
     });
-  }
-  
-  
-  Deno.test("validateUserId — accepts a valid UUID string", () => {
-    const id = "550e8400-e29b-41d4-a716-446655440000";
-    assertEquals(validateUserId(id), id);
-  });
-  
-  Deno.test("validateUserId — throws on null", () => {
-    try {
-      validateUserId(null);
-    } catch (e) {
-      assertEquals(e instanceof Error, true);
-      assertEquals((e as Error).message, "Missing user_id");
-    }
-  });
-  
-  Deno.test("validateUserId — throws on undefined", () => {
-    try {
-      validateUserId(undefined);
-    } catch (e) {
-      assertEquals(e instanceof Error, true);
-      assertEquals((e as Error).message, "Missing user_id");
-    }
-  });
-  
-  Deno.test("validateUserId — throws on empty string", () => {
-    try {
-      validateUserId("   ");
-    } catch (e) {
-      assertEquals(e instanceof Error, true);
-      assertEquals((e as Error).message, "Missing user_id");
-    }
-  });
-  
-  Deno.test("validateUserId — throws on non-string type", () => {
-    try {
-      validateUserId(12345);
-    } catch (e) {
-      assertEquals(e instanceof Error, true);
-      assertEquals((e as Error).message, "Missing user_id");
-    }
-  });
-
-  
-  Deno.test("deleteUser — returns success and data on valid user", async () => {
-    const mockData = { user: { id: "user-abc" } };
-    const supabaseAdmin = makeAdminMock({ data: mockData });
-  
-    const result = await deleteUser(supabaseAdmin, "user-abc");
-  
-    assertEquals(result.success, true);
-    assertEquals(result.data, mockData);
-  });
-  
-  Deno.test("deleteUser — throws when Supabase returns an error", async () => {
-    const supabaseAdmin = makeAdminMock({
-      error: { message: "User not found" },
+    const response = await handleDeleteUser(request(), deps);
+    assertEquals(response.status, 503);
+    assertEquals(await response.json(), {
+      error: "deletion_outcome_unknown",
+      retryable: true,
+      status_rpc: "get_account_lifecycle_status",
     });
-  
-    await assertRejects(
-      () => deleteUser(supabaseAdmin, "ghost-user"),
-      Error,
-      "User not found"
-    );
+    assertEquals(dispatches, 1);
   });
-  
-  Deno.test("deleteUser — forwards the correct user_id to Supabase", async () => {
-    let capturedId: string | undefined;
-    const supabaseAdmin = {
-      rpc: (_name: string, _params: unknown) =>
-        Promise.resolve({ data: "wallet-123", error: null }),
-      auth: {
-        admin: {
-          deleteUser: (id: string) => {
-            capturedId = id;
-            return Promise.resolve({ data: {}, error: null });
-          },
-        },
+}
+
+for (
+  const [next_step, reason] of [
+    ["blocked", "explicit_restore_required"],
+    ["blocked", "restore_expired"],
+    ["blocked", "profile_missing"],
+    ["blocked", "role_unavailable"],
+    ["blocked", "unsupported_factor"],
+    ["verify_email", null],
+    ["enroll_totp", null],
+    ["challenge_totp", null],
+  ] as const
+) {
+  Deno.test(`pending acknowledgement accepts ${next_step}/${reason}`, async () => {
+    // A past server deadline is valid, including idempotent expired requests.
+    const data = {
+      ...pending,
+      next_step,
+      reason,
+      restore_until: "2020-02-29T23:59:59.123456+00:00",
+    };
+    let dispatches = 0;
+    const { deps } = fixture({
+      requestDeletion: () => {
+        dispatches++;
+        return Promise.resolve({ data, error: null });
       },
-    } as any;
-
-    await deleteUser(supabaseAdmin, "user-xyz");
-    assertEquals(capturedId, "user-xyz");
-  });
-  
-  Deno.test("handleDeleteUser — returns 200 with success true on valid request", async () => {
-    const req = makeRequest({ user_id: "user-123" });
-    const res = await handleDeleteUser(req, { supabaseAdmin: makeAdminMock() });
-    const body = await res.json();
-  
-    assertEquals(res.status, 200);
-    assertEquals(body.success, true);
-  });
-  
-  Deno.test("handleDeleteUser — response body contains data field", async () => {
-    const mockData = { user: { id: "user-123", email: "test@example.com" } };
-    const req = makeRequest({ user_id: "user-123" });
-    const res = await handleDeleteUser(req, {
-      supabaseAdmin: makeAdminMock({ data: mockData }),
     });
-    const body = await res.json();
-  
-    assertEquals(body.data, mockData);
+    const response = await handleDeleteUser(request(), deps);
+    assertEquals(response.status, 200);
+    assertEquals(await response.json(), { success: true, data });
+    assertEquals(dispatches, 1);
   });
-  
-  Deno.test("handleDeleteUser — response Content-Type is application/json", async () => {
-    const req = makeRequest({ user_id: "user-123" });
-    const res = await handleDeleteUser(req, { supabaseAdmin: makeAdminMock() });
-  
-    assertEquals(res.headers.get("Content-Type"), "application/json");
+}
+function fixture(overrides: Partial<DeleteUserDeps> = {}) {
+  const calls: string[] = [];
+  const deps: DeleteUserDeps = {
+    getUser: (jwt) => {
+      calls.push(`auth:${jwt}`);
+      return Promise.resolve({ userId: "caller", error: false });
+    },
+    requestDeletion: (jwt) => {
+      calls.push(`request:${jwt}`);
+      return Promise.resolve({ data: pending, error: null });
+    },
+    ...overrides,
+  };
+  return { calls, deps };
+}
+const request = (
+  body: unknown = { user_id: "caller" },
+  bearer = "Bearer captured-token",
+  method = "POST",
+) =>
+  new Request("http://localhost/delete-account", {
+    method,
+    headers: { Authorization: bearer },
+    body: method === "POST" ? JSON.stringify(body) : undefined,
   });
-  
-  Deno.test("handleDeleteUser — throws Missing user_id when body has no user_id", async () => {
-    const req = makeRequest({});
-  
-    await assertRejects(
-      () => handleDeleteUser(req, { supabaseAdmin: makeAdminMock() }),
-      Error,
-      "Missing user_id"
+
+for (const method of ["OPTIONS", "GET", "DELETE"]) {
+  Deno.test(`${method} has no authentication or mutation`, async () => {
+    const { calls, deps } = fixture();
+    assertEquals(
+      (await handleDeleteUser(request({}, "", method), deps)).status,
+      method === "OPTIONS" ? 200 : 405,
     );
+    assertEquals(calls, []);
   });
-  
-  Deno.test("handleDeleteUser — throws Missing user_id when user_id is empty string", async () => {
-    const req = makeRequest({ user_id: "   " });
-  
-    await assertRejects(
-      () => handleDeleteUser(req, { supabaseAdmin: makeAdminMock() }),
-      Error,
-      "Missing user_id"
+}
+for (const bearer of ["", "token", "Bearer ", "Bearer one two"]) {
+  Deno.test(`reject invalid bearer ${JSON.stringify(bearer)}`, async () => {
+    const { calls, deps } = fixture();
+    assertEquals(
+      (await handleDeleteUser(request({}, bearer), deps)).status,
+      401,
     );
+    assertEquals(calls, []);
   });
-  
-  Deno.test("handleDeleteUser — throws when Supabase admin delete fails", async () => {
-    const req = makeRequest({ user_id: "user-123" });
-  
-    await assertRejects(
-      () => handleDeleteUser(req, {
-        supabaseAdmin: makeAdminMock({ error: { message: "User not found" } }),
+}
+for (
+  const identity of [{ userId: null, error: false }, {
+    userId: "caller",
+    error: true,
+  }]
+) {
+  Deno.test(`reject invalid identity ${JSON.stringify(identity)}`, async () => {
+    const { deps, calls } = fixture({
+      getUser: () => Promise.resolve(identity),
+    });
+    assertEquals((await handleDeleteUser(request(), deps)).status, 401);
+    assertEquals(calls, []);
+  });
+}
+Deno.test("authentication outage is sanitized without dispatch", async () => {
+  const { calls, deps } = fixture({
+    getUser: () => Promise.reject(new Error("secret")),
+  });
+  const response = await handleDeleteUser(request(), deps);
+  assertEquals(response.status, 503);
+  assertEquals(await response.json(), { error: "authentication_unavailable" });
+  assertEquals(calls, []);
+});
+for (
+  const body of [null, {}, { user_id: "" }, { user_id: 7 }, {
+    user_id: "other",
+  }]
+) {
+  Deno.test(`reject malformed/cross-account body ${JSON.stringify(body)}`, async () => {
+    const { deps, calls } = fixture();
+    assertEquals(
+      (await handleDeleteUser(request(body), deps)).status,
+      body?.user_id === "other" ? 403 : 400,
+    );
+    assertEquals(calls, ["auth:captured-token"]);
+  });
+}
+Deno.test("malformed JSON is a 400 after authentication", async () => {
+  const { deps } = fixture();
+  assertEquals(
+    (await handleDeleteUser(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { Authorization: "Bearer token" },
+        body: "{",
       }),
-      Error,
-      "User not found"
-    );
+      deps,
+    )).status,
+    400,
+  );
+});
+Deno.test("captured bearer requests only caller-bound deletion with server deadline", async () => {
+  const { calls, deps } = fixture();
+  const response = await handleDeleteUser(
+    request({ user_id: "caller", restore_until: "attacker-value" }),
+    deps,
+  );
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { success: true, data: pending });
+  assertEquals(calls, ["auth:captured-token", "request:captured-token"]);
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
+});
+for (
+  const [code, status, error] of [
+    ["PT401", 401, "session_invalid"],
+    ["PT403", 403, "account_restricted"],
+  ] as const
+) {
+  Deno.test(`RPC ${code} maps to sanitized ${status}`, async () => {
+    const { deps } = fixture({
+      requestDeletion: () => Promise.resolve({ data: null, error: { code } }),
+    });
+    const response = await handleDeleteUser(request(), deps);
+    assertEquals(response.status, status);
+    assertEquals(await response.json(), { error });
   });
-  
-  Deno.test("handleDeleteUser — forwards the correct user_id to Supabase", async () => {
-    let capturedId: string | undefined;
-    const supabaseAdmin = {
-      rpc: (_name: string, _params: unknown) =>
-        Promise.resolve({ data: "wallet-123", error: null }),
-      auth: {
-        admin: {
-          deleteUser: (id: string) => {
-            capturedId = id;
-            return Promise.resolve({ data: {}, error: null });
-          },
-        },
-      },
-    } as any;
-  
-    const req = makeRequest({ user_id: "user-xyz" });
-    await handleDeleteUser(req, { supabaseAdmin });
+}
+Deno.test("known last-Owner PT409 is deterministic without retry or pending acknowledgement", async () => {
+  let dispatches = 0;
+  const { deps } = fixture({
+    requestDeletion: (jwt) => {
+      assertEquals(jwt, "captured-token");
+      dispatches++;
+      return Promise.resolve({ data: null, error: { code: "PT409", message: "owner_last_required" } });
+    },
+  });
+  const response = await handleDeleteUser(request(), deps);
+  assertEquals(response.status, 409);
+  assertEquals(await response.json(), { error: "owner_last_required" });
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
+  assertEquals(dispatches, 1);
+});
 
-    assertEquals(capturedId, "user-xyz");
+for (const error of [
+  { code: "PT409" },
+  { code: "PT409", message: "unrecognized private diagnostic" },
+  { code: "XX000", message: "owner_last_required" },
+]) {
+  Deno.test(`unknown conflict remains status-led uncertain outcome ${JSON.stringify(error)}`, async () => {
+    let dispatches = 0;
+    const { deps } = fixture({ requestDeletion: () => {
+      dispatches++;
+      return Promise.resolve({ data: null, error });
+    } });
+    const response = await handleDeleteUser(request(), deps);
+    assertEquals(response.status, 503);
+    assertEquals(await response.json(), {
+      error: "deletion_outcome_unknown", retryable: true, status_rpc: "get_account_lifecycle_status",
+    });
+    assertEquals(dispatches, 1);
   });
+}
+
+for (const failure of ["throw", "PT503", "XX000", "null"]) {
+  Deno.test(`uncertain ${failure} response gives status/retry contract`, async () => {
+    const { deps } = fixture({
+      requestDeletion: () =>
+        failure === "throw"
+          ? Promise.reject(new Error("secret"))
+          : Promise.resolve({
+            data: null,
+            error: failure === "null" ? null : { code: failure },
+          }),
+    });
+    const response = await handleDeleteUser(request(), deps);
+    assertEquals(response.status, 503);
+    assertEquals(await response.json(), {
+      error: "deletion_outcome_unknown",
+      retryable: true,
+      status_rpc: "get_account_lifecycle_status",
+    });
+  });
+}

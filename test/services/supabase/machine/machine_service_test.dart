@@ -23,6 +23,7 @@ void main() {
   test('getDryerCountByLocation returns correct count', () async {
     final result = await machineHandler.getDryerCountByLocation('1');
     expect(result, 5);
+    verify(() => queryBuilderMock.select('id')).called(1);
   });
 
   test('getDryerCountByLocation throws Postgrest Exception', () async {
@@ -40,6 +41,7 @@ void main() {
   test('getIdleDryerCountByLocation returns correct count', () async {
     final result = await machineHandler.getIdleDryerCountByLocation('1');
     expect(result, 5);
+    verify(() => queryBuilderMock.select('id')).called(1);
   });
 
   test('getIdleDryerCountByLocation throws Postgres exception', () async {
@@ -57,6 +59,7 @@ void main() {
   test('getWasherCountByLocation returns correct count', () async {
     final result = await machineHandler.getWasherCountByLocation('1');
     expect(result, 5);
+    verify(() => queryBuilderMock.select('id')).called(1);
   });
 
   test('getWasherCountByLocation throws Postgres exception', () async {
@@ -74,6 +77,7 @@ void main() {
   test('getIdleWasherCountByLocation returns correct count', () async {
     final result = await machineHandler.getIdleWasherCountByLocation('1');
     expect(result, 5);
+    verify(() => queryBuilderMock.select('id')).called(1);
   });
 
   test('getIdleWasherCountByLocation throws Postgres exception', () async {
@@ -93,6 +97,7 @@ void main() {
     when(() => queryBuilderMock.select(any())).thenAnswer((_) => fakeFilterBuilderMap);
     final result = await machineHandler.getMachineById("1");
     expect(result?["Price"], 2.75);
+    verify(() => queryBuilderMock.select('Name, Price')).called(1);
   });
 
   test('getMachineByIdTest error is Postgres error is thrown',() async {

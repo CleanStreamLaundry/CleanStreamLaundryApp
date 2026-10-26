@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import 'package:clean_stream_laundry_app/services/notification_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/profile_service.dart';
@@ -65,7 +66,17 @@ void main() {
     GetIt.I.registerSingleton<FlutterLocalNotificationsPlugin>(mockPlugin);
     GetIt.I.registerSingleton<ProfileService>(mockProfile);
 
-    when(() => mockPlugin.initialize(any())).thenAnswer((_) async => true);
+    when(
+      () => mockPlugin.initialize(
+        settings: any(named: 'settings'),
+        onDidReceiveNotificationResponse: any(
+          named: 'onDidReceiveNotificationResponse',
+        ),
+      ),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockPlugin.getNotificationAppLaunchDetails(),
+    ).thenAnswer((_) async => null);
 
     when(
       () => mockPlugin
@@ -94,7 +105,12 @@ void main() {
     ).thenAnswer((_) async => true);
 
     when(
-      () => mockPlugin.show(any(), any(), any(), any()),
+      () => mockPlugin.show(
+        id: any(named: 'id'), title: any(named: 'title'),
+        body: any(named: 'body'),
+        notificationDetails: any(named: 'notificationDetails'),
+        payload: any(named: 'payload'),
+      ),
     ).thenAnswer((_) async {});
 
     when(
@@ -108,7 +124,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(permissionChannel, (call) async {
           if (call.method == 'checkPermissionStatus') return 1;
-          if (call.method == 'requestPermissions') return {0: 1};
+          if (call.method == 'requestPermissions') return {17: 1};
           return null;
         });
   });
@@ -117,6 +133,69 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(permissionChannel, null);
   });
+
+  test('initialization preserves opt-in permissions and timezone data', () async {
+    final service = NotificationService();
+    await service.initialized;
+    final settings = verify(() => mockPlugin.initialize(
+      settings: captureAny(named: 'settings'),
+      onDidReceiveNotificationResponse: any(named: 'onDidReceiveNotificationResponse'),
+    )).captured.single as InitializationSettings;
+    expect(settings.iOS!.requestAlertPermission, isFalse);
+    expect(settings.iOS!.requestBadgePermission, isFalse);
+    expect(settings.iOS!.requestSoundPermission, isFalse);
+    expect(settings.android!.defaultIcon, '@mipmap/ic_launcher');
+    final location = tz.getLocation('America/Indiana/Indianapolis');
+    expect(tz.TZDateTime(location, 2026, 1, 1).timeZoneOffset,
+        const Duration(hours: -5));
+    expect(tz.TZDateTime(location, 2026, 7, 1).timeZoneOffset,
+        const Duration(hours: -4));
+  });
+
+  test('push display preserves generic content and route allowlist', () async {
+    final service = NotificationService();
+    await service.showPushNotification('/homePage');
+    await service.showPushNotification('/settings');
+    await service.showPushNotification('/untrusted');
+    final routes = verify(() => mockPlugin.show(
+      id: 2147483000, title: 'Clean Stream',
+      body: 'An update is available in the app.',
+      notificationDetails: any(named: 'notificationDetails'),
+      payload: captureAny(named: 'payload'),
+    )).captured;
+    expect(routes, ['/homePage', '/settings']);
+  });
+
+  for (final granted in [false, true]) {
+    testWidgets('notification request result granted=$granted controls reminders',
+        (tester) async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(permissionChannel, (call) async {
+        calls.add(call);
+        if (call.method == 'checkPermissionStatus') return 0;
+        if (call.method == 'requestPermissions') return {17: granted ? 1 : 0};
+        throw StateError('Unexpected permission call: ${call.method}');
+      });
+      final service = NotificationService();
+      await service.initialized;
+      await service.scheduleNotification(id: 9, title: 'Title', body: 'Body',
+          delay: const Duration(minutes: 1));
+      expect(calls.map((call) => call.method),
+          ['checkPermissionStatus', 'requestPermissions']);
+      expect(calls.last.arguments, [17]);
+      expect(await service.getPendingNotifications(), hasLength(granted ? 1 : 0));
+      await tester.pump(const Duration(minutes: 1));
+      Future<void> show() => mockPlugin.show(id: 9, title: 'Title', body: 'Body',
+          notificationDetails: any(named: 'notificationDetails'));
+      if (granted) {
+        verify(show).called(1);
+      } else {
+        verifyNever(show);
+      }
+      expect(await service.getPendingNotifications(), isEmpty);
+    });
+  }
 
   testWidgets("scheduleNotification triggers .show() after delay", (
     tester,
@@ -133,7 +212,8 @@ void main() {
     await tester.pump(const Duration(minutes: 5));
 
     verify(
-      () => mockPlugin.show(1, "Test Title", "Test Body", any()),
+      () => mockPlugin.show(id: 1, title: "Test Title", body: "Test Body",
+        notificationDetails: any(named: 'notificationDetails')),
     ).called(1);
   });
 
@@ -158,10 +238,10 @@ void main() {
 
     verify(
       () => mockPlugin.show(
-        1,
-        "Machine Almost Ready",
-        "$name will be finished in 5 minutes!",
-        any(),
+        id: 1,
+        title: "Machine Almost Ready",
+        body: "$name will be finished in 5 minutes!",
+        notificationDetails: any(named: 'notificationDetails'),
       ),
     ).called(1);
   });
@@ -187,10 +267,10 @@ void main() {
 
     verify(
       () => mockPlugin.show(
-        2,
-        "Machine Almost Ready",
-        "$name will be finished in 5 minutes!",
-        any(),
+        id: 2,
+        title: "Machine Almost Ready",
+        body: "$name will be finished in 5 minutes!",
+        notificationDetails: any(named: 'notificationDetails'),
       ),
     ).called(1);
   });
@@ -214,10 +294,10 @@ void main() {
 
     verify(
       () => mockPlugin.show(
-        3,
-        "Machine Started!",
-        "$name will be finished in 3 minutes!",
-        any(),
+        id: 3,
+        title: "Machine Started!",
+        body: "$name will be finished in 3 minutes!",
+        notificationDetails: any(named: 'notificationDetails'),
       ),
     ).called(1);
   });

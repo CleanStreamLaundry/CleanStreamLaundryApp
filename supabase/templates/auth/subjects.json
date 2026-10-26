@@ -1,0 +1,180 @@
+{
+  "environment": "hosted-development",
+  "note": "Static review mapping only; not an executable deployment payload. Preserve hosted OTP/link contracts. Composer owns hosted application and the seven security-notification toggles.",
+  "logo_url": "https://cleanstreamlaundry.com/assets/Icon-web-Dl9t743a.png",
+  "logo_status": "Reviewed 36 KB public-site asset retained for development; native preview loading failed. Stable optimized asset path is a follow-up, not a gate on this batch.",
+  "templates": [
+    {
+      "id": "confirmation",
+      "dashboard": "Confirm sign up",
+      "file": "confirmation.html",
+      "subject": "Confirm your Clean Stream account",
+      "subject_config": "mailer_subjects_confirmation",
+      "content_config": "mailer_templates_confirmation_content",
+      "variables": [
+        "Token"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; OTP code preserved."
+    },
+    {
+      "id": "invite",
+      "dashboard": "Invite user",
+      "file": "invite.html",
+      "subject": "You're invited to Clean Stream",
+      "subject_config": "mailer_subjects_invite",
+      "content_config": "mailer_templates_invite_content",
+      "variables": [
+        "SiteURL",
+        "ConfirmationURL"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; existing confirmation-link flow preserved."
+    },
+    {
+      "id": "magic_link",
+      "dashboard": "Magic link or OTP",
+      "file": "magic_link.html",
+      "subject": "Your Clean Stream sign-in link",
+      "subject_config": "mailer_subjects_magic_link",
+      "content_config": "mailer_templates_magic_link_content",
+      "variables": [
+        "ConfirmationURL"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; existing confirmation-link flow preserved."
+    },
+    {
+      "id": "email_change",
+      "dashboard": "Change email address",
+      "file": "email_change.html",
+      "subject": "Confirm your Clean Stream email change",
+      "subject_config": "mailer_subjects_email_change",
+      "content_config": "mailer_templates_email_change_content",
+      "variables": [
+        "Email",
+        "NewEmail",
+        "ConfirmationURL"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; existing confirmation-link flow preserved."
+    },
+    {
+      "id": "recovery",
+      "dashboard": "Reset password",
+      "file": "recovery.html",
+      "subject": "Reset your Clean Stream password",
+      "subject_config": "mailer_subjects_recovery",
+      "content_config": "mailer_templates_recovery_content",
+      "variables": [
+        "Token"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; OTP code preserved."
+    },
+    {
+      "id": "reauthentication",
+      "dashboard": "Reauthentication",
+      "file": "reauthentication.html",
+      "subject": "Your Clean Stream verification code",
+      "subject_config": "mailer_subjects_reauthentication",
+      "content_config": "mailer_templates_reauthentication_content",
+      "variables": [
+        "Token"
+      ],
+      "hosted_contract": "Verified current hosted development source by composer; OTP code preserved."
+    },
+    {
+      "id": "password_changed_notification",
+      "dashboard": "Password changed",
+      "file": "password_changed_notification.html",
+      "subject": "Your Clean Stream password was changed",
+      "subject_config": "mailer_subjects_password_changed_notification",
+      "content_config": "mailer_templates_password_changed_notification_content",
+      "variables": [
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_password_changed_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "email_changed_notification",
+      "dashboard": "Email address changed",
+      "file": "email_changed_notification.html",
+      "subject": "Your Clean Stream email address was changed",
+      "subject_config": "mailer_subjects_email_changed_notification",
+      "content_config": "mailer_templates_email_changed_notification_content",
+      "variables": [
+        "OldEmail",
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_email_changed_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "phone_changed_notification",
+      "dashboard": "Phone number changed",
+      "file": "phone_changed_notification.html",
+      "subject": "Your Clean Stream phone number was changed",
+      "subject_config": "mailer_subjects_phone_changed_notification",
+      "content_config": "mailer_templates_phone_changed_notification_content",
+      "variables": [
+        "OldPhone",
+        "Phone"
+      ],
+      "notification_toggle": "mailer_notifications_phone_changed_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "identity_linked_notification",
+      "dashboard": "Sign-in method linked",
+      "file": "identity_linked_notification.html",
+      "subject": "A sign-in method was linked to your Clean Stream account",
+      "subject_config": "mailer_subjects_identity_linked_notification",
+      "content_config": "mailer_templates_identity_linked_notification_content",
+      "variables": [
+        "Provider",
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_identity_linked_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "identity_unlinked_notification",
+      "dashboard": "Sign-in method removed",
+      "file": "identity_unlinked_notification.html",
+      "subject": "A sign-in method was removed from your Clean Stream account",
+      "subject_config": "mailer_subjects_identity_unlinked_notification",
+      "content_config": "mailer_templates_identity_unlinked_notification_content",
+      "variables": [
+        "Provider",
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_identity_unlinked_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "mfa_factor_enrolled_notification",
+      "dashboard": "MFA method added",
+      "file": "mfa_factor_enrolled_notification.html",
+      "subject": "A verification method was added to your Clean Stream account",
+      "subject_config": "mailer_subjects_mfa_factor_enrolled_notification",
+      "content_config": "mailer_templates_mfa_factor_enrolled_notification_content",
+      "variables": [
+        "FactorType",
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_mfa_factor_enrolled_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    },
+    {
+      "id": "mfa_factor_unenrolled_notification",
+      "dashboard": "MFA method removed",
+      "file": "mfa_factor_unenrolled_notification.html",
+      "subject": "A verification method was removed from your Clean Stream account",
+      "subject_config": "mailer_subjects_mfa_factor_unenrolled_notification",
+      "content_config": "mailer_templates_mfa_factor_unenrolled_notification_content",
+      "variables": [
+        "FactorType",
+        "Email"
+      ],
+      "notification_toggle": "mailer_notifications_mfa_factor_unenrolled_enabled",
+      "hosted_contract": "Official documented variables; review against hosted source."
+    }
+  ]
+}

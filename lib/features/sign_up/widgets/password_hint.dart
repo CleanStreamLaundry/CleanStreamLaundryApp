@@ -15,32 +15,30 @@ class SignUpPasswordHint extends StatelessWidget {
 
         if (requirementText == null) return const SizedBox.shrink();
 
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(),
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey),
-                ),
-                child: Text(
-                  requirementText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey,
-                  ),
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              border: Border(
+                left: BorderSide(
+                  color: Theme.of(context).colorScheme.secondary,
+                  width: 3,
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-          ],
+            child: Text(
+              requirementText,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                letterSpacing: 0,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
         );
       },
     );

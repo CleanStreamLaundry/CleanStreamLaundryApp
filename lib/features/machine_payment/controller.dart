@@ -11,7 +11,7 @@ import 'package:clean_stream_laundry_app/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
-enum PaymentOutcome { success, machineError, failed, canceled }
+enum PaymentOutcome { success, machineError, failed, canceled, pending }
 
 class PaymentController extends ChangeNotifier {
   final AuthService authService;
@@ -116,6 +116,8 @@ class PaymentController extends ChangeNotifier {
       price!,
       MachineFormatter.formatMachineType(machineName.toString()),
     );
+
+    if (result == PaymentResult.pending) return PaymentOutcome.pending;
 
     if (result != PaymentResult.success) {
       return result == PaymentResult.canceled

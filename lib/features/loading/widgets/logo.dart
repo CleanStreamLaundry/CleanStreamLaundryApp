@@ -20,7 +20,7 @@ class _LogoState extends State<Logo> {
       builder: (context, scale, child) {
         return Transform.scale(scale: scale, child: child);
       },
-      child: Image.asset('assets/Logo.png', height: 250),
+      child: Image.asset('assets/splash-logo.png', height: 250),
       onEnd: () {
         setState(() {
           final temp = begin;

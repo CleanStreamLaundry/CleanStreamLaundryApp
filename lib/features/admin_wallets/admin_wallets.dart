@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/widgets/base_page.dart';
 import 'package:clean_stream_laundry_app/logic/services/admin_wallet_service.dart';
+import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminWalletsPage extends StatefulWidget {
   const AdminWalletsPage({super.key});
@@ -13,6 +17,11 @@ class AdminWalletsPage extends StatefulWidget {
 
 class _AdminWalletsPageState extends State<AdminWalletsPage> {
   final AdminWalletService _service = GetIt.instance<AdminWalletService>();
+  final AuthService _auth = GetIt.instance<AuthService>();
+  late final StreamSubscription<AuthState> _authSubscription;
+  Session? _observedSession;
+  int _generation = 0;
+  bool _authAvailable = true;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
   List<Map<String, dynamic>> _wallets = [];
@@ -24,82 +33,179 @@ class _AdminWalletsPageState extends State<AdminWalletsPage> {
   @override
   void initState() {
     super.initState();
+    _observedSession = _auth.currentSession;
+    _authSubscription = _auth.authStateChanges.listen(
+      (state) {
+        if (!identical(state.session, _observedSession) ||
+            state.event == AuthChangeEvent.signedOut) {
+          _observedSession = state.session;
+          _invalidateSession();
+        }
+      },
+      onError: (Object _) {
+        _authAvailable = false;
+        _invalidateSession();
+      },
+      onDone: () {
+        _authAvailable = false;
+        _invalidateSession();
+      },
+    );
     _search();
   }
 
   @override
   void dispose() {
+    _generation++;
+    unawaited(_authSubscription.cancel());
     _searchController.dispose();
     _noteController.dispose();
     super.dispose();
   }
 
+  void _invalidateSession() {
+    _generation++;
+    if (!mounted) return;
+    _searchController.clear();
+    _noteController.clear();
+    setState(() {
+      _wallets = [];
+      _selectedDetail = null;
+      _selectedWalletId = null;
+      _loading = false;
+      _error = 'Session changed; refresh wallets before continuing.';
+    });
+  }
+
+  bool _current(Session? session, int generation, {String? walletId}) {
+    return mounted &&
+        _authAvailable &&
+        generation == _generation &&
+        session != null &&
+        identical(session, _observedSession) &&
+        identical(session, _auth.currentSession) &&
+        session.user.id == _auth.getCurrentUserId &&
+        session.accessToken.isNotEmpty &&
+        session.expiresAt != null &&
+        !session.isExpired &&
+        (walletId == null || walletId == _selectedWalletId);
+  }
+
   Future<void> _search() async {
+    final session = _auth.currentSession;
+    final generation = _generation;
+    if (!_current(session, generation)) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Current wallet owner session required.';
+        });
+      }
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      _wallets = await _service.searchWallets(_searchController.text);
+      final wallets = await _service.searchWallets(_searchController.text);
+      if (!_current(session, generation)) return;
+      _wallets = wallets;
     } catch (error) {
+      if (!_current(session, generation)) return;
       _error = error.toString();
     } finally {
-      if (mounted) {
+      if (_current(session, generation)) {
         setState(() => _loading = false);
       }
     }
   }
 
   Future<void> _selectWallet(String walletId) async {
+    final session = _auth.currentSession;
+    final generation = _generation;
+    if (!_current(session, generation)) return;
     setState(() {
       _selectedWalletId = walletId;
       _selectedDetail = null;
       _loading = true;
     });
     try {
-      _selectedDetail = await _service.getWalletDetail(walletId);
+      final detail = await _service.getWalletDetail(walletId);
+      if (!_current(session, generation, walletId: walletId)) return;
+      _selectedDetail = detail;
     } catch (error) {
+      if (!_current(session, generation, walletId: walletId)) return;
       _error = error.toString();
     } finally {
-      if (mounted) {
+      if (_current(session, generation, walletId: walletId)) {
         setState(() => _loading = false);
       }
     }
   }
 
   Future<void> _recordComplaint() async {
+    final session = _auth.currentSession;
+    final generation = _generation;
     final walletId = _selectedWalletId;
     final note = _noteController.text.trim();
-    if (walletId == null || note.isEmpty) return;
+    if (walletId == null || note.isEmpty ||
+        !_current(session, generation, walletId: walletId)) {
+      return;
+    }
 
-    await _service.recordDeletedAccountComplaint(
-      walletAccountId: walletId,
-      note: note,
-    );
-    _noteController.clear();
-    await _selectWallet(walletId);
+    try {
+      await _service.recordDeletedAccountComplaint(
+        walletAccountId: walletId,
+        note: note,
+      );
+      if (!_current(session, generation, walletId: walletId)) return;
+      _noteController.clear();
+      await _selectWallet(walletId);
+    } catch (error) {
+      if (!_current(session, generation, walletId: walletId)) return;
+      setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _toggleLock(bool locked) async {
+    final session = _auth.currentSession;
+    final generation = _generation;
     final walletId = _selectedWalletId;
-    if (walletId == null) return;
+    if (walletId == null ||
+        !_current(session, generation, walletId: walletId)) {
+      return;
+    }
 
-    await _service.lockWallet(walletId, locked);
-    await _search();
-    await _selectWallet(walletId);
+    try {
+      await _service.lockWallet(walletId, locked);
+      if (!_current(session, generation, walletId: walletId)) return;
+      await _search();
+      if (!_current(session, generation, walletId: walletId)) return;
+      await _selectWallet(walletId);
+    } catch (error) {
+      if (!_current(session, generation, walletId: walletId)) return;
+      setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _showMoneyAction({
     required String title,
     required bool cashRedemption,
   }) async {
+    final session = _auth.currentSession;
+    final generation = _generation;
     final walletId = _selectedWalletId;
-    if (walletId == null) return;
+    if (walletId == null ||
+        !_current(session, generation, walletId: walletId)) {
+      return;
+    }
 
     final amountController = TextEditingController();
     final noteController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: Column(
@@ -139,30 +245,39 @@ class _AdminWalletsPageState extends State<AdminWalletsPage> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true ||
+        !_current(session, generation, walletId: walletId)) {
+      return;
+    }
 
     final amount = double.tryParse(amountController.text.trim()) ?? 0;
     final amountCents = (amount * 100).round();
     final note = noteController.text.trim();
     if (amountCents <= 0 || note.isEmpty) return;
 
-    if (cashRedemption) {
-      await _service.recordCashRedemptionOrStripeRefund(
-        walletAccountId: walletId,
-        amountCents: amountCents,
-        note: note,
-      );
-    } else {
-      await _service.adjustWallet(
-        walletAccountId: walletId,
-        amountCents: amountCents,
-        paidAmountCents: 0,
-        promoAmountCents: amountCents,
-        note: note,
-      );
-    }
+    try {
+      if (cashRedemption) {
+        await _service.recordCashRedemptionOrStripeRefund(
+          walletAccountId: walletId,
+          amountCents: amountCents,
+          note: note,
+        );
+      } else {
+        await _service.adjustWallet(
+          walletAccountId: walletId,
+          amountCents: amountCents,
+          paidAmountCents: 0,
+          promoAmountCents: amountCents,
+          note: note,
+        );
+      }
 
-    await _selectWallet(walletId);
+      if (!_current(session, generation, walletId: walletId)) return;
+      await _selectWallet(walletId);
+    } catch (error) {
+      if (!_current(session, generation, walletId: walletId)) return;
+      setState(() => _error = error.toString());
+    }
   }
 
   String _money(dynamic cents) {

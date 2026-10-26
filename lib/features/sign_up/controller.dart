@@ -106,6 +106,14 @@ class SignUpController extends ChangeNotifier {
       switch (response) {
         case AuthenticationResponses.success:
           return const SignUpResult.success();
+        case AuthenticationResponses.compromisedPassword:
+          return const SignUpResult.snackbar(
+            'This password was found in a data breach. Choose a different password.',
+          );
+        case AuthenticationResponses.weakPassword:
+          return const SignUpResult.snackbar(
+            'This password does not meet security requirements. Choose a stronger password.',
+          );
         case AuthenticationResponses.noDigit:
           changeColorsToRed('Please include a digit');
           return const SignUpResult.colorOnly();
@@ -124,6 +132,8 @@ class SignUpController extends ChangeNotifier {
         default:
           return const SignUpResult.snackbar('Sign-up failed. Try again.');
       }
+    } catch (_) {
+      return const SignUpResult.snackbar('Sign-up failed. Try again.');
     } finally {
       isLoading = false;
       notifyListeners();

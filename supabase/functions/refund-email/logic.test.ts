@@ -1,89 +1,124 @@
-import {
-    handleRefundRequest,
-  } from "./logic.ts";
-  
-  import {
-    assertEquals,
-    assert,
-  } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-  
-  function createDeps() {
-    let capturedSubject = "";
-    let capturedHtml = "";
-  
-    return {
-      deps: {
-        sendEmail: async ({ subject, html }: any) => {
-          capturedSubject = subject;
-          capturedHtml = html;
-          return { id: "email_123" };
-        },
+import assert from "node:assert/strict";
+import { handleRefundRequest } from "./logic.ts";
+
+for (const transaction_id of [1, "41", "9223372036854775807"]) {
+  Deno.test(`refund notice: valid persisted transaction selector ${transaction_id}`, async () => {
+    const calls: string[] = [];
+    const result = await handleRefundRequest({
+      transaction_id,
+      username: "<script>forged</script>",
+      amount: -500,
+      user_id: "another-user",
+      recipient: "forged@example.invalid",
+      description: "untrusted",
+      userAttempts: 999,
+    }, {
+      enqueueNotice: (id) => {
+        calls.push(id);
+        return Promise.resolve({ refund_id: "7", state: "queued" });
       },
-      getCaptured: () => ({
-        subject: capturedSubject,
-        html: capturedHtml,
-      }),
-    };
+    });
+    assert.deepEqual(calls, [String(transaction_id)]);
+    assert.equal(result.status, 200);
+    assert("success" in result.body);
+    assert.equal(result.body.success, true);
+    assert.equal(result.body.claimRecorded, true);
+    assert.equal(result.body.notificationSent, false);
+    assert.match(result.body.notificationWarning!, /queued, not yet sent/);
+    assert(!JSON.stringify(result).includes("forged"));
+    assert(!("resend" in result.body));
+  });
+}
+
+for (
+  const transaction_id of [
+    undefined,
+    null,
+    "",
+    " 1",
+    "1\n",
+    "1 ",
+    "01",
+    "1e2",
+    "1.0",
+    "-1",
+    0,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    "9223372036854775808",
+    {},
+    [],
+  ]
+) {
+  Deno.test(`refund notice: invalid transaction selector ${JSON.stringify(transaction_id)}`, async () => {
+    const result = await handleRefundRequest({ transaction_id }, {
+      enqueueNotice: () => {
+        throw new Error("must not enqueue");
+      },
+    });
+    assert.equal(result.status, 400);
+    assert(!("claimRecorded" in result.body));
+  });
+}
+
+for (
+  const state of [
+    "queued",
+    "sending",
+    "uncertain",
+    "failed",
+    "suppressed",
+    "disabled",
+    "recipient_unavailable",
+    "accepted",
+    "delivered",
+  ]
+) {
+  Deno.test(`refund notice: saved claim stays successful for notice state ${state}`, async () => {
+    const result = await handleRefundRequest({ transaction_id: "41" }, {
+      enqueueNotice: () => Promise.resolve({ refund_id: "7", state }),
+    });
+    const sent = ["accepted", "delivered"].includes(state);
+    assert.equal(result.status, 200);
+    assert("success" in result.body);
+    assert.equal(result.body.success, true);
+    assert.equal(result.body.claimRecorded, true);
+    assert.equal(result.body.notificationSent, sent);
+    assert.equal(result.body.notificationState, state);
+    assert.equal("notificationWarning" in result.body, !sent);
+  });
+}
+
+Deno.test("refund notice: malformed RPC result never claims success or retries", async () => {
+  for (
+    const result of [null, [], {}, { refund_id: "7", state: "sent" }, {
+      refund_id: "0",
+      state: "queued",
+    }]
+  ) {
+    let calls = 0;
+    await assert.rejects(() =>
+      handleRefundRequest({ transaction_id: "41" }, {
+        enqueueNotice: () => {
+          calls++;
+          return Promise.resolve(result);
+        },
+      })
+    );
+    assert.equal(calls, 1);
   }
-  
-  const validBody = {
-    username: "John",
-    user_id: "u123",
-    transaction_id: "t456",
-    amount: 25,
-    description: "Machine ate my sock",
-    userAttempts: 2,
-  };
-  
-  Deno.test("returns 400 if required fields missing", async () => {
-    const { deps } = createDeps();
-  
-    const result = await handleRefundRequest({}, deps);
-  
-    assertEquals(result.status, 400);
-    assertEquals(result.body.error, "Missing required fields");
-  });
-  
-  Deno.test("returns 200 on valid request", async () => {
-    const { deps } = createDeps();
-  
-    const result = await handleRefundRequest(validBody, deps);
-  
-    assertEquals(result.status, 200);
-    assertEquals(result.body.success, true);
-    assertEquals(result.body.resend.id, "email_123");
-  });
-  
-  Deno.test("email subject contains username", async () => {
-    const { deps, getCaptured } = createDeps();
-  
-    await handleRefundRequest(validBody, deps);
-  
-    const { subject } = getCaptured();
-  
-    assert(subject.includes("John"));
-  });
-  
-  Deno.test("email contains approve and deny links", async () => {
-    const { deps, getCaptured } = createDeps();
-  
-    await handleRefundRequest(validBody, deps);
-  
-    const { html } = getCaptured();
-  
-    assert(html.includes("approveRefund"));
-    assert(html.includes("denyRefund"));
-    assert(html.includes("u123"));
-    assert(html.includes("t456"));
-  });
-  
-  Deno.test("email includes refund details", async () => {
-    const { deps, getCaptured } = createDeps();
-  
-    await handleRefundRequest(validBody, deps);
-  
-    const { html } = getCaptured();
-  
-    assert(html.includes("Machine ate my sock"));
-    assert(html.includes("$25"));
-  });
+});
+
+Deno.test("refund notice: enqueue failure is not retried as a business operation", async () => {
+  let calls = 0;
+  await assert.rejects(() =>
+    handleRefundRequest({ transaction_id: "41" }, {
+      enqueueNotice: () => {
+        calls++;
+        return Promise.reject(new Error("offline"));
+      },
+    })
+  );
+  assert.equal(calls, 1);
+});

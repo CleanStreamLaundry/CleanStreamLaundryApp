@@ -1,5 +1,7 @@
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/edit_profile/widgets/name_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,6 +19,47 @@ void main() {
         ),
       ),
     );
+  }
+
+  for (final theme in [lightMode, darkMode]) {
+    for (final value in ['', 'Example Customer']) {
+      for (final focused in [false, true]) {
+        testWidgets(
+          '${theme.brightness.name} ${value.isEmpty ? 'empty' : 'filled'} '
+          '${focused ? 'focused' : 'unfocused'} name text has readable contrast',
+          (tester) async {
+            final controller = TextEditingController(text: value);
+            addTearDown(controller.dispose);
+            await tester.pumpWidget(MaterialApp(
+              theme: theme,
+              home: Scaffold(body: NameFormField(
+                controller: controller,
+                enabled: true,
+              )),
+            ));
+            if (focused) await tester.tap(find.byType(TextFormField));
+            await tester.pumpAndSettle();
+            final decoration = tester.widget<TextField>(find.byType(TextField)).decoration!;
+            final surface = theme.colorScheme.surface;
+            final fill = Color.alphaBlend(decoration.fillColor!, surface);
+            final pairs = {
+              'New Full Name': fill,
+              if (value.isEmpty && focused) 'Enter your full name': fill,
+            };
+            for (final pair in pairs.entries) {
+              final foreground = tester.renderObject<RenderParagraph>(
+                find.descendant(of: find.text(pair.key), matching: find.byType(RichText)),
+              ).text.style!.color!;
+              final a = Color.alphaBlend(foreground, pair.value).computeLuminance();
+              final b = pair.value.computeLuminance();
+              final ratio = a > b ? (a + .05) / (b + .05) : (b + .05) / (a + .05);
+              expect(ratio, greaterThanOrEqualTo(4.5), reason: pair.key);
+            }
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
   }
 
   group('NameFormField', () {
@@ -60,17 +103,20 @@ void main() {
     });
 
     group('Input formatters', () {
-      testWidgets('enforces 36 character limit', (tester) async {
+      testWidgets('allows long names without a length cap or counter', (tester) async {
         final controller = TextEditingController();
+        addTearDown(controller.dispose);
         await tester.pumpWidget(buildWidget(controller: controller));
-
+        final name = 'A' * 200;
         await tester.enterText(
           find.byType(TextFormField),
-          'A' * 50,
+          name,
         );
         await tester.pump();
 
-        expect(controller.text.length, lessThanOrEqualTo(36));
+        expect(controller.text, name);
+        expect(tester.widget<TextField>(find.byType(TextField)).maxLength, isNull);
+        expect(find.text('200/36'), findsNothing);
       });
 
       testWidgets('strips special characters', (tester) async {

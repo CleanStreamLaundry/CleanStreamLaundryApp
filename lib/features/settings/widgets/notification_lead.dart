@@ -18,7 +18,11 @@ class NotificationLead extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ControlButton(icon: Icons.remove, onPressed: onDecrement),
+        _ControlButton(
+          icon: Icons.remove,
+          tooltip: 'Decrease notification lead time',
+          onPressed: onDecrement,
+        ),
         const SizedBox(width: 8),
         SizedBox(
           width: 30,
@@ -35,7 +39,11 @@ class NotificationLead extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _ControlButton(icon: Icons.add, onPressed: onIncrement),
+        _ControlButton(
+          icon: Icons.add,
+          tooltip: 'Increase notification lead time',
+          onPressed: onIncrement,
+        ),
       ],
     );
   }
@@ -43,9 +51,14 @@ class NotificationLead extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   final IconData icon;
+  final String tooltip;
   final VoidCallback onPressed;
 
-  const _ControlButton({required this.icon, required this.onPressed});
+  const _ControlButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +70,7 @@ class _ControlButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(
+        tooltip: tooltip,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
         icon: Icon(icon, color: Colors.white, size: 19),

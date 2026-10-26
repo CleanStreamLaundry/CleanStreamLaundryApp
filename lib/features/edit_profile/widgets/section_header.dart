@@ -7,6 +7,13 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(title);
+    return Text(
+      title,
+      style: const TextStyle(
+        letterSpacing: 0,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+      ),
+    );
   }
 }

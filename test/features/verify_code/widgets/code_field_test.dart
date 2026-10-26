@@ -1,3 +1,4 @@
+import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/verify_code/widgets/code_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,18 +21,63 @@ void main() {
   }
 
   group('VerificationCodeField', () {
+    for (final theme in [lightMode, darkMode]) {
+      testWidgets('keeps six-digit input at 2x in ${theme.brightness}', (
+        tester,
+      ) async {
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        String? changed;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: MediaQuery(
+              data: const MediaQueryData(
+                textScaler: TextScaler.linear(2),
+                boldText: true,
+              ),
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  child: SizedBox(
+                    width: 280,
+                    child: VerificationCodeField(
+                      controller: controller,
+                      onChanged: (value) => changed = value,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.enterText(find.byType(TextField), '123456');
+        expect(controller.text, '123456');
+        expect(changed, '123456');
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.maxLength, 6);
+        expect(field.style?.letterSpacing, 0);
+        expect(
+          tester.getSize(find.byType(TextField)).height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     group('Rendering', () {
       testWidgets('displays default label when no error', (tester) async {
         await tester.pumpWidget(buildWidget());
         expect(find.text('6-digit code'), findsOneWidget);
       });
 
-      testWidgets('displays error text as label when error is set',
-              (tester) async {
-            await tester.pumpWidget(
-                buildWidget(error: 'Please enter the 6-digit code'));
-            expect(find.text('Please enter the 6-digit code'), findsOneWidget);
-          });
+      testWidgets('displays error text as label when error is set', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildWidget(error: 'Please enter the 6-digit code'),
+        );
+        expect(find.text('Please enter the 6-digit code'), findsOneWidget);
+      });
 
       testWidgets('displays lock icon', (tester) async {
         await tester.pumpWidget(buildWidget());
@@ -74,8 +120,7 @@ void main() {
 
       testWidgets('calls onChanged when text is entered', (tester) async {
         String? changed;
-        await tester.pumpWidget(
-            buildWidget(onChanged: (v) => changed = v));
+        await tester.pumpWidget(buildWidget(onChanged: (v) => changed = v));
 
         await tester.enterText(find.byType(TextField), '1');
         expect(changed, '1');

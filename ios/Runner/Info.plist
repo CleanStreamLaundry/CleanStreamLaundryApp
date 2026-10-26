@@ -2,6 +2,28 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>GIDClientID</key>
+		<string>444847125705-hgq2664pu8sushlgevta6fnt10l07lms.apps.googleusercontent.com</string>
+		<key>GIDServerClientID</key>
+		<string>444847125705-mdbtsvhd1ks8n8j061u5gogvi5c1ro54.apps.googleusercontent.com</string>
+		<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+		<false/>
+		<key>FirebaseAutomaticScreenReportingEnabled</key>
+		<false/>
+		<key>GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED</key>
+		<false/>
+		<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
+		<false/>
+		<key>FirebaseMessagingAutoInitEnabled</key>
+		<false/>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>remote-notification</string>
+		</array>
+		<key>FirebaseInAppMessagingAutomaticDataCollectionEnabled</key>
+		<false/>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
@@ -47,12 +69,18 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
-		<key>CADisableMinimumFrameDurationOnPhone</key>
-		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>CFBundleURLTypes</key>
 		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.444847125705-hgq2664pu8sushlgevta6fnt10l07lms</string>
+				</array>
+			</dict>
 			<dict>
 				<key>CFBundleURLSchemes</key>
 				<array>

@@ -156,6 +156,28 @@ void main() {
       c.confirmController.text = 'Password1!';
     }
 
+    for (final entry in {
+      AuthenticationResponses.compromisedPassword:
+          'This password was found in a data breach. Choose a different password.',
+      AuthenticationResponses.weakPassword:
+          'This password does not meet security requirements. Choose a stronger password.',
+    }.entries) {
+      test('returns controlled message for ${entry.key}', () async {
+        when(() => mockAuthService.signUp(any(), any(), any()))
+            .thenAnswer((_) async => entry.key);
+        final c = buildController();
+        addTearDown(() { c.disposeControllers(); c.dispose(); });
+        fillValidForm(c);
+        final result = await c.handleSignUp();
+        expect(result.success, isFalse);
+        expect(result.message, entry.value);
+        expect(c.isLoading, isFalse);
+        verify(() => mockAuthService.signUp(
+          'test@example.com', 'Password1!', 'Test User',
+        )).called(1);
+      });
+    }
+
     test('returns success on AuthenticationResponses.success', () async {
       when(() => mockAuthService.signUp(any(), any(), any()))
           .thenAnswer((_) async => AuthenticationResponses.success);
@@ -280,14 +302,16 @@ void main() {
       expect(c.isLoading, isFalse);
     });
 
-    test('clears isLoading even when service throws', () async {
+    test('contains service errors and clears isLoading without raw details', () async {
       when(() => mockAuthService.signUp(any(), any(), any()))
           .thenThrow(Exception('network'));
 
       final c = buildController();
       fillValidForm(c);
 
-      await expectLater(c.handleSignUp(), throwsException);
+      final result = await c.handleSignUp();
+      expect(result.success, isFalse);
+      expect(result.message, 'Sign-up failed. Try again.');
       expect(c.isLoading, isFalse);
     });
 

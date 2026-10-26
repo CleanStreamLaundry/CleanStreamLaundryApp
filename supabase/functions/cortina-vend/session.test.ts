@@ -3,6 +3,7 @@ import { CortinaDeps, CortinaQuote, createVendSession, resolveQuote } from "../_
 
 function fixture() {
   const config = { machine_id: 1, is_enabled: true, review_required: false, product_codes: { "400": 3 } as Record<string, number> | null, pulse_line_number: null as number | null };
+  const machine = { id: 1, Name: "Washer 1", Machine_type: "washer", Status: "idle", Location_ID: 1, washer_size_rate_id: 1, is_out_of_service: false };
   let session: Record<string, unknown> | null = null;
   const admin = {
     from(table: string) {
@@ -13,8 +14,9 @@ function fixture() {
         insert: (value: Record<string, unknown>) => { insertion = value; return query; },
         single: async () => {
           if (table === "cortina_machine_config") return { data: structuredClone(config), error: null };
-          if (table === "Machines") return { data: { id: 1, Name: "Washer 1", Machine_type: "washer", Status: "idle", Location_ID: 1, washer_size_rate_id: 1 }, error: null };
+          if (table === "Machines") return { data: structuredClone(machine), error: null };
           if (table === "washer_size_rates") return { data: { id: 1, size_label: "12 kg", price_cents: 400, is_active: true, review_required: false }, error: null };
+          if (insertion && machine.is_out_of_service) return { data: null, error: { code: "55000", message: "Machine unavailable" } };
           if (insertion && session) return { data: null, error: { code: "23505" } };
           if (insertion) session = { ...insertion, id: "session-id" };
           return { data: structuredClone(session), error: null };
@@ -26,7 +28,7 @@ function fixture() {
   } as unknown as CortinaDeps["admin"];
   const quote: CortinaQuote = { machineId: 1, publicMachineToken: "token", machineName: "Washer 1", machineType: "washer", locationId: 1, washerSizeRateId: 1, washerSizeLabel: "12 kg", amountCents: 400, dryer: null };
   const input = { userId: null, amountCents: 400, dryerMinutes: null, pulseLineNumber: null, paymentMethod: "card" as const, channel: "web" as const, clientRequestId: crypto.randomUUID() };
-  return { config, admin, quote, input };
+  return { config, machine, admin, quote, input };
 }
 
 Deno.test("card and wallet sessions snapshot the product code before payment", async () => {
@@ -57,4 +59,14 @@ Deno.test("unmapped prices fail both quote and session creation before payment",
   f.config.product_codes = { "1000": 0 };
   await assertRejects(() => resolveQuote(f.admin, { machineToken: "token" }), Error, "product pricing needs review");
   await assertRejects(() => createVendSession(f.admin, f.quote, f.input), Error, "product pricing needs review");
+});
+
+Deno.test("outages reject both quotes and a session insert racing an earlier quote", async () => {
+  const f = fixture();
+  await resolveQuote(f.admin, { machineToken: "token" });
+  f.machine.is_out_of_service = true;
+  for (const operation of [() => resolveQuote(f.admin, { machineToken: "token" }), () => createVendSession(f.admin, f.quote, f.input)]) {
+    const error = await assertRejects(operation, Error, "out of service");
+    assertEquals((error as { status?: number }).status, 409);
+  }
 });

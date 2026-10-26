@@ -25,6 +25,7 @@ class StripeService implements PaymentService {
   Future<PaymentResult> makePayment(
     double amount, {
     PaymentPurpose purpose = PaymentPurpose.directMachinePayment,
+    Map<String, dynamic>? consent,
   }) async {
     if (_paymentInProgress) {
       throw StateError("A payment is already in progress");
@@ -34,7 +35,7 @@ class StripeService implements PaymentService {
     _paymentInProgress = true;
 
     try {
-      paymentIntent = await createPaymentIntent(amount, "usd", purpose);
+      paymentIntent = await createPaymentIntent(amount, "usd", purpose, consent);
       if (paymentIntent == null) {
         throw StripeConfigException("Failed to create payment intent");
       }
@@ -72,7 +73,7 @@ class StripeService implements PaymentService {
         ),
       );
       await _stripeInstance.presentPaymentSheet();
-      return verifyPaymentIntent(paymentIntent.paymentIntentId);
+      return await verifyPaymentIntent(paymentIntent.paymentIntentId);
     } on StripeException catch (e) {
       debugPrint(
         "Stripe PaymentSheet error: "
@@ -93,13 +94,13 @@ class StripeService implements PaymentService {
         return PaymentResult.canceled;
       }
       if (paymentIntent != null) {
-        return verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
       }
       rethrow;
     } catch (e) {
       debugPrint("payment error: $e");
       if (paymentIntent != null) {
-        return verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
       }
       rethrow;
     } finally {
@@ -112,6 +113,7 @@ class StripeService implements PaymentService {
     double amount,
     String currency, [
     PaymentPurpose purpose = PaymentPurpose.directMachinePayment,
+    Map<String, dynamic>? consent,
   ]) async {
     try {
       final response = await edgeFunctionService.runEdgeFunction(
@@ -120,6 +122,7 @@ class StripeService implements PaymentService {
           'amount': convertDollarsToCents(amount),
           'currency': currency,
           'purpose': purpose.name,
+          'consent': ?consent,
         },
       );
 
@@ -174,6 +177,6 @@ class StripeService implements PaymentService {
 
   @protected
   int convertDollarsToCents(double amount) {
-    return (amount * 100).toInt();
+    return (amount * 100).round();
   }
 }

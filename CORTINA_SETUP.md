@@ -4,15 +4,23 @@ The code is implemented but intentionally does not enable or deploy production v
 
 ## Current sandbox state
 
+- **October 19 current result:** authenticated $8 sandbox payment flow succeeds on reader0568. At21:48:36UTC session `f46dad1b-dc66-457d-984f-4306f6c2959c` became `started` after one Start, matching Sale and SaleEnd; Nayax transaction4903267080, no failure/refund. The actual browser shows “Machine started.” This proves provider communication, not physical washer operation.
+- **Pricing corrected:** reader price array is `1000,800`; owner chose $8. Sandbox machine1 now uses `product_codes={"800":1}`, sole-consumer rate800cents and Machines.Price=8. The earlier code3/$4 caused Core event11 zero-price rejection. Reader settings were unchanged.
+- **Authentication corrected:** our saved-source username transfer error was fixed first. Actual inbound traffic then established HTTP Basic; the callback now validates that complete pair, retaining exact separate-header compatibility. Nine sandbox probes and actual Sale/SaleEnd acceptance pass. No credential values were logged.
+- **Pulse SaleEnd corrected:** actual final payload omits BasicInfo amount/currency and supplies AuthAmount=0, SettAmount=8. It now requires the exact settlement plus this session's matching authenticated Sale audit before recovering currency. Present conflicts, missing Sale evidence, wrong binding/environment and closed states remain rejected. Audit records provenance; SQL guards are unchanged.
+- **Deployment/verification:** 237 focused tests and both entrypoint typechecks pass. Sandbox adapter v68 and production-route adapter v64 in development are ACTIVE and byte-verified. Production credentials are absent; unauthenticated invalid-body production probe returns code5. Only sandbox machine1 is enabled.
+- **Remaining:** configure/confirm Production credentials and callback routing, then the production activation gate below. Existing Cortina case03401910 reply asks only those setup questions, saved unsent. Historical unknown attempts remain preserved; intermittent no-callback cancellations also occurred, including21:46 before the successful21:48 attempt. Site reception/reliability needs acceptance. Evidence: workspace `.campaign-work/nayax-pulse-review-20261019/`.
+- **Guest checkout correction:** cortina-vend v65 accepts only the explicitly configured app/web guest key names, preserving verified human admission and the VEND RPC key. 21 focused checks/typecheck pass; both fresh browser checkouts reached Stripe sandbox success. Production vending remains off.
+- **Yael's October 8 clarification:** Production Lynx permissions were granted to the user, pending fresh reader API verification. Pulse provides no vend-failure feedback, so SaleEnd cannot prove physical machine start. Last Sales appears only after our SaleEnd response; a missing row is not independent proof of a failed vend and must not authorize compensation or a repeat Start.
 - The Cortina database migrations are applied to Clean Stream Supabase project `dnuuhupoxjtwqzaqylvb`.
 - `cortina-vend`, `nayax-sale-end-sandbox`, `nayax-sale-end`, and the Cortina-aware `stripeWebhook` are deployed.
 - The web implementation is deployed from `CortinaQR` to the Vercel project `clean-stream-web`. `cleanstreamlaundry.com` serves the Vercel application and `www.cleanstreamlaundry.com` redirects to the apex domain.
 - GoDaddy's apex A record points to Vercel at `216.198.79.1`. The Outlook/Microsoft mail, autodiscover, MX, TXT, SIP, and related DNS records were not changed.
 - The production `/pay` browser fallback and Android `assetlinks.json` return HTTP 200. The connected Samsung debug build verifies `cleanstreamlaundry.com` and opens the app directly from the production payment URL.
-- Live quote and callback smoke tests pass. Only the sandbox `Washer 1` mapping is enabled; additional machines remain disabled until their rates and device mappings are reviewed.
-- The database currently contains one 12 kg sandbox washer at $4.00. There is no dryer machine row yet.
+- October 19 actual provider authentication and Sale/SaleEnd acceptance are verified with the corrected handler. Only the sandbox `Washer 1` mapping is enabled; additional machines remain disabled until their rates and device mappings are reviewed.
+- The database currently contains one 12 kg sandbox washer at $8.00. There is no dryer machine row yet.
 - The Nayax secret received on August 7 is configured for both Sandbox and Production. Nayax confirmed the same value is used in both environments.
-- The sandbox washer is mapped to test device 150568 using price-array product code 3 for $4.00 (`product_codes = {"400":3}`, `pulse_line_number = null`). On September 24 it passed browser Stripe sandbox payment, Nayax Start approval, Sale authorization, and SaleEnd completion. Physical washer operation and the app/wallet success paths still require separate verification.
+- The sandbox washer is mapped to test device 150568 using price-array product code 1 for $8.00 (`product_codes = {"800":1}`, `pulse_line_number = null`), as selected by the owner October 19. The earlier code 3/$4 mapping passed browser Stripe sandbox payment September 24 and app loyalty payment September 28, before the reader price list changed. Physical washer operation and the app card success path still require separate verification.
 - The first paid test used the old $2.00 placeholder. Nayax declined that Start with code 13 and Clean Stream automatically refunded the Stripe test payment. The server rate was then aligned to the first configured Nayax price point at $4.00.
 - A follow-up $4.00 test was also declined with code 13 while Start repeated `Price: 4.00`; its Stripe test payment was automatically refunded.
 - The Nayax `Live Test` record (`635642176`) in `my.nayax.com` reports `No device`. Its machine number contains `4434331126150568`, but that label alone does not establish the hardware assignment or its QA configuration.
@@ -41,7 +49,40 @@ The code is implemented but intentionally does not enable or deploy production v
 - Start request audit: `2026-09-24 13:41:02.004 UTC`; response: `{"Status":{"Code":0,"Verdict":"Approved","StatusMessage":"Transaction is Approved "}}`.
 - Sale callback: `13:41:08.622 UTC`; SaleEnd callback: `13:41:25.503 UTC`; final session status: `started`, no failure or refund.
 - Nayax TransactionId: `4758557042`; RRN: `124134107964`. The browser displayed `Machine started`.
-- This proves the browser/card/backend exchange with the test terminal. Actual washer operation, app card and loyalty success, all six dryer selections, and production certification remain outstanding.
+- This proves the browser/card/backend exchange with the test terminal. App loyalty subsequently passed on September 28; actual washer operation, app card success, all six dryer selections, and production certification remain outstanding.
+
+### September 28 app loyalty audit and display fix
+
+- User-scanned app loyalty vend: session `4a55e969-326e-4ad6-a0ea-5a5bd24fdacd`, TransactionId `b8460a4e5f9c46f8864ce574db89bb3d`, Nayax TransactionId `4784113034`.
+- At `13:07:18.913 UTC`, wallet redemption 8 succeeded and ledger entry 18 deducted exactly 400 paid cents. Both `wallet_balances` and the compatibility profile balance reconcile to $7.00, down from $11.00. No reversal was recorded.
+- One Start request at `13:07:19.032 UTC` used the sandbox mapping, terminal `4434331126150568`, and `{"Code":3,"Price":4}`. Nayax returned code 0 / Approved at `13:07:21.711 UTC`.
+- Sale at `13:07:22.793 UTC` matched the $4 USD amount, terminal, and TransactionId. SaleEnd at `13:07:33.218 UTC` matched Nayax TransactionId and RRN `128130722080`; the session became `started` at `13:07:33.238 UTC`, with no failure or refund.
+- Supabase Edge Function request logs showed 12 successful HTTP 200 calls: one quote, one wallet, eight status polls, one Sale, and one SaleEnd. No function warnings or errors appeared in the inspected window. The only database error was an audit SELECT referencing a nonexistent session `environment` column; it was corrected and did not mutate data.
+- The old app fetched the wallet only before payment and left checkout open after dismissing success. The app now reloads the server wallet balance after wallet attempts, navigates to a freshly loaded Wallet page after successful loyalty payment (Home after card payment), and prevents payment or price changes on a completed checkout. Balance-refresh failure does not change an already confirmed vend outcome or display stale funds.
+- A corrected debug APK was installed on the Samsung without clearing its data. Checkout, Home, and Wallet each showed $7.00; Wallet also displayed the $4.00 machine #1 debit. No additional payment was submitted during this audit. The post-success navigation fix passed a widget regression test; a new physical app payment remains the end-to-end retest.
+- Verification: 136 payment, scanner, and loyalty tests passed; focused Flutter analysis passed; debug APK build passed. Existing Gradle/AGP/Kotlin upgrade warnings remain outside this change.
+- The missing legacy transaction-history link discovered during this audit was resolved by the migration and app update below.
+
+### September 28 transaction-history and loyalty-credit integration
+
+- Applied migration `20260928132533_link_cortina_transaction_history.sql` to Clean Stream Supabase and recorded its exact source in migration history (MD5 `8a0fbf437f008fe928e0e635866a50e1`). A rollback-only rehearsal passed before deployment.
+- Completed Cortina sessions now create one linked `transactions` row on the server. The unique session link prevents duplicates; the explicit `laundry` type avoids the legacy credit/debit balance trigger. Late reversals retain history but remove loyalty-credit eligibility.
+- Backfilled transaction 479 for the September 24 guest card vend and transaction 480 for the September 28 signed-in loyalty vend. Both are $4.00. Wallet balance remained $7.00, with 18 ledger entries and no new debit, credit, or refund request.
+- Cortina credit requests now use `request_cortina_loyalty_credit`, which validates account ownership, completed status, the server-recorded amount, a nonempty reason, and the 14-day request window. It atomically creates one pending request and marks the transaction. Repeated requests return the same request without incrementing the counter again. Customer-written vend links and direct duplicate or mismatched Cortina refund inserts are rejected.
+- Existing admin approval still credits the loyalty wallet, not Stripe. Local database tests verified a single promo credit on approval and no credit if an automatic reversal happened before approval. Already-approved manual credits followed by a later automatic reversal still require reconciliation review; this migration does not redesign that existing compensation workflow.
+- On the deployed database, rollback-only tests verified the exact $4 amount, pending status, repeated-request idempotency, cross-account denial, and customer history isolation. The test left zero refund requests, `requested_refund = false`, and the wallet unchanged. Anonymous RPC access is denied; history synchronization is service-role-only.
+- Installed the updated debug APK on Samsung `RFGYC1WWPCE`, preserving app data. Home initially showed $7.00, and the request form listed and selected the September 28 $4 washer vend. No loyalty-credit request was submitted. A later payment during verification is recorded below.
+- Verification: 14 PGlite/PostgreSQL tests and 223 focused Flutter tests passed; debug APK built successfully. Focused analysis has no errors or warnings, with one pre-existing informational naming lint for `transaction_id`. Existing Android toolchain upgrade warnings were not changed.
+- Supabase advisors were reviewed: security has 0 errors / 9 warnings, performance has 0 errors / 19 warnings. The new authenticated SECURITY DEFINER RPC is intentionally flagged for review; its ownership checks and permissions were tested. Other existing warnings and the broad legacy `Refunds` read policy remain part of production security review, not a clean-bill-of-health claim.
+- Database regression tests are local-only: install `@electric-sql/pglite@0.5.8` in a temporary directory, then run `PGLITE_MODULE=/path/to/pglite/dist/index.js node --test scripts/cortina-history.test.mjs`. Never deploy `supabase/tests/cortina_history.fixture.sql`; it contains only synthetic test schema and data.
+
+### September 28 follow-up vend at 13:48 UTC
+
+- During final phone verification, the screen changed between observing Settings and a tap intended for Wallet. A new loyalty vend started; whether the user initiated this test or the navigation tap landed on Pay was not yet confirmed. Phone interactions were stopped and the user was asked to confirm. No automatic credit was issued to obscure or reverse a successful vend.
+- Session `a6585f57-8b0d-44a8-96cd-9b89330a050e`, TransactionId `dfb2c6abc0d74098be19fff862f50f74`, amount 400 cents USD. Start at `13:48:15.370 UTC`, response at `13:48:18.031 UTC`, Sale at `13:48:19.169 UTC`, and SaleEnd at `13:48:29.597 UTC`; each event appears once.
+- Final status `started` at `13:48:29.614 UTC`, no failure code/message. Nayax TransactionId `4784321232`, RRN `128134818454`, wallet redemption 9.
+- The newly deployed trigger created exactly one history record, transaction 481, without client insertion. Ledger count increased from 18 to 19 and balance changed from $7.00 to $3.00. There are still zero loyalty-credit requests.
+- Read-only phone checks subsequently found Wallet and then Home, with Home displaying $3.00. The recent Android log buffer contained no Flutter exception, fatal crash, PostgREST exception, or RenderFlex error. This confirms live history creation and refreshed balance; the success-dialog dismissal itself was not directly observed.
 
 ## 1. Nayax
 
@@ -65,7 +106,11 @@ The callback bases and documented routes are below. Sandbox Sale and SaleEnd del
 - Production: `https://dnuuhupoxjtwqzaqylvb.supabase.co/functions/v1/nayax-sale-end`
 - Routes: `/Cortina/StaticQR/Sale`, `/Cortina/StaticQR/Void`, `/Cortina/SaleEndNotification`
 
-Confirm callback authentication and whether Nayax requires fixed IP allowlisting, VPN, or mTLS.
+Maxim's October15 email supplied a Sandbox operator username/password pair but
+did not specify their wire representation. Actual October19 traffic uses
+`Authorization: Basic <base64(username:password)>`. The backend now validates
+that pair; a real Sale and SaleEnd succeeded. No authentication-method question
+remains. Production operator values/routing still need confirmation.
 
 Nayax's June 15 email confirms that the two sandbox devices were initially configured with five demo prices, while the platform supports up to six options. The June 29 email confirms the dryer can retain a multi-price configuration and the washer should use a single-price configuration. For Pulse 1-6 / Pulse Line configurations, the StaticQR documentation requires `PulseLineNumber` starting at 1 instead of a product `Code`. Keep additional devices disabled until one serial is assigned as the washer, the other as the dryer, and the final six dryer amount/pulse-line/time mappings replace the demo values. Test device 150568 is the temporary sandbox washer used for the current live test.
 
@@ -85,11 +130,55 @@ NAYAX_PRODUCTION_SECRET_TOKEN
 CLEAN_STREAM_PAY_URL=https://cleanstreamlaundry.com/pay
 CLEAN_STREAM_WEB_ORIGIN=https://cleanstreamlaundry.com
 CORTINA_VEND_TIMEOUT_SECONDS=45
+NAYAX_SANDBOX_CALLBACK_USERNAME
+NAYAX_SANDBOX_CALLBACK_PASSWORD
+NAYAX_PRODUCTION_CALLBACK_USERNAME
+NAYAX_PRODUCTION_CALLBACK_PASSWORD
+CLEANSTREAM_VEND_GUEST_PUBLISHABLE_KEY_NAMES=["cleanstream_dev_app","cleanstream_dev_web"]
 ```
 
-Set `NAYAX_CALLBACK_AUTH_TOKEN` only if Nayax agrees to send the same token in `x-nayax-auth` or as a bearer token. Existing `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must remain configured. `STRIPE_SANDBOX_WEBHOOK_SECRET` is separately configured for the dedicated Stripe sandbox; never replace the live signing secret with the sandbox value.
+The production pair is listed for future configuration and is **not installed**.
+Use the exact production-operator pair supplied/configured by Nayax; do not copy
+Sandbox values or use the outgoing Start secret or Lynx token. When either pair
+field exists, the entire exact pair is required with no legacy fallback. The
+legacy `NAYAX_CALLBACK_AUTH_TOKEN` path applies only when neither pair field is
+configured; it is not the current agreed integration method. Existing
+`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` must remain configured.
+`STRIPE_SANDBOX_WEBHOOK_SECRET` is separate; never replace the live signing secret
+with the sandbox value. The guest-key setting contains names, not credentials;
+each must resolve exactly in `SUPABASE_PUBLISHABLE_KEYS`. Its absence preserves
+the previous single-key contract; malformed/unresolved names fail closed.
 
 The callback functions use `verify_jwt = false` because Nayax cannot provide a Supabase user JWT. They correlate the Clean Stream transaction, environment, device, amount, currency, and callback event before approving.
+
+### Production credential configuration gate
+
+October26 update: Shachar's October22 reply confirms the endpoint and supplies
+a secure note with `Token` and `Token ID`. With the owner's explicit approval,
+the open note was saved privately. Read-only digest comparison confirms that
+its token already equals both configured Start tokens. It is not the missing
+callback Basic pair: both production callback fields remain absent. A reply in
+case03401910 asks for that pair, or explicit confirmation that the existing
+sandbox pair also applies; it is saved **unsent**. No credentials were replaced.
+
+The production callback adapter is prepared in the existing **development**
+project (October 19 source/byte readback verified). This is not production launch.
+
+1. **Done in Sandbox:** actual authenticated Sale/SaleEnd and browser confirmation
+   succeeded October19 at21:48:36UTC. Both adapters contain the tested Basic and
+   Pulse settlement compatibility fixes. Historical unknown sessions remain
+   support-review; never retry their Start or infer refunds from a timeout.
+2. Obtain/confirm the production operator's exact HTTP Basic pair and callback base
+   `https://dnuuhupoxjtwqzaqylvb.supabase.co/functions/v1/nayax-sale-end` with its
+   three routes above. Cortina support/Maxim's cover handles this, not Lynx/Yael.
+3. Install both production secret fields together through the approved secret
+   manager/CLI, never a client bundle, email body or committed file. Verify
+   digests without exposing values; test missing/wrong/partial credentials and
+   Sandbox/production isolation using malformed bodies that cannot vend.
+4. Keep machine mappings in Sandbox until production payment authorization,
+   Stripe live-key/webhook routing, existing-payment recovery, physical device
+   mappings and certification are complete. Changing callback credentials alone
+   must not change Stripe mode or enable a machine.
 
 ## 3. Stripe
 
@@ -102,11 +191,11 @@ The handler selects the live or sandbox signing secret from the event mode, then
 
 Stripe collects card payments for Clean Stream; no card details or funds are sent to Nayax through this integration. Loyalty vends debit the Clean Stream wallet first. Both paths then use StaticQR Start/Sale for machine authorization. Failed card vends use Stripe refunds with a session-level idempotency key; failed loyalty vends reverse the wallet debit. These automatic failed-vend reversals are separate from the admin loyalty-credit workflow.
 
-The StaticQR code 13 blocker was resolved on September 24 by applying Nayax's exact endpoint. The fresh browser Stripe sandbox test was approved and completed, without a refund. Continue with app card and loyalty success testing, physical pulse verification, dryer configuration, and the certification checklist below before enabling production.
+The StaticQR code 13 blocker was resolved on September 24 by applying Nayax's exact endpoint. The browser Stripe sandbox test and September 28 app loyalty test were approved and completed, without refunds. Transaction-history integration is now deployed. Continue with app card testing, the app completion-screen retest, physical pulse verification, dryer configuration, and the certification checklist below before enabling production.
 
 ## 4. Database and functions
 
-Apply migrations `supabase/migrations/20260803150427_cortina_qr_remote_vend.sql`, `supabase/migrations/20260804015500_cortina_rls_policy_cleanup.sql`, `supabase/migrations/20260807195409_configure_dryer_time_options.sql`, and `supabase/migrations/20260922224735_cortina_price_array_selectors.sql`, then deploy:
+Apply migrations `supabase/migrations/20260803150427_cortina_qr_remote_vend.sql`, `supabase/migrations/20260804015500_cortina_rls_policy_cleanup.sql`, `supabase/migrations/20260807195409_configure_dryer_time_options.sql`, `supabase/migrations/20260922224735_cortina_price_array_selectors.sql`, and `supabase/migrations/20260928132533_link_cortina_transaction_history.sql`, then deploy:
 
 ```text
 cortina-vend
@@ -121,7 +210,7 @@ Deploy the migration before any function. Do not enable a machine until its migr
 
 In the web location administration page:
 
-1. Review each migrated washer size tier or add the intended per-location tiers. The current 12 kg sandbox tier is $4.00.
+1. Review each migrated washer size tier or add the intended per-location tiers. The current 12 kg sandbox tier is $8.00 (owner-selected October 19).
 2. Confirm each washer uses the correct tier. Changing a tier updates future quotes and the compatibility `Machines.Price`; existing vend sessions retain their quoted cents.
 3. Open the payment setup action for each machine.
 4. Enter `TerminalId` or `UniQR`, sandbox environment, and product-selection mode. For price arrays, enter the actual zero-based code for each offered price; otherwise enter the pulse line.

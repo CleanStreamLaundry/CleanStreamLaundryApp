@@ -1,83 +1,68 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callerPublishableKey } from "../_shared/supabase_keys.ts";
+import { handleMaintenance, type MaintenanceDeps } from "./logic.ts";
 
-const corsHeaders = {
+const headers = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store",
 };
 
-serve(async (req: Request) => {
+function createDeps(token: string): MaintenanceDeps {
+  const storageUrl = Deno.env.get("SUPABASE_URL")!;
+  const client = createClient(
+    storageUrl,
+    callerPublishableKey(
+      (name) => Deno.env.get(name),
+      "CLEANSTREAM_MAINTENANCE_PUBLISHABLE_KEY_NAME",
+    ),
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    },
+  );
+  return {
+    storageUrl,
+    authenticate: async (token) => {
+      const { data, error } = await client.auth.getUser(token);
+      if (error) {
+        if ([400, 401, 403].includes(error.status ?? 0)) return null;
+        throw error;
+      }
+      return data.user;
+    },
+    submit: async (request) => {
+      const { data, error } = await client.rpc("submit_maintenance_request", {
+        p_request: request,
+      });
+      return { data, error };
+    },
+  };
+}
+
+export async function maintenanceRequest(req: Request, deps?: MaintenanceDeps) {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
-      status: 200,
-      headers: corsHeaders,
+      headers: { ...headers, "Content-Type": "text/plain" },
     });
   }
-
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const body = await req.json();
-    
-    const { user_id, category, description, image, location } = body;
-
-    console.log(`Processing Maintenance Request for User: ${user_id} at Location: ${location}`);
-
-    if (!user_id || !category || !description || !location) {
-      console.error("Missing required fields in request body.");
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: user_id, category, description, or location" }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-
-    const { data, error: dbError } = await supabase
-      .from('Maintenance')
-      .insert([
-        { 
-          user_id: user_id, 
-          category: category, 
-          description: description, 
-          location: location,
-          image_data: image, 
-          created_at: new Date().toISOString()
-        }
-      ])
-      .select();
-
-    if (dbError) {
-      console.error(`Database Error: ${dbError.message}`);
-      return new Response(
-        JSON.stringify({ error: "Database save failed", details: dbError.message }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-
+  if (req.method !== "POST") {
     return new Response(
-      JSON.stringify({ success: true, message: "Request logged", record: data }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-
-  } catch (err: any) {
-    console.error(`Global Handler Error: ${err.message}`);
-    return new Response(
-      JSON.stringify({ error: "Internal Server Error", message: err.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ error: "Use POST.", code: "method_not_allowed" }),
+      { status: 405, headers: { ...headers, Allow: "POST, OPTIONS" } },
     );
   }
-});
+  const result = await handleMaintenance(
+    req,
+    (token) => deps ?? createDeps(token),
+  );
+  return new Response(JSON.stringify(result.body), {
+    status: result.status,
+    headers,
+  });
+}
+
+Deno.serve((req) => maintenanceRequest(req));

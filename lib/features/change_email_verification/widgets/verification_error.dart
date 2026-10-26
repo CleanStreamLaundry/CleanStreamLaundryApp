@@ -10,14 +10,14 @@ class VerificationError extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 80,
-          height: 80,
+          width: 48,
+          height: 48,
           decoration: const BoxDecoration(
-            color: Colors.red,
+            color: Color(0xFFB3261E),
             shape: BoxShape.circle,
           ),
           child: const Center(
-            child: Icon(Icons.close, color: Colors.white, size: 40),
+            child: Icon(Icons.close, color: Colors.white, size: 28),
           ),
         ),
         const SizedBox(height: 16),
@@ -25,8 +25,9 @@ class VerificationError extends StatelessWidget {
           'Please resend verification again at another time.',
           textAlign: TextAlign.center,
           style: TextStyle(
+            letterSpacing: 0,
             fontSize: 16,
-            color: Theme.of(context).colorScheme.fontPrimary,
+            color: Theme.of(context).colorScheme.fontInverted,
           ),
         ),
       ],

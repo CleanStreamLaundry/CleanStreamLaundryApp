@@ -37,8 +37,7 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
   }
 
   void _showMessage(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _onSubmitPressed() async {
@@ -48,9 +47,7 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
       if (!mounted) return;
 
       if (error != null) {
-        if (error == 'Please fill in all fields') {
-          _showMessage(error);
-        }
+        _showMessage(error);
         return;
       }
 
@@ -71,8 +68,7 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Column(
@@ -83,18 +79,24 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
                     'assets/Logo.png',
                     height: 250,
                     width: 250,
+                    fit: BoxFit.contain,
                     key: const Key('app_logo'),
                   ),
                   Text(
                     'Reset Password',
-                    style: theme.textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Enter your new password below',
-                    style: theme.textTheme.bodyMedium,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      letterSpacing: 0,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 30),
@@ -105,8 +107,7 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
                     controller: _controller.passwordController,
                     label: _controller.passwordLabel,
                     obscureText: _controller.obscurePassword,
-                    onToggleVisibility:
-                    _controller.togglePasswordVisibility,
+                    onToggleVisibility: _controller.togglePasswordVisibility,
                     onChanged: (_) => _controller.onPasswordChanged(),
                     iconColor: _controller.iconColor,
                     labelColor: _controller.labelColor,
@@ -115,39 +116,46 @@ class _ResetProtectedPageState extends State<ResetProtectedPage> {
                   PasswordField(
                     controller: _controller.confirmController,
                     label: _controller.confirmLabel,
+                    visibilityLabel: 'confirmation password',
                     obscureText: _controller.obscureConfirm,
-                    onToggleVisibility:
-                    _controller.toggleConfirmVisibility,
+                    onToggleVisibility: _controller.toggleConfirmVisibility,
                     onChanged: (_) => _controller.onConfirmChanged(),
                     iconColor: _controller.iconColor,
                     labelColor: _controller.labelColor,
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
-                    height: 50,
+                    width: double.infinity,
                     child: ElevatedButton(
-                      onPressed:
-                      _controller.isLoading ? null : _onSubmitPressed,
+                      onPressed: _controller.isLoading
+                          ? null
+                          : _onSubmitPressed,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        minimumSize: const Size(48, 48),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
                       ),
                       child: _controller.isLoading
                           ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
                           : const Text(
-                        'Reset Password',
-                        style: TextStyle(fontSize: 16),
-                      ),
+                              'Reset Password',
+                              style: TextStyle(letterSpacing: 0, fontSize: 16),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 20),

@@ -21,18 +21,20 @@ class LocationSelector extends StatelessWidget {
     final locationHours = _LocationHours.fromLocation(selectedLocation);
     final locationDisplay = _LocationDisplay.fromLocation(
       selectedLocation,
-      selectedAddress: controller.selectedName,
+      selectedAddress: controller.locationSelected
+          ? controller.selectedName
+          : null,
     );
 
     return Card(
       elevation: 5,
       margin: EdgeInsets.zero,
       surfaceTintColor: Colors.transparent,
-      color: colorScheme.cardPrimary,
+      color: colorScheme.homeCard,
       shadowColor: Colors.black.withValues(alpha: 0.18),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.10)),
+        side: BorderSide(color: colorScheme.homeAccent.withValues(alpha: 0.10)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -44,10 +46,12 @@ class LocationSelector extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: colorScheme.primary.withValues(alpha: 0.10),
+                  backgroundColor: colorScheme.homeAccent.withValues(
+                    alpha: 0.10,
+                  ),
                   child: Icon(
                     Icons.location_on,
-                    color: colorScheme.primary,
+                    color: colorScheme.homeAccent,
                     size: 23,
                   ),
                 ),
@@ -62,11 +66,13 @@ class LocationSelector extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Nearest location',
+                            controller.isNearestSelection
+                                ? 'Nearest location'
+                                : 'Selected location',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: colorScheme.primary,
+                              color: colorScheme.homeAccent,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -78,13 +84,19 @@ class LocationSelector extends StatelessWidget {
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: controller.selectedName == null
-                                  ? Colors.grey.shade600
+                                  ? (colorScheme.brightness == Brightness.dark
+                                        ? colorScheme.fontSecondary
+                                        : Colors.grey.shade600)
                                   : colorScheme.fontInverted,
                             ),
                           ),
-                          if (locationDisplay.subtitle != null) ...[
-                            const SizedBox(height: 4),
-                            Row(
+                          const SizedBox(height: 4),
+                          Visibility(
+                            visible: locationDisplay.subtitle != null,
+                            maintainSize: true,
+                            maintainAnimation: true,
+                            maintainState: true,
+                            child: Row(
                               children: [
                                 Icon(
                                   Icons.place_outlined,
@@ -94,7 +106,7 @@ class LocationSelector extends StatelessWidget {
                                 const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
-                                    locationDisplay.subtitle!,
+                                    locationDisplay.subtitle ?? '',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -106,7 +118,7 @@ class LocationSelector extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
@@ -139,8 +151,12 @@ class LocationSelector extends StatelessWidget {
                       locationHours.statusLabel,
                       style: TextStyle(
                         color: locationHours.isOpen
-                            ? Colors.green.shade700
-                            : Colors.red.shade700,
+                            ? (colorScheme.brightness == Brightness.dark
+                                  ? Colors.green.shade300
+                                  : Colors.green.shade700)
+                            : (colorScheme.brightness == Brightness.dark
+                                  ? Colors.red.shade300
+                                  : Colors.red.shade700),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -191,7 +207,9 @@ class LocationSelector extends StatelessWidget {
         final selectedLocation = _selectedLocation;
         final selectedDisplay = _LocationDisplay.fromLocation(
           selectedLocation,
-          selectedAddress: controller.selectedName,
+          selectedAddress: controller.locationSelected
+              ? controller.selectedName
+              : null,
         );
         final selectedHours = _LocationHours.fromLocation(selectedLocation);
         final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.78;
@@ -229,10 +247,10 @@ class LocationSelector extends StatelessWidget {
                     leading: CircleAvatar(
                       backgroundColor: Theme.of(
                         sheetContext,
-                      ).colorScheme.primary.withValues(alpha: 0.10),
+                      ).colorScheme.homeAccent.withValues(alpha: 0.10),
                       child: Icon(
                         Icons.my_location_rounded,
-                        color: Theme.of(sheetContext).colorScheme.primary,
+                        color: Theme.of(sheetContext).colorScheme.homeAccent,
                       ),
                     ),
                     title: const Text('Use nearest location'),
@@ -249,7 +267,7 @@ class LocationSelector extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Theme.of(sheetContext).colorScheme.primary,
+                      color: Theme.of(sheetContext).colorScheme.homeAccent,
                     ),
                   ),
                 ),
@@ -267,9 +285,12 @@ class LocationSelector extends StatelessWidget {
                   for (final item in controller.locations)
                     _LocationChoiceTile(
                       location: item,
-                      selectedAddress: controller.selectedName,
+                      selectedId: controller.locationIDSelected,
                       onSelected: (address) {
-                        controller.selectLocation(address);
+                        controller.selectLocation(
+                          address,
+                          locationId: item['id'] as int?,
+                        );
                         Navigator.pop(sheetContext);
                       },
                     ),
@@ -282,14 +303,7 @@ class LocationSelector extends StatelessWidget {
   }
 
   Map<String, dynamic>? get _selectedLocation {
-    final selectedName = controller.selectedName;
-    if (selectedName == null) return null;
-
-    for (final location in controller.locations) {
-      if (location['Address'] == selectedName) return location;
-    }
-
-    return null;
+    return controller.selectedLocation;
   }
 }
 
@@ -315,7 +329,7 @@ class _DirectionsAction extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: colorScheme.cardPrimary,
+                color: colorScheme.homeCard,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.grey.withValues(alpha: 0.22)),
                 boxShadow: [
@@ -328,7 +342,7 @@ class _DirectionsAction extends StatelessWidget {
               ),
               child: Icon(
                 Icons.navigation,
-                color: colorScheme.primary,
+                color: colorScheme.homeAccent,
                 size: 27,
               ),
             ),
@@ -338,7 +352,7 @@ class _DirectionsAction extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: colorScheme.primary,
+                color: colorScheme.homeAccent,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
@@ -363,9 +377,11 @@ class _LocationDetailsPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colorScheme.cardPrimary,
+        color: colorScheme.homeCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.10)),
+        border: Border.all(
+          color: colorScheme.homeAccent.withValues(alpha: 0.10),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +407,13 @@ class _LocationDetailsPanel extends StatelessWidget {
           _LocationMetaRow(
             icon: Icons.schedule_rounded,
             text: '${hours.statusLabel} - ${hours.hoursLabel}',
-            color: hours.isOpen ? Colors.green.shade700 : Colors.red.shade700,
+            color: hours.isOpen
+                ? (colorScheme.brightness == Brightness.dark
+                      ? Colors.green.shade300
+                      : Colors.green.shade700)
+                : (colorScheme.brightness == Brightness.dark
+                      ? Colors.red.shade300
+                      : Colors.red.shade700),
           ),
           if (hours.afterHoursAvailable) ...[
             const SizedBox(height: 8),
@@ -415,12 +437,12 @@ class _LocationDetailsPanel extends StatelessWidget {
 
 class _LocationChoiceTile extends StatelessWidget {
   final Map<String, dynamic> location;
-  final String? selectedAddress;
+  final int? selectedId;
   final ValueChanged<String> onSelected;
 
   const _LocationChoiceTile({
     required this.location,
-    required this.selectedAddress,
+    required this.selectedId,
     required this.onSelected,
   });
 
@@ -429,7 +451,7 @@ class _LocationChoiceTile extends StatelessWidget {
     final display = _LocationDisplay.fromLocation(location);
     final hours = _LocationHours.fromLocation(location);
     final address = display.address;
-    final isSelected = address != null && address == selectedAddress;
+    final isSelected = selectedId != null && location['id'] == selectedId;
     final subtitle = display.address == null || display.address == display.title
         ? hours.hoursLabel
         : '${display.address} - ${hours.hoursLabel}';
@@ -450,7 +472,7 @@ class _LocationChoiceTile extends StatelessWidget {
       trailing: isSelected
           ? Icon(
               Icons.check_circle_rounded,
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.homeAccent,
             )
           : null,
       onTap: address == null ? null : () => onSelected(address),

@@ -76,7 +76,7 @@ void main() {
       final icon = tester.widget<Icon>(
         find.byIcon(Icons.mark_email_read_outlined),
       );
-      expect(icon.size, equals(80));
+      expect(icon.size, equals(40));
     });
 
     testWidgets('shows route email when provided', (tester) async {

@@ -7,11 +7,14 @@ import 'package:clean_stream_laundry_app/features/edit_profile/widgets/save_butt
 import 'package:clean_stream_laundry_app/features/edit_profile/widgets/section_header.dart';
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:clean_stream_laundry_app/features/widgets/status_dialog_box.dart';
+import 'package:clean_stream_laundry_app/features/legal/legal_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  final VoidCallback? onDeletionPending;
+
+  const EditProfilePage({super.key, this.onDeletionPending});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -84,63 +87,93 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   void _onDeletePressed() async {
-    final confirmed = await _confirmDeleteAccount();
-    if (!confirmed) return;
-
-    try {
-      final deleted = await _controller.deleteAccount();
-
-      if (!mounted) return;
-
-      if (deleted) {
-        statusDialog(
-          context,
-          title: 'Account Deleted',
-          message: 'Your account has been deleted successfully.',
-          isSuccess: true,
-        );
-        context.go('/login');
-      } else {
-        statusDialog(
-          context,
-          title: 'Error',
-          message: 'An error occurred, please try again later.',
-          isSuccess: false,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      statusDialog(
-        context,
-        title: 'Error',
-        message: e.toString(),
-        isSuccess: false,
-      );
+    final status = await _controller.deleteAccount(
+      confirm: _confirmDeleteAccount,
+      isPageCurrent: () =>
+          mounted && (ModalRoute.of(context)?.isCurrent ?? false),
+    );
+    if (!mounted) return;
+    if (status?.accountState == 'pending_deletion') {
+      widget.onDeletionPending?.call();
+      context.go('/admission');
     }
   }
 
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        scrollable: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Text(
           'Error',
           style: TextStyle(
+            letterSpacing: 0,
             color: Theme.of(context).colorScheme.fontSecondary,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
+            fontSize: 20,
           ),
         ),
         content: Text(
           message,
-          style: TextStyle(color: Theme.of(context).colorScheme.fontSecondary),
+          style: TextStyle(
+            letterSpacing: 0,
+            color: Theme.of(context).colorScheme.fontSecondary,
+          ),
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'OK',
-              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              style: TextStyle(
+                letterSpacing: 0,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _confirmationHeader(
+    BuildContext context,
+    String title, {
+    bool warning = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.primary,
+        border: Border(bottom: BorderSide(color: colors.secondary, width: 3)),
+      ),
+      child: Row(
+        children: [
+          if (warning)
+            Icon(Icons.warning_amber_rounded, color: colors.secondary, size: 28)
+          else
+            Image.asset(
+              'assets/Icon.png',
+              width: 32,
+              height: 32,
+              cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              fit: BoxFit.contain,
+              excludeFromSemantics: true,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
             ),
           ),
         ],
@@ -151,29 +184,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<bool> _confirmSaveChanges() async {
     return await showDialog<bool>(
           context: context,
+          useRootNavigator: false,
           builder: (context) => AlertDialog(
+            titlePadding: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            surfaceTintColor: Colors.transparent,
+            scrollable: true,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(8),
             ),
-            title: Text(
-              'Confirm Changes',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.fontSecondary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            title: _confirmationHeader(context, 'Confirm Changes'),
             content: Text(
               'Are you sure you want to save these changes to your profile?',
               style: TextStyle(
+                letterSpacing: 0,
                 color: Theme.of(context).colorScheme.fontSecondary,
               ),
             ),
             actions: [
               TextButton(
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
                 onPressed: () => Navigator.of(context).pop(false),
                 child: Text(
                   'Cancel',
                   style: TextStyle(
+                    letterSpacing: 0,
                     color: Theme.of(context).colorScheme.fontSecondary,
                   ),
                 ),
@@ -181,6 +216,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                 ),
@@ -193,51 +232,61 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<bool> _confirmDeleteAccount() async {
+    final details = _controller.deletionContext;
+    if (details == null) return false;
     return await showDialog<bool>(
           context: context,
+          useRootNavigator: false,
           builder: (context) {
             var acknowledged = false;
 
             return StatefulBuilder(
               builder: (context, setDialogState) => AlertDialog(
+                titlePadding: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                surfaceTintColor: Colors.transparent,
+                scrollable: true,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                title: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Delete Account?',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.fontSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                title: _confirmationHeader(
+                  context,
+                  'Delete Account?',
+                  warning: true,
                 ),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Deleting your account is permanent and removes app access to your Loyalty Card balance. Clean Stream may retain limited anonymized transaction and balance records for legal, tax, accounting, dispute, fraud-prevention, and compliance purposes.',
+                      'Your account will be restricted immediately. You can explicitly restore it within ${details.recoveryDays} days; signing in alone is not enough. The exact deadline appears after confirmation. Deletion does not create or extend refund rights.',
                       style: TextStyle(
+                        fontSize: 14,
+                        height: 1.45,
+                        letterSpacing: 0,
                         color: Theme.of(context).colorScheme.fontSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
+                    Text('Purchased credit: \$${(details.purchasedBalanceCents / 100).toStringAsFixed(2)}'),
+                    Text('Promotional credit: \$${(details.promotionalBalanceCents / 100).toStringAsFixed(2)}'),
+                    TextButton(
+                      onPressed: () => showLoyaltyPolicy(context, details.policy),
+                      child: const Text('View terms'),
+                    ),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
+                      titleAlignment: ListTileTitleAlignment.top,
                       controlAffinity: ListTileControlAffinity.leading,
                       value: acknowledged,
                       onChanged: (value) {
                         setDialogState(() => acknowledged = value ?? false);
                       },
                       title: Text(
-                        'I understand deletion is permanent.',
+                        details.acknowledgement,
                         style: TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          letterSpacing: 0,
                           color: Theme.of(context).colorScheme.fontSecondary,
                         ),
                       ),
@@ -246,10 +295,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
                 actions: [
                   TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                    ),
                     onPressed: () => Navigator.of(context).pop(false),
                     child: Text(
                       'Cancel',
                       style: TextStyle(
+                        letterSpacing: 0,
                         color: Theme.of(context).colorScheme.fontSecondary,
                       ),
                     ),
@@ -259,10 +312,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         ? () => Navigator.of(context).pop(true)
                         : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                      minimumSize: const Size(48, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      backgroundColor: const Color(0xFFB3261E),
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Delete'),
+                    child: const Text('Request Deletion'),
                   ),
                 ],
               ),
@@ -276,19 +333,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(20) * 2 + 16,
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: Theme.of(context).colorScheme.primaryGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).colorScheme.secondary,
+                width: 3,
+              ),
+            ),
           ),
         ),
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.go('/settings'),
         ),
         title: const Text(
           'Edit Profile',
+          maxLines: 2,
+          softWrap: true,
           style: TextStyle(
+            letterSpacing: 0,
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -327,7 +395,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         controller: _controller.nameController,
                         enabled: !_controller.isSaving,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 24),
 
                       const SectionHeader(title: 'Email Address'),
                       const SizedBox(height: 12),
@@ -348,10 +416,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         isSaving: _controller.isSaving,
                         onPressed: _onSavePressed,
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 24),
 
                       DangerZoneSection(
-                        isSaving: _controller.isSaving,
+                        isSaving:
+                            _controller.isSaving || _controller.isDeleting,
+                        needsStatusCheck: _controller.needsDeletionStatusCheck,
+                        message: _controller.deletionMessage,
                         onDeletePressed: _onDeletePressed,
                       ),
                       const SizedBox(height: 24),

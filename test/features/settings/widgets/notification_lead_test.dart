@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:clean_stream_laundry_app/core/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +80,31 @@ void main() {
 
     expect(find.byIcon(Icons.add), findsOneWidget);
     expect(find.byIcon(Icons.remove), findsOneWidget);
+  });
+
+  testWidgets('lead-time controls expose named button actions', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        createWidgetUnderTest(value: 5, onIncrement: () {}, onDecrement: () {}),
+      );
+      for (final label in [
+        'Decrease notification lead time',
+        'Increase notification lead time',
+      ]) {
+        final button = find.ancestor(
+          of: find.byTooltip(label),
+          matching: find.byType(IconButton),
+        );
+        expect(button, findsOneWidget);
+        final data = tester.getSemantics(button).getSemanticsData();
+        expect(data.tooltip, label);
+        expect(data.flagsCollection.isButton, isTrue);
+        expect(data.hasAction(SemanticsAction.tap), isTrue);
+      }
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('renders decrement before increment', (
