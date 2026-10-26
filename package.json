@@ -19,6 +19,9 @@
     "test": "test"
   },
   "scripts": {
+    "kisi:sandbox": "node scripts/kisi/serve.ts",
+    "kisi:demo": "node scripts/kisi/demo.ts",
+    "test:kisi": "node --test scripts/kisi/kisi.test.ts",
     "supabase:update-functions": "node scripts/update-functions.cjs",
     "test:coverage": "deno test --reload --coverage=coverage_deno supabase/functions"
   },

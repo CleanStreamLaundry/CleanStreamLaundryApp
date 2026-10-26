@@ -1,8 +1,29 @@
 # Campaign Operations
 
-Updated: 2026-09-30 UTC. Working record, not proof that planned features exist.
+Updated: 2026-10-26. Working record, not proof that planned features exist.
 
 ## Current Checkpoint
+
+**October 26 Kisi development (separate from store preparation):** Owner requested
+`kisi_unlock_feature` and sandbox work while hardware is pending, then confirmed
+phone-to-reader tap only, with **no in-app unlock button**. The branch was created
+from the existing `CortinaQR` checkout without discarding dirty/untracked work.
+Initial setup/implementation and scoped verification are complete: server-side
+inventory transport and a loopback-only synthetic API simulator;26 tests pass,
+eight-scenario demo passes, and strict TypeScript checking passes. Hosted transport
+is read-only. No real door, setting, key, dependency, database, or deployment changed.
+Read-only dashboard inventory: organization15601, Madison place38748, Entrance
+Door77048 offline/unassigned. SDK partner ID, provisioning/access policy and real
+hardware acceptance remain open. Separate store-preparation changes disable the
+customer placeholder in the working checkout; those pre-existing app changes
+are outside the Kisi commit. Owned
+additions: `_shared/kisi.ts`, `scripts/kisi/`, `KISI_SETUP.md`; narrow npm script and
+operations edits only. See [Kisi setup and receipt](../KISI_SETUP.md).
+
+Kisi's local transport/sandbox batch is verified. Phone-to-reader SDK integration
+requires the partner ID/testing protocol, authorized per-user provisioning and
+access policy, and the pending hardware for physical acceptance. No in-app unlock
+button will be added. See [next Kisi batch](../KISI_SETUP.md#next-batch-and-prerequisites).
 
 **Approved security containment deployed:** `delete-maintenance` now returns a fixed 403 for every non-OPTIONS request, without credentials, body parsing, clients, or database effects. User explicitly approved this endpoint-only production change; Backend/composer/independent QA each passed 19 safety tests. Chrome deployment and reloaded source were verified; an unauthenticated GET at 2026-09-30 00:22:18 UTC returned the expected JSON and `Cache-Control: no-store`. No record ID/body was sent, records changed, or settings toggled. Runtime SHA-256: `2895ac547629952bed01a455e32257d27d021b34faff8e92ee5d15bdae8f713b` (LF-normalized editor source). Keep denial in place until authorized replacement is reviewed; never restore the vulnerable handler as rollback. Broader maintenance access and the separately requested profile guard remain open.
 
