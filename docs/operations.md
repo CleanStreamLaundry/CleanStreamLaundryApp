@@ -5,11 +5,38 @@ Updated: 2026-11-04. Working record, not proof that planned features exist.
 ## Current Checkpoint
 
 
+**November4 production-readiness ownership handoff:** Owner explicitly requests a
+bullet list covering Nayax, Stripe, Resend and all project chats so work continues
+on the Mac mini. The current [work list](../APP_FIX_PRIORITIES.md#current-work-list)
+now contains27 actionable production bullets,5 later/separate items and3 completed
+handoff receipts. Direct bounded updates were obtained from **Prioritize app fixes**,
+**Integrate Cortina QR payments**, **Redesign Clean Stream website**, **Build Kisi
+API documentation** and **Set up dev environment**; archived task review remains
+recorded below. No runtime/deployment/provider changes in this handoff.
+
+Added explicit cross-environment wallet/funding/refund/reconciliation isolation,
+truthful Pulse success wording, production Auth/email configuration with any new
+backend, Resend readiness, current Analytics disclosure acceptance and Mac-local
+admin-access verification. Updated the stale resolution-mail source-only header;
+October5 publication remains accepted. Recovered the original website prototype:
+its README is .txt, not .md; the earlier missing-directory inference was wrong.
+All29 original source/assets/screenshots are byte-preserved on web archive branch
+`codex/archive-website-design-20261104` at1c752efb0f6592c22db7963aca17b92925f9ac88.
+This optional redesign is not a current-site launch blocker.
+
+After final handoff pull, the Mac mini chat owns source/checklist updates; this Mac
+remains reference/archive. Current task is handoff and production preparation,
+not authorization to activate live payments, paid services or public releases.
+Existing hosted payment evidence is dated October29, mail evidence October1–5;
+November4 code/chat verification is not a fresh live-provider certification.
+
+
 **November4 source handoff and consolidated queue:** Owner requests outstanding
 branches/source saved and pushed for Mac mini, plus one combined remaining-work
 list. [APP_FIX_PRIORITIES](../APP_FIX_PRIORITIES.md#current-work-list) is now the
 current normalized queue; older entries below are dated evidence. Current stage:
-source/configuration handoff, then destination acceptance. No production activation.
+completed source/configuration transfer and destination development acceptance;
+production work continues from the refreshed list on Mac mini. No production activation.
 Mac mini tool/dependency installation completed and website Auth installer/build
 passed. Nine whole-site TypeScript errors in tests were corrected in three source
 files; destination whole-site typecheck and all80 affected tests now pass. Both

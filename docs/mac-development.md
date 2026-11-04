@@ -70,6 +70,19 @@ a native_assets SdkRoot diagnostic, neither established a startup failure.
 No upload, deployment, backend change or production activation occurred.
 
 The single consolidated queue is [APP_FIX_PRIORITIES.md](../APP_FIX_PRIORITIES.md).
+The owner directs continued production work to the Mac mini **Set up dev environment**
+chat. Read the bullet checklist and check existing Clean Stream administrative
+sessions there before requesting new credentials. Privileged backend/provider
+credentials are separate from the transferred public client configuration.
+
+The recovered original website prototype is on web branch
+`codex/archive-website-design-20261104` at1c752efb0f6592c22db7963aca17b92925f9ac88,
+inside `design-preview/website-brand-preview-20261003`. Extract that folder into
+workspace `.campaign-work/website-brand-preview-20261003`; do not merge the whole
+archive branch or replace the current active website. All29 files, including
+README.txt and original screenshots, are preserved; optional redesign remains
+separate from current-site launch.
+
 Branches under `codex/archive-*-20261104` preserve older detached worktree source;
 they are historical snapshots, not newer integrated code. The old October26
 handoff and legacy website remain available. Do not merge archive branches wholesale.

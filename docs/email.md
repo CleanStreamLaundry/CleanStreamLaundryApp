@@ -1,11 +1,26 @@
 # Email and Consent
 
-## Automatic Resolution Follow-Ups (Source Only)
+## Current production handoff — November4
 
-October 5 implementation, **locally tested but not deployed**. No messages sent,
-remote settings changed, or new dependencies added in this batch. Earlier hosted
-activation receipts below cover the existing mail system only, not these new
-outcomes. The new migration is
+The October5 coordinated policy/admin/resolution-email release was published,
+superseding the earlier source-only status below. Existing transactional Resend
+and Auth SMTP delivery are configured and have accepted October1–5 evidence;
+this is not a new account, missing-mailing-address or blanket activation task.
+November4 source review confirms welcome copy and informational-update
+purpose/consent/availability still need alignment. Actual revised-welcome,
+resolution-mail and bounce/complaint acceptance remain separate. Reverify the
+selected production environment's sender, restricted key, SMTP/templates,
+webhook signature, worker/scheduler, suppression and limits. If production moves
+to a new backend, rebind those components and keep beta account/mail events isolated.
+See the single current queue in [APP_FIX_PRIORITIES](../APP_FIX_PRIORITIES.md).
+No fresh provider acceptance or email send is claimed by this documentation update.
+
+## Automatic Resolution Follow-Ups
+
+October5 implementation was locally tested, then included in the later coordinated
+publication recorded in [operations](operations.md). The rollout and local QA
+instructions below are historical implementation context; do not redeploy it
+solely because an old receipt says source-only. The migration is
 `20261005135252_automatic_resolution_mail_outbox.sql`; it requires the existing
 credit/outbox/top-up/admin migrations and
 `20261005135004_machine_issue_resolution.sql` first.
