@@ -35,8 +35,8 @@ CocoaPods1.16.2, JDK21, SDK36 and NDK28.2 are installed. Locked npm/Pub/Pods
 installation passed; Supabase CLI2.76.14 was checksum-verified separately.
 Xcode is26.1 there versus26.2 on the source Mac; native acceptance is still needed.
 The baseline website Auth installer checks and build passed. Its nine test-file
-TypeScript errors were corrected in the November4 handoff; destination type/test
-acceptance is pending.
+TypeScript errors were corrected in the November4 handoff; destination whole-site typecheck and all80 affected tests now pass. Both
+November4 checkouts are clean.
 
 Owner-authorized iCloud Drive packages are under **Clean Stream / Mac mini
 handoff / Signing-2026-11-04** and **Configuration-2026-11-04**. Verify their

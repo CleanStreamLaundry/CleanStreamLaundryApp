@@ -12,7 +12,9 @@ current normalized queue; older entries below are dated evidence. Current stage:
 source/configuration handoff, then destination acceptance. No production activation.
 Mac mini tool/dependency installation completed and website Auth installer/build
 passed. Nine whole-site TypeScript errors in tests were corrected in three source
-files; destination retest follows exact published handoff revisions. App runtime
+files; destination whole-site typecheck and all80 affected tests now pass. Both
+November4 checkouts were fetched and remain clean. Current handoffs, six archive
+branches and outstanding CortinaQR/recovery refs are published and byte-verified. App runtime
 code is unchanged from the accepted October29 beta-build work.
 
 Signing files and separately approved client/Firebase configuration are copied
