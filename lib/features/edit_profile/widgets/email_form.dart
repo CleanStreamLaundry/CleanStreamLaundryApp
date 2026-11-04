@@ -25,6 +25,9 @@ class EmailFormField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: 'New Email',
         hintText: 'Enter your email address',
+        hintMaxLines: 3,
+        errorMaxLines: 3,
+        errorStyle: isDark ? TextStyle(color: colorScheme.fontSecondary) : null,
         hintStyle: TextStyle(
           color: colorScheme.fontSecondary,
         ),

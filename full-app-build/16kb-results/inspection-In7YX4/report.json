@@ -1,0 +1,9 @@
+{
+  "apk": "/Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/build/app/outputs/apk/debug/app-debug.apk",
+  "expectedSha256": "ffaf0c1ba176c8b1ae82c70698430008c289bf0f13ec7d761e2c29abafbe756b",
+  "scope": "arm64 Debug APK static inspection only",
+  "libraries": [],
+  "sha256Before": "ffaf0c1ba176c8b1ae82c70698430008c289bf0f13ec7d761e2c29abafbe756b",
+  "passed": false,
+  "error": "Unexpected native-library path/ABI; requires scoped review"
+}

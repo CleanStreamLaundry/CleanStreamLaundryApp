@@ -37,6 +37,7 @@ class _ReleaseGateState extends State<ReleaseGate> with WidgetsBindingObserver {
   Future<void> _update() async {
     final uri = widget.service.policy.updateUrl;
     if (uri == null) return;
+    if (_linkError != null) setState(() => _linkError = null);
     try {
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
         throw StateError('Store unavailable');
@@ -72,6 +73,7 @@ class _ReleaseGateState extends State<ReleaseGate> with WidgetsBindingObserver {
                 bottom: false,
                 child: ListTile(
                   title: const Text('An update is available'),
+                  subtitle: _linkError == null ? null : Text(_linkError!),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

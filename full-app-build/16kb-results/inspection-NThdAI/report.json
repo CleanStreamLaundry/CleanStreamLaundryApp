@@ -1,0 +1,163 @@
+{
+  "apk": "/Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/build/app/outputs/apk/debug/app-debug.apk",
+  "expectedSha256": "ffaf0c1ba176c8b1ae82c70698430008c289bf0f13ec7d761e2c29abafbe756b",
+  "scope": "Debug APK packaged 64-bit ELF static inspection; ARM32 inventory only",
+  "libraries": [
+    {
+      "name": "lib/arm64-v8a/libVkLayer_khronos_validation.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/arm64-v8a/libandroidx.graphics.path.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x0000000000005c40 size=0x0003c0"
+      ]
+    },
+    {
+      "name": "lib/arm64-v8a/libbarhopper_v3.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x00000000000051c0 size=0x000e40"
+      ]
+    },
+    {
+      "name": "lib/arm64-v8a/libflutter.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x000000000228f940 size=0x0876c0"
+      ]
+    },
+    {
+      "name": "lib/arm64-v8a/libimage_processing_util_jni.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/arm64-v8a/libsurface_util_jni.so",
+      "abi": "arm64-v8a",
+      "evaluated16kb": true,
+      "loadSegments": 2,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x00000000000049b0 size=0x000650"
+      ]
+    },
+    {
+      "name": "lib/armeabi-v7a/libandroidx.graphics.path.so",
+      "abi": "armeabi-v7a",
+      "evaluated16kb": false,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/armeabi-v7a/libbarhopper_v3.so",
+      "abi": "armeabi-v7a",
+      "evaluated16kb": false,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/armeabi-v7a/libdatastore_shared_counter.so",
+      "abi": "armeabi-v7a",
+      "evaluated16kb": false,
+      "loadSegments": 2,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/armeabi-v7a/libimage_processing_util_jni.so",
+      "abi": "armeabi-v7a",
+      "evaluated16kb": false,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/armeabi-v7a/libsurface_util_jni.so",
+      "abi": "armeabi-v7a",
+      "evaluated16kb": false,
+      "loadSegments": 2,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/x86_64/libandroidx.graphics.path.so",
+      "abi": "x86_64",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x0000000000005ec0 size=0x001140"
+      ]
+    },
+    {
+      "name": "lib/x86_64/libbarhopper_v3.so",
+      "abi": "x86_64",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x0000000000590000 size=0x00b000"
+      ]
+    },
+    {
+      "name": "lib/x86_64/libdatastore_shared_counter.so",
+      "abi": "x86_64",
+      "evaluated16kb": true,
+      "loadSegments": 2,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x0000000000004f20 size=0x0010e0"
+      ]
+    },
+    {
+      "name": "lib/x86_64/libimage_processing_util_jni.so",
+      "abi": "x86_64",
+      "evaluated16kb": true,
+      "loadSegments": 3,
+      "relroSegments": 1,
+      "failures": []
+    },
+    {
+      "name": "lib/x86_64/libsurface_util_jni.so",
+      "abi": "x86_64",
+      "evaluated16kb": true,
+      "loadSegments": 2,
+      "relroSegments": 1,
+      "failures": [
+        "GNU_RELRO end not 16 KB aligned: address=0x00000000000049c0 size=0x000640"
+      ]
+    }
+  ],
+  "sha256Before": "ffaf0c1ba176c8b1ae82c70698430008c289bf0f13ec7d761e2c29abafbe756b",
+  "zipalignExit": 0,
+  "sha256After": "ffaf0c1ba176c8b1ae82c70698430008c289bf0f13ec7d761e2c29abafbe756b",
+  "passed": false
+}

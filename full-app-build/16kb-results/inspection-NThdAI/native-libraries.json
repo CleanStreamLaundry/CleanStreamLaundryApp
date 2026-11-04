@@ -1,0 +1,19 @@
+[
+  "lib/arm64-v8a/libVkLayer_khronos_validation.so",
+  "lib/arm64-v8a/libandroidx.graphics.path.so",
+  "lib/arm64-v8a/libbarhopper_v3.so",
+  "lib/arm64-v8a/libdatastore_shared_counter.so",
+  "lib/arm64-v8a/libflutter.so",
+  "lib/arm64-v8a/libimage_processing_util_jni.so",
+  "lib/arm64-v8a/libsurface_util_jni.so",
+  "lib/armeabi-v7a/libandroidx.graphics.path.so",
+  "lib/armeabi-v7a/libbarhopper_v3.so",
+  "lib/armeabi-v7a/libdatastore_shared_counter.so",
+  "lib/armeabi-v7a/libimage_processing_util_jni.so",
+  "lib/armeabi-v7a/libsurface_util_jni.so",
+  "lib/x86_64/libandroidx.graphics.path.so",
+  "lib/x86_64/libbarhopper_v3.so",
+  "lib/x86_64/libdatastore_shared_counter.so",
+  "lib/x86_64/libimage_processing_util_jni.so",
+  "lib/x86_64/libsurface_util_jni.so"
+]

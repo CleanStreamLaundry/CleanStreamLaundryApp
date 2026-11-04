@@ -31,6 +31,9 @@ class NameFormField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: 'New Full Name',
         hintText: 'Enter your full name',
+        hintMaxLines: 3,
+        errorMaxLines: 3,
+        errorStyle: isDark ? TextStyle(color: colorScheme.fontSecondary) : null,
         hintStyle: TextStyle(
           color: colorScheme.fontSecondary,
         ),

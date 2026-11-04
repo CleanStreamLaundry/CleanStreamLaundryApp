@@ -335,6 +335,7 @@ class FirebaseService extends ChangeNotifier {
         _notify();
         return;
       }
+      if (!_current(account, generation) || !pushEnabled) return;
       final token = await driver!.token();
       if (!_current(account, generation) || !pushEnabled) return;
       if (token == null) throw StateError('Token not ready');
@@ -367,8 +368,24 @@ class FirebaseService extends ChangeNotifier {
       try {
         final raw = await driver!.releasePolicy();
         final next = ReleasePolicy.parse(raw, platform);
-        // Validate all fields before replacing a known block, including offline.
-        await preferences.setString(_cacheKey, raw);
+        var persisted = false;
+        try {
+          persisted = await preferences.setString(_cacheKey, raw);
+        } catch (_) {
+          // Treat thrown writes and rejected writes identically below.
+        }
+        if (!persisted) {
+          diagnostic(
+            'Release policy cache write failed; restart may use older policy.',
+          );
+          final nextDecision = next.evaluate(version, build);
+          // Enforce emergency restrictions even without disk, but never clear
+          // a current restriction with a replacement that could not be saved.
+          if (nextDecision != ReleaseDecision.blocked &&
+              nextDecision != ReleaseDecision.maintenance) {
+            return;
+          }
+        }
         policy = next;
         _notify();
       } catch (_) {

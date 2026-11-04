@@ -65,8 +65,6 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
-		<key>CADisableMinimumFrameDurationOnPhone</key>
-		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>CFBundleURLTypes</key>

@@ -1,0 +1,87 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Dart
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check Firebase release policy defaults
+        run: node --test scripts/firebase-release-template.test.mjs
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.10'
+
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env
+          SUPABASE_URL=http://127.0.0.1:54321
+          ANON_KEY=ci-dummy-anon-key
+          STRIPE_PUBLISHABLE_KEY=pk_test_ci_dummy
+          EOF
+
+
+      - name: Analyze (errors and warnings fatal; infos nonfatal)
+        run: flutter analyze --no-pub --fatal-warnings --no-fatal-infos
+
+      - name: Run tests with coverage and machine output (printed + saved)
+        shell: bash
+        run: |
+          flutter test \
+            --no-pub \
+            --machine \
+            --coverage \
+            | tee test_output.json
+
+      - name: Install junitreport converter
+        run: dart pub global activate junitreport
+
+      - name: Convert machine output to JUnit XML
+        run: |
+          cat test_output.json | tojunit --output test_report.xml
+
+      - name: Generate HTML coverage report
+        run: |
+          sudo apt-get install -y lcov
+          genhtml coverage/lcov.info --output-directory coverage/html
+
+      - name: Upload JUnit Test Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-report
+          path: test_report.xml
+
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-coverage-report
+          path: coverage/html/
+
+      - name: Run browser-only tests in headless Chrome
+        run: |
+          flutter test --no-pub --platform chrome --concurrency=1 \
+            test/services/stripe/stripe_service_web_test.dart \
+            test/core/router/web_callback_test.dart \
+            test/services/supabase/authentication/mfa_browser_test.dart
