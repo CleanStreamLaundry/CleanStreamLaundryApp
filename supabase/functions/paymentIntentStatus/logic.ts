@@ -80,16 +80,19 @@ export async function recordWalletLoadFromIntent(
   supabaseAdmin: SupabaseClient,
   checkoutSessionId: string | null = null
 ): Promise<boolean> {
-  if (intent.metadata?.purpose !== "wallet_load") {
-    return false;
-  }
-
-  const amountCents =
-    intent.amount_received && intent.amount_received > 0
-      ? intent.amount_received
-      : intent.amount;
-
-  if (!amountCents || amountCents <= 0) {
+  // This writer is shared with Checkout status. Require the same paid USD
+  // principal/metadata evidence here, including when called without Checkout.
+  const amountCents = intent.amount_received;
+  if (
+    intent.status !== "succeeded" ||
+    typeof intent.id !== "string" || !intent.id.startsWith("pi_") ||
+    intent.metadata?.purpose !== "wallet_load" ||
+    !userId || intent.metadata.user_id !== userId ||
+    intent.currency !== "usd" || typeof intent.livemode !== "boolean" ||
+    !Number.isSafeInteger(amountCents) || amountCents <= 0 ||
+    intent.amount !== amountCents ||
+    intent.metadata.amount_cents !== String(amountCents)
+  ) {
     return false;
   }
 
@@ -128,6 +131,9 @@ export async function handlePaymentIntentStatus(
   }
 
   const intent = await deps.stripe.paymentIntents.retrieve(paymentIntentId);
+  if (intent.id !== paymentIntentId) {
+    return jsonResponse({ error: "PaymentIntent details do not match" }, 409);
+  }
   if (intent.metadata?.user_id !== userId) {
     return jsonResponse(
       { error: "PaymentIntent does not belong to user" },

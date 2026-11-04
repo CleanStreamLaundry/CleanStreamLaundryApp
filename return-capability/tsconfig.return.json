@@ -1,0 +1,11 @@
+{
+  "extends": "../../../CleanStreamWeb-CortinaQR/tsconfig.json",
+  "include": [
+    "../../../CleanStreamWeb-CortinaQR/src/cortinaReturn.ts",
+    "../../../CleanStreamWeb-CortinaQR/src/cortinaReturn.test.ts",
+    "../../../CleanStreamWeb-CortinaQR/src/components/CortinaPayPage.tsx",
+    "../../../CleanStreamWeb-CortinaQR/src/components/CortinaPayPage.return.test.tsx",
+    "../../../CleanStreamWeb-CortinaQR/src/global.d.ts",
+    "../../../CleanStreamWeb-CortinaQR/src/setupTests.ts"
+  ]
+}

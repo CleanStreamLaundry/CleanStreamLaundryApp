@@ -3,24 +3,29 @@ import { handler } from "./index.ts";
 
 const id = "00000000-0000-4000-8000-000000000001";
 for (
-  const scenario of [
+  const [scenario, named] of [
     "success",
     "pending",
     "forbidden",
     "provider_error",
     "db_failure",
-  ]
+  ].flatMap((scenario) => [false, true].map((named) => [scenario, named] as const))
 ) {
-  Deno.test(`actual offline adapter: ${scenario}`, async () => {
+  Deno.test(`actual offline adapter ${named ? "named" : "legacy"}: ${scenario}`, async () => {
     const savedFetch = globalThis.fetch;
     const env = {
       SUPABASE_URL: "https://offline.invalid",
       SUPABASE_ANON_KEY: "synthetic-public-key",
       SUPABASE_SERVICE_ROLE_KEY: "synthetic-service-key",
       STRIPE_SECRET_KEY: "sk_test_synthetic",
+      SUPABASE_SECRET_KEYS: JSON.stringify({ refund: "sb_secret_refund_fixture" }),
     };
-    const saved = new Map(Object.keys(env).map((k) => [k, Deno.env.get(k)]));
+    const selector = "CLEANSTREAM_TOPUP_REFUND_SECRET_KEY_NAME";
+    const saved = new Map([...Object.keys(env), selector].map((k) => [k, Deno.env.get(k)]));
     for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
+    if (named) Deno.env.set(selector, "refund");
+    else Deno.env.delete(selector);
+    const adminKey = named ? "sb_secret_refund_fixture" : env.SUPABASE_SERVICE_ROLE_KEY;
     const calls: {
       url: string;
       auth: string | null;
@@ -58,8 +63,9 @@ for (
       if (url.pathname.endsWith("/prepare_voluntary_topup_refund")) {
         assertEquals(
           request.headers.get("apikey"),
-          env.SUPABASE_SERVICE_ROLE_KEY,
+          adminKey,
         );
+        assertEquals(request.headers.get("authorization"), named ? null : `Bearer ${adminKey}`);
         return Response.json({
           id,
           intent: "pi_test",
@@ -123,8 +129,9 @@ for (
       if (url.pathname.endsWith("/reconcile_voluntary_topup_refund")) {
         assertEquals(
           request.headers.get("apikey"),
-          env.SUPABASE_SERVICE_ROLE_KEY,
+          adminKey,
         );
+        assertEquals(request.headers.get("authorization"), named ? null : `Bearer ${adminKey}`);
         assertEquals(JSON.parse(body), {
           p_id: id,
           p_refund_id: "re_test",

@@ -1,6 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { compensateVend, CortinaDeps, DRYER_OPTIONS, startCortinaVend, VendSession } from "./cortina.ts";
+import { compensateVend, CortinaDeps, DRYER_OPTIONS, sha256, startCortinaVend, VendSession } from "./cortina.ts";
 import { handleNayaxCallback } from "./cortina_callback.ts";
+import { handleStatus } from "../cortina-vend/logic.ts";
 
 type Row = Record<string, any>;
 
@@ -14,7 +15,12 @@ function fixture() {
     machine_id: 1,
     user_id: null,
     amount_cents: 400,
-    pulse_line_number: null,
+    pulse_line_number: 1,
+    product_code: null,
+    nayax_environment: "sandbox",
+    nayax_terminal_id: "4434331126150568",
+    nayax_uniqr: null,
+    stripe_livemode: false,
     currency: "USD",
     payment_method: "card",
     stripe_payment_intent_id: "pi_test",
@@ -35,6 +41,8 @@ function fixture() {
   const reversals: string[] = [];
   let beforeApproval: (() => void) | undefined;
   let onStart: (() => Promise<Response>) | undefined;
+  let callbackInsertError: string | undefined;
+  let beforeSupport: (() => void) | undefined;
 
   // Execute predicates at update time to exercise the production compare-and-set logic.
   const admin = {
@@ -49,6 +57,9 @@ function fixture() {
       const filters: Array<(row: Row) => boolean> = [];
       const execute = () => {
         if (insertion) {
+          if (insertion.source === "nayax" && callbackInsertError) {
+            return { data: null, error: { code: callbackInsertError, message: "Synthetic database ownership rejection" } };
+          }
           if (events.some((event) => event.event_key === insertion!.event_key)) {
             return { data: null, error: { code: "23505" } };
           }
@@ -56,8 +67,10 @@ function fixture() {
           return { data: null, error: null };
         }
         if (change?.status === "approved") beforeApproval?.();
-        const row = table === "cortina_machine_config" ? config : table === "Machines" ? machine : session;
-        if (!filters.every((filter) => filter(row))) return { data: null, error: null };
+        if (change?.status === "support_required") beforeSupport?.();
+        const row = table === "cortina_machine_config" ? config : table === "Machines" ? machine
+          : table === "cortina_vend_events" ? events.find((event) => filters.every((filter) => filter(event))) : session;
+        if (!row || !filters.every((filter) => filter(row))) return { data: null, error: null };
         if (change) Object.assign(row, change);
         return { data: structuredClone(row), error: null };
       };
@@ -69,6 +82,10 @@ function fixture() {
         },
         in(key: string, values: unknown[]) {
           filters.push((row) => values.includes(row[key]));
+          return query;
+        },
+        is(key: string, value: null) {
+          filters.push((row) => (row[key] ?? null) === value);
           return query;
         },
         update(value: Row) { change = value; return query; },
@@ -118,6 +135,7 @@ function fixture() {
       CurrencyCode: "USD",
     },
     DeviceInfo: { HwSerial: config.nayax_terminal_id },
+    MachineInfo: { TerminalId: session.nayax_terminal_id },
   });
   const callback = async (value = body(), route = "StaticQR/Sale", environment: "sandbox" | "production" = "sandbox") => {
     const response = await handleNayaxCallback(new Request(
@@ -135,6 +153,8 @@ function fixture() {
     start: () => startCortinaVend(session.id, deps),
     onStart(value: () => Promise<Response>) { onStart = value; },
     beforeApproval(value: () => void) { beforeApproval = value; },
+    rejectCallbackInsert(code: string) { callbackInsertError = code; },
+    beforeSupport(value: () => void) { beforeSupport = value; },
   };
 }
 
@@ -187,6 +207,8 @@ Deno.test("UniQR is sent instead of an absent terminal ID", async () => {
   const f = fixture();
   f.config.nayax_terminal_id = null;
   f.config.nayax_uniqr = "https://qr.nayax.com/v1/test";
+  f.session.nayax_terminal_id = null;
+  f.session.nayax_uniqr = f.config.nayax_uniqr;
   await f.start();
   assertEquals(f.requests[0].body.TerminalId, undefined);
   assertEquals(f.requests[0].body.UniQR, f.config.nayax_uniqr);
@@ -196,6 +218,7 @@ Deno.test("price-array Start uses the snapshotted Code, never PulseLineNumber", 
   for (const code of [0, 3]) {
     const f = fixture();
     f.session.product_code = code;
+    f.session.pulse_line_number = null;
     f.config.product_codes = { "400": 5 };
     f.config.pulse_line_number = null;
     await f.start();
@@ -210,29 +233,32 @@ Deno.test("all six dryer price-array options preserve their individual codes", a
     const f = fixture();
     f.session.amount_cents = option.amountCents;
     f.session.product_code = code;
+    f.session.pulse_line_number = null;
     f.config.pulse_line_number = null;
     await f.start();
     assertEquals(f.requests[0].body.Products, [{ Code: code, Price: option.amountCents / 100 }]);
   }
 });
 
-Deno.test("a missing session selector refunds without sending Start", async () => {
+Deno.test("a missing frozen selector requires reconciliation without Start or guessed refund", async () => {
   const f = fixture();
   f.config.pulse_line_number = null;
+  f.session.pulse_line_number = null;
   await f.start();
   assertEquals(f.requests.length, 0);
-  assertEquals(f.refunds.size, 1);
+  assertEquals(f.refunds.size, 0);
+  assertEquals(f.session.status, "support_required");
 });
 
-Deno.test("a declined Start refunds once and preserves Nayax code", async () => {
+Deno.test("a documented definitive Start rejection refunds once and preserves Nayax code", async () => {
   const f = fixture();
-  f.onStart(async () => Response.json({ Status: { Verdict: "Declined", Code: 13 } }));
+  f.onStart(async () => Response.json({ Status: { Verdict: "Declined", Code: 7 } }));
   await f.start();
   await f.start();
   assertEquals(f.requests.length, 1);
   assertEquals(f.refunds.size, 1);
   assertEquals(f.session.status, "refunded");
-  assertEquals(f.session.failure_code, "13");
+  assertEquals(f.session.failure_code, "7");
 });
 
 Deno.test("a paid Sale arriving before Start returns is approved", async () => {
@@ -279,14 +305,14 @@ Deno.test("duplicate Sale is approved without changing a completed vend", async 
   assertEquals(f.events.filter((event) => event.event_type === "sale").length, 1);
 });
 
-Deno.test("Sale rejects mismatched amount, currency, serial, and environment", async () => {
-  for (const mismatch of ["amount", "currency", "serial", "environment"]) {
+Deno.test("Sale rejects mismatched amount, currency, terminal, and environment", async () => {
+  for (const mismatch of ["amount", "currency", "terminal", "environment"]) {
     const f = fixture();
     f.session.status = "awaiting_sale";
     const body = f.body();
     if (mismatch === "amount") body.BasicInfo.Amount = 6;
     if (mismatch === "currency") body.BasicInfo.CurrencyCode = "EUR";
-    if (mismatch === "serial") body.DeviceInfo.HwSerial = "4434331126150748";
+    if (mismatch === "terminal") body.MachineInfo.TerminalId = "4434331126150748";
     const result = await f.callback(body, "StaticQR/Sale", mismatch === "environment" ? "production" : "sandbox");
     assertEquals(result.Status.Verdict, "Declined");
     assertEquals(f.session.status, "awaiting_sale");
@@ -353,6 +379,7 @@ for (const mismatch of [
 ]) {
   Deno.test(`failed vend rejects successful refund mismatch ${JSON.stringify(mismatch)}`, async () => {
     const f = fixture();
+    f.session.status = "voided";
     f.refunds.set(`cortina-refund-${f.session.id}`, {
       id: "re_test", payment_intent: "pi_test", amount: 400, currency: "usd",
       status: "succeeded", ...mismatch,
@@ -396,4 +423,300 @@ Deno.test("unavailable bound refund remains support-required without a replaceme
   assertEquals(f.session.stripe_refund_id, "re_unavailable");
   assertEquals(f.refundCalls, ["retrieve"]);
   assertEquals(f.refunds.size, 0);
+});
+
+Deno.test("Start and callbacks retain frozen routing after config changes", async () => {
+  const f = fixture();
+  f.config.environment = "production";
+  f.config.nayax_terminal_id = "9999999999999999";
+  f.config.pulse_line_number = 6;
+  await Promise.all([f.start(), f.start(), f.start()]);
+  assertEquals(f.requests.length, 1);
+  assertEquals(f.requests[0].url, "https://nayax.invalid/start");
+  assertEquals(f.requests[0].body.TerminalId, "4434331126150568");
+  assertEquals(f.requests[0].body.Products, [{ PulseLineNumber: 1, Price: 4 }]);
+  assertEquals((await f.callback()).Status.Verdict, "Approved");
+});
+
+Deno.test("documented Sale accepts an empty terminal and unrelated hardware serial", async () => {
+  const f = fixture(); f.session.status = "awaiting_sale";
+  const body = f.body();
+  body.MachineInfo.TerminalId = "";
+  body.DeviceInfo.HwSerial = "0123456123456123";
+  assertEquals((await f.callback(body)).Status.Verdict, "Approved");
+  assertEquals(f.session.nayax_transaction_id, "1234567");
+});
+
+Deno.test("SaleEnd without a device can complete while Start is still returning", async () => {
+  const f = fixture();
+  f.onStart(async () => {
+    assertEquals((await f.callback({ BasicInfo: f.body().BasicInfo } as any, "SaleEndNotification")).Status.Verdict, "Approved");
+    throw new Error("late response failure");
+  });
+  await f.start();
+  assertEquals(f.session.status, "started");
+  assertEquals(f.refundCalls, []);
+});
+
+Deno.test("Void before acknowledged Sale compensates once with no guessed provider ID", async () => {
+  const f = fixture(); await f.start();
+  const body: any = f.body(); delete body.BasicInfo.NayaxTransactionId;
+  assertEquals((await f.callback(body, "StaticQR/Void")).Status.Verdict, "Approved");
+  assertEquals((await f.callback(body, "StaticQR/Void")).Status.Verdict, "Approved");
+  assertEquals(f.session.status, "refunded");
+  assertEquals(f.refundCalls, ["create"]);
+});
+
+for (const route of ["StaticQR/Sale", "StaticQR/Void", "SaleEndNotification"]) {
+  for (const mismatch of ["missing_currency", "subcent_amount", "transaction", "environment", "terminal", "legacy"]) {
+    Deno.test(`${route} rejects ${mismatch} without money or machine effects`, async () => {
+      const f = fixture(); f.session.status = "awaiting_sale";
+      const body: any = f.body();
+      if (mismatch === "missing_currency") delete body.BasicInfo.CurrencyCode;
+      if (mismatch === "subcent_amount") body.BasicInfo.Amount = 4.001;
+      if (mismatch === "transaction") body.BasicInfo.TransactionId = "unrelated";
+      if (mismatch === "terminal") body.MachineInfo.TerminalId = "wrong";
+      if (mismatch === "legacy") f.session.nayax_environment = null;
+      const result = await f.callback(body, route, mismatch === "environment" ? "production" : "sandbox");
+      assertEquals(result.Status.Verdict, "Declined");
+      assertEquals(f.session.status, "awaiting_sale");
+      assertEquals(f.events, []); assertEquals(f.refundCalls, []); assertEquals(f.requests, []);
+    });
+  }
+  Deno.test(`${route} rejects a conflicting bound Nayax transaction`, async () => {
+    const f = fixture(); f.session.status = "approved"; f.session.nayax_transaction_id = "7654321";
+    assertEquals((await f.callback(f.body(), route)).Status.Verdict, "Declined");
+    assertEquals(f.refundCalls, []); assertEquals(f.events, []);
+  });
+}
+
+Deno.test("legacy compensation never guesses routing from today's config", async () => {
+  const f = fixture(); f.session.nayax_environment = null;
+  f.session.status = "voided";
+  let failed = false;
+  try { await compensateVend(f.session as VendSession, f.deps, "Legacy void"); } catch { failed = true; }
+  assertEquals(failed, true); assertEquals(f.session.status, "support_required");
+  assertEquals(f.refundCalls, []); assertEquals(f.requests, []);
+});
+
+Deno.test("Void cannot refund an unpaid or not-yet-started session", async () => {
+  for (const status of ["payment_pending", "paid"]) {
+    const f = fixture(); f.session.status = status;
+    assertEquals((await f.callback(f.body(), "StaticQR/Void")).Status.Verdict, "Declined");
+    assertEquals(f.refundCalls, []); assertEquals(f.session.status, status);
+  }
+});
+
+for (const [route, eventType, key] of [
+  ["StaticQR/Sale", "sale", "nayax:sale:1234567"],
+  ["StaticQR/Void", "void", "nayax:void:1234567"],
+  ["SaleEndNotification", "sale_end", "nayax:sale-end:1234567"],
+]) {
+  Deno.test(`${route} rejects another event owner, type, or transaction without effects`, async () => {
+    for (const conflict of ["owner", "source", "type", "transaction", "amount"]) {
+      const f = fixture(); f.session.status = "awaiting_sale";
+      const payload = f.body();
+      if (conflict === "transaction") payload.BasicInfo.TransactionId = "another-transaction";
+      if (conflict === "amount") payload.BasicInfo.Amount = 3;
+      f.events.push({ event_key: key, session_id: conflict === "owner" ? "another-session" : f.session.id,
+        source: conflict === "source" ? "stripe" : "nayax",
+        event_type: conflict === "type" ? "another-type" : eventType, payload });
+      assertEquals((await f.callback(f.body(), route)).Status.Verdict, "Declined");
+      assertEquals(f.session.status, "awaiting_sale");
+      assertEquals(f.session.nayax_transaction_id, undefined);
+      assertEquals(f.refundCalls, []); assertEquals(f.requests, []); assertEquals(f.events.length, 1);
+    }
+  });
+  Deno.test(`${route} preserves top-level Nayax transaction identity across retries`, async () => {
+    const f = fixture(); f.session.status = "awaiting_sale";
+    const body: any = f.body();
+    body.NayaxTransactionId = body.BasicInfo.NayaxTransactionId;
+    delete body.BasicInfo.NayaxTransactionId;
+    assertEquals((await f.callback(body, route)).Status.Verdict, "Approved");
+    assertEquals((await f.callback(body, route)).Status.Verdict, "Approved");
+    assertEquals(f.events.length, 1);
+    assertEquals(f.events[0].payload.BasicInfo.NayaxTransactionId, 1234567);
+    assertEquals(f.refundCalls, route === "StaticQR/Void" ? ["create"] : []);
+    assertEquals(f.requests, []);
+  });
+  for (const code of ["23505", "23514"]) {
+    Deno.test(`${route} declines database ownership rejection ${code} without effects`, async () => {
+      const f = fixture(); f.session.status = "awaiting_sale";
+      f.rejectCallbackInsert(code);
+      assertEquals((await f.callback(f.body(), route)).Status.Verdict, "Declined");
+      assertEquals(f.session.status, "awaiting_sale");
+      assertEquals(f.session.nayax_transaction_id, undefined);
+      assertEquals(f.events, []); assertEquals(f.refundCalls, []);
+      assertEquals(f.reversals, []); assertEquals(f.requests, []);
+    });
+  }
+  Deno.test(`${route} scopes new audit identity to the frozen environment`, async () => {
+    for (const environment of ["sandbox", "production"] as const) {
+      const f = fixture(); f.session.status = "awaiting_sale";
+      f.session.nayax_environment = environment;
+      f.session.stripe_livemode = environment === "production";
+      assertEquals((await f.callback(f.body(), route, environment)).Status.Verdict, "Approved");
+      assertEquals(f.events[0].event_key, key.replace("nayax:", `nayax:${environment}:`));
+    }
+  });
+}
+
+Deno.test("Void rejects an invalid supplied top-level provider identity without compensation", async () => {
+  const f = fixture(); f.session.status = "awaiting_sale";
+  const body: any = f.body(); delete body.BasicInfo.NayaxTransactionId;
+  body.NayaxTransactionId = "not-an-id";
+  assertEquals((await f.callback(body, "StaticQR/Void")).Status.Verdict, "Declined");
+  assertEquals(f.events, []); assertEquals(f.refundCalls, []); assertEquals(f.session.status, "awaiting_sale");
+});
+
+const uncertainStarts: Array<[string, () => Promise<Response>]> = [
+  ["aborted response", async () => { throw new DOMException("timeout", "AbortError"); }],
+  ["connection lost", async () => { throw new Error("connection lost"); }],
+  ["HTTP 500 with decline body", async () => Response.json({ Status: { Verdict: "Declined", Code: 7 } }, { status: 500 })],
+  ["HTTP 504", async () => new Response("gateway timeout", { status: 504 })],
+  ["invalid JSON", async () => new Response("not JSON")],
+  ["empty status", async () => Response.json({})],
+  ["unknown verdict", async () => Response.json({ Status: { Verdict: "Pending", Code: 7 } })],
+  ...[6, 992, 999, 13, undefined, "7"].map((code): [string, () => Promise<Response>] => [
+    `uncertain decline code ${String(code)}`, async () => Response.json({ Status: { Verdict: "Declined", Code: code } }),
+  ]),
+];
+
+for (const method of ["card", "wallet"]) {
+  for (const [name, response] of uncertainStarts) {
+    Deno.test(`outcome contract: ${method} ${name} neither compensates nor retries Start`, async () => {
+      const f = fixture(); f.session.payment_method = method;
+      f.onStart(response);
+      await f.start(); await f.start();
+      assertEquals(f.session.status, "support_required");
+      assertEquals(f.session.failure_code, "start_outcome_unknown");
+      assertEquals(f.requests.length, 1); assertEquals(f.refundCalls, []); assertEquals(f.reversals, []);
+      assertEquals(f.refunds.size, 0);
+    });
+  }
+  Deno.test(`outcome contract: ${method} documented rejections compensate exactly once`, async () => {
+    for (const code of [1, 5, 7, 8, 997, 998]) {
+      const f = fixture(); f.session.payment_method = method;
+      f.onStart(async () => Response.json({ Status: { Verdict: "Declined", Code: code } }));
+      await f.start(); await f.start();
+      assertEquals(f.session.status, "refunded"); assertEquals(f.session.failure_code, String(code));
+      assertEquals(f.requests.length, 1);
+      assertEquals(f.refundCalls, method === "card" ? ["create"] : []);
+      assertEquals(f.reversals, method === "wallet" ? [f.session.id] : []);
+    }
+  });
+  for (const status of ["paid", "starting", "awaiting_sale", "approved"]) {
+    Deno.test(`outcome contract: ${method} 45-second ${status} client wait is support, not a failed vend`, async () => {
+      const f = fixture(); f.session.payment_method = method; f.session.status = status;
+      f.session.start_requested_at = "2020-01-01T00:00:00.000Z";
+      f.session.client_access_token_hash = await sha256("synthetic-access-token");
+      const priorTimeout = Deno.env.get("CORTINA_VEND_TIMEOUT_SECONDS");
+      try {
+        Deno.env.set("CORTINA_VEND_TIMEOUT_SECONDS", "45");
+        const response = await handleStatus(new Request("https://fixture.invalid/status", {
+          method: "POST", body: JSON.stringify({ sessionId: f.session.id, accessToken: "synthetic-access-token" }),
+        }), f.deps);
+        assertEquals((await response.json()).status, "support_required");
+        assertEquals(f.session.failure_code, "vend_outcome_unknown");
+        await f.start();
+        assertEquals(f.requests, []); assertEquals(f.refundCalls, []); assertEquals(f.reversals, []);
+      } finally {
+        if (priorTimeout === undefined) Deno.env.delete("CORTINA_VEND_TIMEOUT_SECONDS");
+        else Deno.env.set("CORTINA_VEND_TIMEOUT_SECONDS", priorTimeout);
+      }
+    });
+  }
+  Deno.test(`outcome contract: ${method} historical failed label alone cannot authorize compensation`, async () => {
+    const f = fixture(); f.session.payment_method = method; f.session.status = "failed";
+    await compensateVend(f.session as VendSession, f.deps, "Historical failure");
+    assertEquals(f.session.status, "support_required");
+    assertEquals(f.refundCalls, []); assertEquals(f.reversals, []);
+  });
+}
+
+Deno.test("outcome contract: a validated late Void can compensate an unknown Start once", async () => {
+  const f = fixture(); f.onStart(async () => { throw new Error("connection lost"); });
+  await f.start();
+  assertEquals(f.session.status, "support_required"); assertEquals(f.refundCalls, []);
+  assertEquals((await f.callback(f.body(), "StaticQR/Void")).Status.Verdict, "Approved");
+  assertEquals((await f.callback(f.body(), "StaticQR/Void")).Status.Verdict, "Approved");
+  assertEquals(f.refundCalls, ["create"]); assertEquals(f.session.status, "refunded");
+  assertEquals(f.requests.length, 1);
+});
+
+Deno.test("outcome contract: unknown state is not reopened by late Sale or SaleEnd", async () => {
+  const f = fixture(); f.onStart(async () => { throw new Error("connection lost"); });
+  await f.start();
+  assertEquals((await f.callback()).Status.Verdict, "Declined");
+  assertEquals((await f.callback(f.body(), "SaleEndNotification")).Status.Verdict, "Declined");
+  assertEquals(f.session.status, "support_required");
+  assertEquals(f.requests.length, 1); assertEquals(f.refundCalls, []);
+});
+
+Deno.test("outcome contract: accepted Sale outranks a late definitive Start rejection", async () => {
+  const f = fixture();
+  f.onStart(async () => {
+    assertEquals((await f.callback()).Status.Verdict, "Approved");
+    return Response.json({ Status: { Verdict: "Declined", Code: 7 } });
+  });
+  await f.start();
+  assertEquals(f.session.status, "approved"); assertEquals(f.refundCalls, []);
+});
+
+Deno.test("outcome contract: concurrent completion is not overwritten by timeout support", async () => {
+  const f = fixture(); f.session.status = "timed_out";
+  const timeoutSnapshot = structuredClone(f.session) as VendSession;
+  f.beforeSupport(() => { f.session.status = "started"; });
+  await compensateVend(timeoutSnapshot, f.deps, "Client timeout");
+  assertEquals(f.session.status, "started"); assertEquals(f.refundCalls, []);
+});
+
+Deno.test("outcome contract: missing credentials prevent dispatch and compensate once", async () => {
+  const f = fixture(); Deno.env.delete("NAYAX_SANDBOX_SECRET_TOKEN");
+  try {
+    await f.start(); await f.start();
+    assertEquals(f.requests, []); assertEquals(f.refundCalls, ["create"]);
+    assertEquals(f.session.status, "refunded"); assertEquals(f.session.failure_code, "start_not_sent");
+  } finally { Deno.env.set("NAYAX_SANDBOX_SECRET_TOKEN", "test-secret"); }
+});
+
+Deno.test("outcome contract: an earlier request audit blocks another Start without guessing its outcome", async () => {
+  const f = fixture();
+  f.events.push({ session_id: f.session.id, source: "clean_stream", event_type: "nayax_start_request",
+    event_key: `start-request:${f.session.id}`, payload: {} });
+  await f.start(); await f.start();
+  assertEquals(f.session.status, "support_required");
+  assertEquals(f.requests, []); assertEquals(f.refundCalls, []); assertEquals(f.events.length, 1);
+});
+
+Deno.test("outcome contract: an earlier Start remains uncertain even when today's machine is unavailable", async () => {
+  const f = fixture(); f.machine.is_out_of_service = true;
+  f.events.push({ session_id: f.session.id, source: "clean_stream", event_type: "nayax_start_request",
+    event_key: `start-request:${f.session.id}`, payload: {} });
+  await f.start();
+  assertEquals(f.session.status, "support_required");
+  assertEquals(f.requests, []); assertEquals(f.refundCalls, []); assertEquals(f.events.length, 1);
+});
+
+Deno.test("outcome contract: timeout can observe an already-bound refund without creating another", async () => {
+  const f = fixture(); f.session.status = "timed_out"; f.session.stripe_refund_id = "re_test";
+  f.refunds.set(`cortina-refund-${f.session.id}`, {
+    id: "re_test", payment_intent: "pi_test", amount: 400, currency: "usd", status: "pending",
+  });
+  await compensateVend(f.session as VendSession, f.deps, "Client timeout");
+  assertEquals(f.session.status, "support_required"); assertEquals(f.session.stripe_refund_id, "re_test");
+  assertEquals(f.refundCalls, ["retrieve"]); assertEquals(f.requests, []);
+});
+
+Deno.test("outcome contract: callback audit binding outranks rejection before the callback status write", async () => {
+  const f = fixture();
+  f.onStart(async () => {
+    // The real ownership trigger commits this ID with the callback audit, before
+    // the callback handler's next conditional status update.
+    f.session.nayax_transaction_id = "1234567";
+    return Response.json({ Status: { Verdict: "Declined", Code: 7 } });
+  });
+  await f.start(); await f.start();
+  assertEquals(f.session.status, "starting"); assertEquals(f.session.nayax_transaction_id, "1234567");
+  assertEquals(f.refundCalls, []); assertEquals(f.requests.length, 1);
 });

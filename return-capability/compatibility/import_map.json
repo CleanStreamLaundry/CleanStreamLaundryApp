@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "./supabase/functions/_shared/cortina.ts": "../../../../CleanStreamLaundryApp/supabase/functions/_shared/cortina.ts",
+    "./supabase/functions/cortina-vend/logic.ts": "../../../../CleanStreamLaundryApp/supabase/functions/cortina-vend/logic.ts",
+    "./supabase/functions/cortina-vend/return_urls.ts": "../../../../CleanStreamLaundryApp/supabase/functions/cortina-vend/return_urls.ts"
+  }
+}

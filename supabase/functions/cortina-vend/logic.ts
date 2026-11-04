@@ -1,11 +1,13 @@
 import Stripe from "npm:stripe@14.25.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { handlePendingLookup, requestsPendingLookup } from "./pending_lookup.ts";
 import {
   CortinaDeps,
   compensateVend,
   createVendSession,
   functionRoute,
   getOptionalUserId,
+  hasFrozenVendBinding,
   HttpError,
   jsonResponse,
   markCortinaCardPaid,
@@ -90,10 +92,18 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
   });
   const metadata = paymentMetadata(
     created.session.id,
-    quote.machineId,
-    amount.amountCents,
-    userId,
+    created.session.machine_id,
+    created.session.amount_cents,
+    created.session.user_id,
   );
+
+  if (!hasFrozenVendBinding(created.session)) {
+    throw new HttpError(409, "Payment routing needs reconciliation", "support_required");
+  }
+  if (created.session.status !== "payment_pending") {
+    return jsonResponse({ sessionId: created.session.id, accessToken: created.accessToken,
+      status: created.session.status });
+  }
 
   try {
     if (channel === "app") {
@@ -183,6 +193,9 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
     clientRequestId: clientRequestId(body),
   });
 
+  if (!hasFrozenVendBinding(created.session)) {
+    throw new HttpError(409, "Payment routing needs reconciliation", "support_required");
+  }
   if (!created.wasCreated && created.session.status !== "payment_pending") {
     await startCortinaVend(created.session.id, deps);
     return jsonResponse({
@@ -257,7 +270,11 @@ export async function handleCardConfirm(
 }
 
 export async function handleStatus(req: Request, deps: CortinaDeps): Promise<Response> {
+  const recoveryAuthorization = req.headers.get("authorization");
   const body = await bodyFrom(req);
+  if (requestsPendingLookup(body)) {
+    return handlePendingLookup(recoveryAuthorization, body, deps);
+  }
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
   const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
   if (!sessionId || !accessToken) {

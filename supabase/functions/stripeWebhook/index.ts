@@ -1,21 +1,24 @@
-import { serve } from "https://deno.land/std@0.223.0/http/server.ts";
 import Stripe from "npm:stripe@14";
 import { handleStripeWebhook, selectWebhookSecret } from "./logic.ts";
 import {
   createAdminClient,
+  errorResponse,
   markCortinaCardPaid,
 } from "../_shared/cortina.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-  apiVersion: "2023-10-16",
-  httpClient: Stripe.createFetchHttpClient(),
-});
-
-serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
+  let admin;
+  try {
+    admin = createAdminClient("stripeWebhook");
+  } catch (error) {
+    return errorResponse(error);
+  }
+  const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
+    apiVersion: "2023-10-16",
+    httpClient: Stripe.createFetchHttpClient(),
+  });
   const signature = req.headers.get("stripe-signature");
   const rawBody = await req.text();
-
-  const admin = createAdminClient();
 
   const result = await handleStripeWebhook(
     { rawBody, signature },
@@ -77,4 +80,6 @@ serve(async (req) => {
   );
 
   return new Response(result.body, { status: result.status });
-});
+}
+
+if (import.meta.main) Deno.serve(handler);

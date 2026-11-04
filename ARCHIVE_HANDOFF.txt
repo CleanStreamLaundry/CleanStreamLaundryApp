@@ -1,0 +1,7 @@
+Historical source preservation — November 4, 2026
+
+This branch preserves outstanding source from payments at 1df3c07f907d78ceeb730eedec002eb48463c423.
+Use codex/mac-mini-handoff-20261104 for current integrated app/web work.
+Do not merge this older lane wholesale. It can contain superseded work.
+Generated caches, local credentials/signing, runtime logs and binary captures were excluded.
+Original local files were left in place. This is preservation, not a fresh test/deployment claim.

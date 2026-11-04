@@ -3,6 +3,7 @@ import {
   CORS_HEADERS,
   createAdminClient,
   createStripeClient,
+  errorResponse,
 } from "../_shared/cortina.ts";
 import {
   handleVoluntaryTopupRefund,
@@ -12,6 +13,12 @@ import {
 export async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
+  }
+  let admin;
+  try {
+    admin = createAdminClient("voluntary-topup-refund");
+  } catch (error) {
+    return errorResponse(error);
   }
   const bearer = req.headers.get("authorization") ?? "";
   const caller = createClient(
@@ -26,7 +33,6 @@ export async function handler(req: Request): Promise<Response> {
       },
     },
   );
-  const admin = createAdminClient();
   const stripe = createStripeClient();
   const response = await handleVoluntaryTopupRefund(req, {
     authenticate: async () => {

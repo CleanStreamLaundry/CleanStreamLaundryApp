@@ -12,18 +12,18 @@ Deno.test("extracts transaction identifiers from Nayax callbacks", () => {
   assertEquals(callbackTestHelpers.transactionId({}), null);
   assertEquals(
     callbackTestHelpers.transactionId({ PaymentInfo: { SrvTranId: "clean-456" } }),
-    "clean-456",
+    null,
   );
 });
 
-Deno.test("accepts terminal ID or hardware serial", () => {
+Deno.test("extracts terminal ID without treating hardware serial as TerminalId", () => {
   assertEquals(
     callbackTestHelpers.callbackTerminalId({ MachineInfo: { TerminalId: 1234 } }),
     "1234",
   );
   assertEquals(
     callbackTestHelpers.callbackTerminalId({ DeviceInfo: { HwSerial: "hw-1" } }),
-    "hw-1",
+    null,
   );
 });
 
@@ -54,4 +54,12 @@ Deno.test("callback audit payload excludes card and token data", () => {
   assertEquals(payload.PaymentInfo.RRN, "support-1");
   assertEquals(payload.CardInfo, undefined);
   assertEquals(payload.PaymentInfo.Token, undefined);
+});
+
+Deno.test("callback audit preserves the supported top-level Nayax transaction ID", () => {
+  const payload = callbackTestHelpers.auditPayload({
+    BasicInfo: { TransactionId: "clean-123", Amount: 4, CurrencyCode: "USD" },
+    NayaxTransactionId: 1234567,
+  });
+  assertEquals(payload.BasicInfo.NayaxTransactionId, 1234567);
 });

@@ -98,6 +98,13 @@ for (const environment of ["sandbox", "production"] as const) {
             machine_id: 1,
             amount_cents: 400,
             currency: "USD",
+            payment_method: "card",
+            nayax_environment: environment,
+            nayax_terminal_id: "terminal-1",
+            nayax_uniqr: null,
+            stripe_livemode: environment === "production",
+            product_code: null,
+            pulse_line_number: 1,
             status,
           };
           const tables: string[] = [],
@@ -112,9 +119,10 @@ for (const environment of ["sandbox", "production"] as const) {
                   Promise.resolve({
                     data: table === "cortina_vend_sessions"
                       ? session
-                      : { nayax_terminal_id: "terminal-1", environment },
+                      : null,
                     error: null,
                   }),
+                single: () => Promise.resolve({ data: session, error: null }),
                 insert: (event: Record<string, unknown>) => {
                   events.push(event);
                   return Promise.resolve({ error: null });
@@ -152,8 +160,9 @@ for (const environment of ["sandbox", "production"] as const) {
           assert.equal(f.req.bodyUsed, true);
           assert.deepEqual(tables, [
             "cortina_vend_sessions",
-            "cortina_machine_config",
             "cortina_vend_events",
+            "cortina_vend_events",
+            ...(route.endsWith("Sale") ? ["cortina_vend_sessions"] : []),
           ]);
           assert.equal(events.length, 1);
           assert.equal(
