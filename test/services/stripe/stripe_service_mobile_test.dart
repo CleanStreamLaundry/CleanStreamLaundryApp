@@ -37,6 +37,7 @@ void main() {
 
   setUp(() {
     getIt.reset();
+    Stripe.publishableKey = 'pk_test_mobile_unit_only';
     mockEdgeFunctionService = MockEdgeFunctionService();
     mockStripe = MockStripe();
 
@@ -89,6 +90,47 @@ void main() {
       )).called(1);
     });
     group("makePayment", () {
+      for (final (scenario, sheetError) in <(String, Object?)>[
+        ('normal payment', null),
+        ('native cancellation', StripeException(
+          error: LocalizedErrorMessage(code: FailureCode.Canceled),
+        )),
+        ('native error', StripeException(
+          error: LocalizedErrorMessage(code: FailureCode.Failed),
+        )),
+        ('generic error', Exception('Synthetic sheet failure')),
+      ]) {
+        for (final recorded in [false, true]) {
+          test('wallet $scenario requires recorded credit=$recorded', () async {
+            mockCreatePaymentIntent();
+            when(() => mockEdgeFunctionService.runEdgeFunction(
+              name: 'paymentIntentStatus', body: {'paymentIntentId': 'pi_test'},
+            )).thenAnswer((_) async => FunctionResponse(status: 200, data: {
+              'status': 'succeeded', 'walletLoadRecorded': recorded,
+            }));
+            when(() => mockStripe.initPaymentSheet(
+              paymentSheetParameters: any(named: 'paymentSheetParameters'),
+            )).thenAnswer((_) async => null);
+            when(() => mockStripe.presentPaymentSheet()).thenAnswer((_) async {
+              if (sheetError != null) throw sheetError;
+              return null;
+            });
+            expect(
+              await stripeService.makePayment(2.75, purpose: PaymentPurpose.walletLoad),
+              recorded ? PaymentResult.success : PaymentResult.pending,
+            );
+            verify(() => mockEdgeFunctionService.runEdgeFunction(
+              name: 'paymentIntent', body: any(named: 'body'),
+            )).called(1);
+            verify(() => mockEdgeFunctionService.runEdgeFunction(
+              name: 'paymentIntentStatus', body: {'paymentIntentId': 'pi_test'},
+            )).called(1);
+            verifyNoMoreInteractions(mockEdgeFunctionService);
+            verify(() => mockStripe.presentPaymentSheet()).called(1);
+          });
+        }
+      }
+
       test(
         "throws StripeConfigException when no client secret is found",
         () async {

@@ -89,9 +89,10 @@ class CortinaPaymentController extends ChangeNotifier {
       paymentSheetParameters: SetupPaymentSheetParameters(
         paymentIntentClientSecret: clientSecret,
         merchantDisplayName: 'Clean Stream Laundry Solutions',
-        googlePay: const PaymentSheetGooglePay(
+        googlePay: PaymentSheetGooglePay(
           merchantCountryCode: 'US',
           currencyCode: 'USD',
+          testEnv: Stripe.publishableKey.startsWith('pk_test_'),
         ),
       ),
     );

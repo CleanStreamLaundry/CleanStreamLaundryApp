@@ -71,7 +71,13 @@ Read only the relevant handlers, shared logic, migration, caller, and tests. Exi
   iOS `444847125705-hgq2664pu8sushlgevta6fnt10l07lms.apps.googleusercontent.com`.
   Android registration uses the existing local test certificate SHA-1
   `39:4F:19:6D:EC:C2:88:A6:39:E3:F9:85:B1:A5:B6:9E:1E:F1:AA:A0`;
-  Play signing is separate. iOS retains existing bundle ID
+  October26 Play signer was verified from Google's signed build8 APK; the owner
+  approved new client `444847125705-neehvvsrs6tlktoq41a2nqmvpohqf7n1.apps.googleusercontent.com`
+  restricted to the same package and SHA-1
+  `C2:6A:4E:63:46:DE:F5:C7:BC:C6:29:77:E8:37:D9:CC:DA:2D:C1:BD`.
+  The app still requests its existing web server client ID as token audience;
+  no backend Google-provider setting or scope changed in this release work.
+  Play-installed sign-in needs device acceptance. iOS retains existing bundle ID
   `com.cleanstreamlaundrysolutions.clenaStreamLaundryApp` without renaming it.
 
 - October 1 Owner management: reviewed migration `20261001013709` and paired `admin-portal` are installed in development. Canonical Owner/MFA authority, audited grants/removals, last-Owner protection and Owner-only wallet wrappers have matching source/ACL/guard/history postflight. Flutter caller-binding passes96; website Team UI is published. October 2 explicitly approved operator correction now assigns `jacob@cleanstreamlaundry.com` Owner and `jamaki12345@gmail.com` User; missing business profile created, audit recorded, transaction-only role-removal exception restored before commit. No wallet mutation. Y14 is resolved; authenticated hosted acceptance remains. The last-Owner guard remains active. Authenticated deletion requests were subsequently enabled as recorded below.

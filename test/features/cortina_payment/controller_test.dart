@@ -5,6 +5,7 @@ import 'package:clean_stream_laundry_app/logic/models/wallet_balance.dart';
 import 'package:clean_stream_laundry_app/logic/services/auth_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/cortina_vend_service.dart';
 import 'package:clean_stream_laundry_app/logic/services/wallet_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:mocktail/mocktail.dart';
@@ -34,6 +35,7 @@ const dryerQuote = CortinaQuote(
 );
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
     registerFallbackValue(
       const CortinaVendReference(
@@ -70,6 +72,61 @@ void main() {
     delay: (_) async {},
     pollAttempts: 2,
   );
+
+  for (final mode in ['test', 'live']) {
+    test('vend Google Pay follows the configured $mode Stripe key', () async {
+      const channel = MethodChannel('flutter.stripe/payments', JSONMethodCodec());
+      final calls = <MethodCall>[];
+      binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        switch (call.method) {
+          case 'initialise':
+            return null;
+          case 'initPaymentSheet':
+          case 'presentPaymentSheet':
+            return <String, dynamic>{};
+          default:
+            fail('Unexpected SDK method: ${call.method}');
+        }
+      });
+      addTearDown(() {
+        binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+      });
+      Stripe.publishableKey = 'pk_${mode}_vend_channel_only';
+      Stripe.instance.markNeedsSettings();
+      when(() => vendService.quote(
+        machineToken: 'token-1', terminalId: null, uniQr: null,
+      )).thenAnswer((_) async => dryerQuote);
+      when(() => vendService.createCardPayment(
+        machineToken: 'token-1', terminalId: null, uniQr: null,
+        amountCents: 150, clientRequestId: any(named: 'clientRequestId'),
+      )).thenAnswer((_) async => const CortinaCardSession(
+        sessionId: 'session-1', accessToken: 'access-1',
+        clientSecret: 'pi_contract_secret_fake',
+      ));
+      when(() => vendService.confirmCardPayment(any())).thenAnswer((_) async {});
+      when(() => vendService.status(any())).thenAnswer(
+        (_) async => const CortinaVendStatus(status: 'started'),
+      );
+      // Use the real default presenter, with only the native transport replaced.
+      final subject = CortinaPaymentController(
+        machineToken: 'token-1', terminalId: null, uniQr: null,
+        vendService: vendService, authService: authService,
+        walletService: walletService,
+        pendingStore: CortinaPendingStore(project: 'https://test.invalid'),
+        pollAttempts: 1,
+      );
+      addTearDown(subject.dispose);
+      await subject.init();
+      expect(await subject.payWithCard(), CortinaPaymentOutcome.success);
+      final call = calls.singleWhere((call) => call.method == 'initPaymentSheet');
+      final params = (call.arguments as Map)['params'] as Map;
+      expect(params['googlePay']['testEnv'], mode == 'test');
+      expect(params['googlePay']['merchantCountryCode'], 'US');
+      expect(params['googlePay']['currencyCode'], 'USD');
+      verify(() => vendService.confirmCardPayment(any())).called(1);
+    });
+  }
 
   test('loads server quote and uses the default dryer amount', () async {
     when(

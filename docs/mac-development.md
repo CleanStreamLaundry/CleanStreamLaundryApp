@@ -1,6 +1,6 @@
 # Clean Stream development on another Mac
 
-The October 26, 2026 handoff preserves the current app and active website source,
+The November 4, 2026 handoff preserves the current app and active website source,
 tests, assets, database migrations, Edge Functions and dependency lockfiles. It is
 a development checkpoint, not a new release or a claim that every check passed.
 Read `AGENTS.md` and the current checkpoint in [operations](operations.md) before
@@ -16,8 +16,8 @@ checkout with uncommitted work.
 ```sh
 mkdir -p "$HOME/CleanStreamProjects"
 cd "$HOME/CleanStreamProjects"
-git clone --branch codex/mac-mini-handoff-20261026 https://github.com/CleanStreamLaundry/CleanStreamLaundryApp.git CleanStreamLaundryApp
-git clone --branch codex/mac-mini-handoff-20261026 https://github.com/CleanStreamLaundry/CleanStreamWeb.git CleanStreamWeb-CortinaQR
+git clone --branch codex/mac-mini-handoff-20261104 https://github.com/CleanStreamLaundry/CleanStreamLaundryApp.git CleanStreamLaundryApp
+git clone --branch codex/mac-mini-handoff-20261104 https://github.com/CleanStreamLaundry/CleanStreamWeb.git CleanStreamWeb-CortinaQR
 ```
 
 The app snapshot starts from `kisi_unlock_feature` and includes the existing
@@ -25,6 +25,29 @@ local work beneath that branch. The website snapshot starts from `CortinaQR`.
 `CleanStreamWeb` on `main` is the older checkout, not the active website.
 Future work should use a working branch from this paired checkpoint. Push that
 branch before switching computers, and pull it before continuing on the other.
+
+## Current destination and remaining setup
+
+On November4, the Mac mini has both sibling repositories under
+`/Users/jamaki604/CleanStreamProjects`, with `activate-cleanstream.sh` selecting
+isolated Clean Stream tools. Flutter3.38.10/Dart3.10.9, Node24.22.2/npm11.19.1,
+CocoaPods1.16.2, JDK21, SDK36 and NDK28.2 are installed. Locked npm/Pub/Pods
+installation passed; Supabase CLI2.76.14 was checksum-verified separately.
+Xcode is26.1 there versus26.2 on the source Mac; native acceptance is still needed.
+The baseline website Auth installer checks and build passed. Its nine test-file
+TypeScript errors were corrected in the November4 handoff; destination type/test
+acceptance is pending.
+
+Owner-authorized iCloud Drive packages are under **Clean Stream / Mac mini
+handoff / Signing-2026-11-04** and **Configuration-2026-11-04**. Verify their
+manifests before restoration. Source copies are verified; the Mac mini currently
+reports an iCloud Drive sync error and has not received them. No Apple Keychain
+identity is in the Android signing package. Xcode account/team setup remains.
+
+The single consolidated queue is [APP_FIX_PRIORITIES.md](../APP_FIX_PRIORITIES.md).
+Branches under `codex/archive-*-20261104` preserve older detached worktree source;
+they are historical snapshots, not newer integrated code. The old October26
+handoff and legacy website remain available. Do not merge archive branches wholesale.
 
 ## Tools
 
@@ -67,6 +90,7 @@ the website's `VITE_*` variables.
 | Path relative to `CleanStreamProjects` | Purpose |
 | --- | --- |
 | `CleanStreamLaundryApp/.env` | Public Supabase and Stripe client configuration |
+| `CleanStreamLaundryApp/config/client/test.defines.json` | Automatic test-payment public settings for both beta channels |
 | `CleanStreamWeb-CortinaQR/.env.local` | Public browser Supabase configuration |
 | `CleanStreamLaundryApp/config/firebase/dev/` | Development Firebase native files and build defines |
 | `CleanStreamLaundryApp/config/firebase/prod/` | Production Firebase files, only for approved production configuration work |
@@ -164,3 +188,17 @@ their own prerequisites and are not needed just to start the mobile or web app.
 Successful local installation, a running app on the chosen simulator/device and
 the website in the browser establish the new Mac's development readiness. This
 handoff was prepared on the source Mac; those destination checks remain to be run.
+
+## Beta payment configuration
+
+Use `node scripts/build_mobile_release.mjs --channel testflight --build-number N`
+or `--channel play-internal --build-number N` for future beta builds. These select
+ignored `config/client/test.defines.json` and development Firebase automatically;
+never substitute a live Stripe key. An explicit production configuration is a
+separate requirement and has not been created. The shared backend currently has
+one Stripe secret, so changing that secret to live would break beta isolation.
+Finish the production-environment work in the consolidated list first.
+
+For Apple, prepare/archive in Xcode and upload through Xcode Organizer as the
+owner requested. Existing build10 is iPhone-only; the source upload failed in
+transport and is not on TestFlight. Google build9 is already on internal testing.

@@ -24,6 +24,7 @@ void main() {
   late Completer<void> verificationStarted;
   Completer<FunctionResponse?>? verification;
   String? status;
+  Object? walletLoadRecorded;
 
   setUp(() async {
     await GetIt.instance.reset();
@@ -31,6 +32,7 @@ void main() {
     sheetResult = <String, dynamic>{};
     initResult = <String, dynamic>{};
     status = 'succeeded';
+    walletLoadRecorded = true;
     verification = null;
     verificationStarted = Completer<void>();
     edge = MockEdgeFunctionService();
@@ -76,7 +78,10 @@ void main() {
     ).thenAnswer((_) {
       if (!verificationStarted.isCompleted) verificationStarted.complete();
       return verification?.future ??
-          Future.value(FunctionResponse(status: 200, data: {'status': status}));
+          Future.value(FunctionResponse(status: 200, data: {
+            'status': status,
+            'walletLoadRecorded': ?walletLoadRecorded,
+          }));
     });
     service = StripeService();
   });
@@ -103,6 +108,7 @@ void main() {
       expect(params['merchantDisplayName'], 'Clean Stream Laundry Solutions');
       expect(params['googlePay']['merchantCountryCode'], 'US');
       expect(params['googlePay']['currencyCode'], 'USD');
+      expect(params['googlePay']['testEnv'], isTrue);
       expect(params['customFlow'], isFalse);
       expect(params['intentConfiguration'], isNull);
       expect(params['appearance']['shapes']['borderRadius'], 20.0);
@@ -123,6 +129,21 @@ void main() {
     },
   );
 
+  for (final mode in ['test', 'live']) {
+    test('wallet Google Pay follows the configured $mode Stripe key', () async {
+      Stripe.publishableKey = 'pk_${mode}_channel_contract_only';
+      expect(
+        await service.makePayment(2.75, purpose: PaymentPurpose.walletLoad),
+        PaymentResult.success,
+      );
+      final call = calls.singleWhere((call) => call.method == 'initPaymentSheet');
+      final params = (call.arguments as Map)['params'] as Map;
+      expect(params['googlePay']['testEnv'], mode == 'test');
+      expect(params['googlePay']['merchantCountryCode'], 'US');
+      expect(params['googlePay']['currencyCode'], 'USD');
+    });
+  }
+
   for (final entry in [
     ('processing', PaymentResult.pending),
     ('failed', PaymentResult.failed),
@@ -136,6 +157,24 @@ void main() {
         expect(await service.makePayment(2.75), entry.$2);
       },
     );
+  }
+
+  for (final receipt in <Object?>[false, null, 'true', 1]) {
+    test('paid wallet waits for a true credit receipt, received $receipt', () async {
+      walletLoadRecorded = receipt;
+      expect(
+        await service.makePayment(2.75, purpose: PaymentPurpose.walletLoad),
+        PaymentResult.pending,
+      );
+      verify(() => edge.runEdgeFunction(
+        name: 'paymentIntent', body: any(named: 'body'),
+      )).called(1);
+      verify(() => edge.runEdgeFunction(
+        name: 'paymentIntentStatus', body: {'paymentIntentId': 'pi_contract'},
+      )).called(1);
+      verifyNoMoreInteractions(edge);
+      expect(calls.where((call) => call.method == 'presentPaymentSheet'), hasLength(1));
+    });
   }
 
   for (final entry in [

@@ -1,8 +1,115 @@
 # Campaign Operations
 
-Updated: 2026-10-26. Working record, not proof that planned features exist.
+Updated: 2026-11-04. Working record, not proof that planned features exist.
 
 ## Current Checkpoint
+
+
+**November4 source handoff and consolidated queue:** Owner requests outstanding
+branches/source saved and pushed for Mac mini, plus one combined remaining-work
+list. [APP_FIX_PRIORITIES](../APP_FIX_PRIORITIES.md#current-work-list) is now the
+current normalized queue; older entries below are dated evidence. Current stage:
+source/configuration handoff, then destination acceptance. No production activation.
+Mac mini tool/dependency installation completed and website Auth installer/build
+passed. Nine whole-site TypeScript errors in tests were corrected in three source
+files; destination retest follows exact published handoff revisions. App runtime
+code is unchanged from the accepted October29 beta-build work.
+
+Signing files and separately approved client/Firebase configuration are copied
+and checksum-verified in the owner's iCloud Drive. Destination reports iCloud Drive
+error, so arrival/restoration is not yet complete. Apple Xcode team authentication
+and native launch remain. Existing dirty files and historical lanes are preserved;
+archive branches are not the current integration baseline.
+
+Latest André email November4 in Lynx case03713828 follows up the obsolete403.
+Existing production Lynx token/host passed physical-reader API checks October19;
+no new access/credential request needed. A concise reply explaining resolved403
+and successful availability is saved unsent in that thread. Production location
+inventory/availability acceptance remains; Lynx readiness does not establish
+Cortina/Stripe live-payment readiness. Fresh local code review confirms one shared
+STRIPE_SECRET_KEY across paymentIntent/stripeWebhook/Cortina; production environment
+isolation must preserve the owner's always-test beta channels. Latest hosted
+production settings are still dated October29; connector access was insufficient
+for a fresh hosted recheck November4. Do not claim those settings were changed.
+
+**October 29 beta distribution and approved store artwork:** Owner requires
+TestFlight and Google internal testing to keep test payments, including future
+builds. Public production activation remains deferred. Five original Canva designs
+are committed; both stores now have all five approved phone screenshots in order,
+Google feature graphic/icon, Apple product header and search artwork. PNG exports
+match1080x1920,1206x2622,1024x500,3840x1646 and3840x2560; listing description is saved
+as a draft in both consoles. Screens inside the designs are real Flutter widget
+fixtures with sample data, not physical-device acceptance. Evidence and exports:
+workspace `.campaign-work/store-readiness-20261029/`.
+
+Implementation stage complete: tracked `build_mobile_release.mjs` beta presets now
+select ignored `config/client/test.defines.json` automatically; explicit production
+JSON is separate. DI consumes selected compile-time public settings through the
+existing dotenv map; normal local development retains `.env`.20 wrapper and18
+real-dotenv/DI tests pass. Google Pay follows the Stripe key mode in both sheets;
+81 focused tests pass. Wallet top-up stays pending without an explicit credited
+receipt;58 focused tests pass, no new money write/retry. Scope analysis has no
+errors/warnings. Source frozen. Google signed build9 passes signature, package,
+version and compiled public test-setting verification; it is **available to internal
+testers**, released October29 15:29. Owner-only internal track remains unchanged:
+https://play.google.com/apps/internaltest/4700969703506028817 .
+
+Final iOS9 archive/signature/test configuration passed, but Xcode upload was stopped
+after303seconds of repeated connection loss (NSURLErrorDomain-1005) and multipart
+checksum mismatch. This repeats build8's transport failure; neither is a completed
+TestFlight upload. Signed IPA/archive retained. Official Transporter installation
+was attempted, but Mac App Store's download confirmation sheet remained blank;
+no alternate uploader is installed. Do not repeat unchanged failing transfers.
+Apple's internal group contains the existing owner account, automatic Xcode build
+distribution and saved beta test instructions. Owner accepted the active agreement
+step October29. No public review or production release was submitted.
+
+**Owner device-scope change October29:** Apple release is iPhone-only. Project
+Debug/Release/Profile use device family1; obsolete iPad orientation override removed.
+No Watch target exists. App Store iPad/Watch artwork slots are empty; its generic
+upload tabs are not included platform support. iOS build10 archive succeeded231.2s,
+strict signature check passed, actual archive and exported IPA device family=[1],
+no Watch directory/iPad orientation override. Compiled public client settings match
+the automatic test configuration; Stripe test/Firebase dev/channel checks pass.
+Signed internal-only export succeeded63.0s and is ready at
+`builds/clean-stream-1.0.0-10.ipa` under the evidence directory. Build10 supersedes9
+and is not uploaded. At owner direction, opened build10 in Xcode Organizer and
+used Distribute App > TestFlight Internal Only. It repeatedly failed at Sending
+analysis to App Store Connect with connection loss and checksum mismatch. Canceled
+the retry loop; archive remains selected in Organizer. Evidence:
+`builds/ios-organizer-upload10.json` and `xcode-organizer-upload10.png`.
+Apple may still offer iPhone
+compatibility mode on iPad; no false hardware capability was added.
+Android scope is unchanged.
+
+**Approved search-artwork revision:** Same Canva file DAHZZuUqlxw, version6,
+composition uniformly enlarged to150% and outside padding reduced. Actual3840x2560
+export replaced Apple search placement, verified in the store's search preview,
+and owner approved “much better.” Receipt/proof: artwork-upload-receipt.json and
+apple-search-tightened-preview.png in the evidence directory. Ten unused Chrome
+tabs closed at owner request; only Apple listing/TestFlight and Google listing/
+internal release remain.
+
+Public review is not ready: reviewer account/QR/hardware video and store-installed
+flow checks, remaining privacy/content declarations and production payment setup
+remain. Read-only audit found two deployed payment-status handlers lagging reviewed
+local code and website App Links missing the Play signing SHA256. Coordinated
+release corrections remain; no hosted payment mode, secret or deployment changed.
+See `.campaign-work/store-readiness-20261029/production-audit/READINESS.md`.
+
+**Provider answer found, superseding the missing-confirmation claim below:**
+Ali Naaji's October20 6:55AM full message in Cortina case03401910 directly answers
+our production HTTP Basic and Sale/Void/SaleEnd callback-base question. He confirms
+the production URL/callbacks are configured and says the username/password should
+be the same for test and production because configuration is at payment-method
+level. The October26 duplicate request remains unsent and should not be sent as
+written. No additional credential request is presently needed. Last local check
+still had the production secret fields absent; securely configuring the existing
+confirmed pair and verifying authentication/routing remain, without activating
+payments. André Lunardi's October29 reply in Lynx case03713828 addresses the old
+October19 GET403 escalation; later successful API checks supersede that issue.
+No mail, secret, payment mode or deployment changed during this check. Evidence:
+workspace `.campaign-work/store-readiness-20261029/`.
 
 **October 26 Mac mini handoff:** Owner requested the local work be saved in the
 repositories for development on another Mac. The handoff source, templates and
@@ -40,9 +147,17 @@ saved. Google listing copy/privacy URL and internal-release notes are saved draf
 Android1.0.0(8) is signed, accepted and **available to internal testers**.
 The internal track contains only jacob@cleanstreamlaundry.com initially; opt-in:
 https://play.google.com/apps/internaltest/4700969703506028817 .
-No public store release/review submission. iOS archive is currently compiling
-after the owner signed the Clean Stream account into Xcode; first attempt failed
-for the missing Xcode account/profile capabilities and is preserved separately.
+No public store release/review submission. iOS archive succeeds after owner
+Xcode sign-in (209.1s, team3843FZGZ7T, SDK26.2, build8); deep/strict signature
+verification passes with local keychain access. No protected file changed. First
+attempt's missing-account/profile failure is preserved separately. Existing
+cloud-managed distribution signing produced a44.8MB internal-only IPA. Xcode's
+upload was deliberately canceled after over1,000 retries on the same Apple
+object-storage transfer, NSURLErrorDomain-1005, four parts still remaining.
+App Store Connect still shows only expired builds1–7 and no completed8 upload.
+This is an upload connection blocker, not a compile/signing failure. Preserve
+`clean-stream-1.0.0-8.ipa` and the archive; retry upload after transport/network
+recovery, without rebuilding unchanged source or claiming TestFlight is updated.
 
 Implementation/setup is complete for the narrow beta correction: StartPage keeps
 the existing laundry controls and defaults unfinished mock door access off. Its
@@ -52,13 +167,32 @@ are inspected. One earlier render-harness wait was stopped and corrected by usin
 the existing real-clock capture pattern; it was not an app failure or passing run.
 Signed Android build passes (216.4s); Google accepts build8 / targetAPI36,
 with mapping and native debug symbols. All packaged64-bit ELF LOAD alignments
-meet16KB; this is not physical-device/RELRO acceptance. Current stage is iOS
-archive/upload and store asset preparation, serialized with browser work.
+meet16KB; this is not physical-device/RELRO acceptance. Google's downloaded, signed universal APK verifies; its Play certificate SHA-1
+is C2:6A:4E:63:46:DE:F5:C7:BC:C6:29:77:E8:37:D9:CC:DA:2D:C1:BD. This differs
+from both local development and upload keys. Owner approved creation of the
+separate restricted OAuth client **Clean Stream Android Play signing** in
+`clean-stream-laundry`; client
+`444847125705-neehvvsrs6tlktoq41a2nqmvpohqf7n1.apps.googleusercontent.com` is
+confirmed created. Existing clients, backend OAuth settings and scopes remain.
+Actual Play-installed Google sign-in is still a device acceptance check.
+Current stage: beta handoff with iOS upload blocked; public release remains gated.
 New Android upload signing material is owner-only and ignored; preserve its private
-backup. Store assets, review access, disclosures and final device acceptance remain.
+backup. Five-screen store presentation is open locally: Home availability,
+Start, payment review, Wallet and Support. Each opens a full-size app render;
+names, balances, prices and availability are labeled sample data. Four fixture
+render cases pass and the fixture analyzes cleanly; the accepted Start render is
+reused. Home's real-clock map wait and per-case shadow restoration corrected
+render-harness failures, with no runtime changes. This is owner presentation
+review, not final store screenshots/device acceptance. Final iPhone captures,
+store icon/feature graphic, verified
+review-account access, privacy/content declarations, production payment/provider
+configuration, loyalty-rule confirmation and final device acceptance remain.
+Apple membership currently remains Individual (Jacob King); Google is the LLC.
+The loopback preview serves only its HTML and five safe images, no secrets.
+Preview process session6555, URL http://127.0.0.1:49993 .
 Evidence: workspace `.campaign-work/store-release-20261026/`.
 
-**Nayax October22 response:** Shachar confirms the endpoint and resupplies a note
+**Nayax October22 response (October29 correction above takes precedence):** Shachar confirms the endpoint and resupplies a note
 containing Token and Token ID. Owner authorized secure retrieval and also saved it
 in Notes. October26 digest comparison proves that token already matches both stored
 Start tokens; both production callback pair fields remain absent. No secret or

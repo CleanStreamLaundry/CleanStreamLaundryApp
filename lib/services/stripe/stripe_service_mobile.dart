@@ -66,14 +66,15 @@ class StripeService implements PaymentService {
           ),
           // Commented out for testing until we get a merchant id from Apple Developer
           //applePay: const PaymentSheetApplePay(merchantCountryCode: 'US'),
-          googlePay: const PaymentSheetGooglePay(
+          googlePay: PaymentSheetGooglePay(
             merchantCountryCode: 'US',
             currencyCode: 'USD',
+            testEnv: Stripe.publishableKey.startsWith('pk_test_'),
           ),
         ),
       );
       await _stripeInstance.presentPaymentSheet();
-      return await verifyPaymentIntent(paymentIntent.paymentIntentId);
+      return await verifyPaymentIntent(paymentIntent.paymentIntentId, purpose: purpose);
     } on StripeException catch (e) {
       debugPrint(
         "Stripe PaymentSheet error: "
@@ -85,6 +86,7 @@ class StripeService implements PaymentService {
         if (paymentIntent != null) {
           final verifiedResult = await verifyPaymentIntent(
             paymentIntent.paymentIntentId,
+            purpose: purpose,
           );
           if (verifiedResult == PaymentResult.success ||
               verifiedResult == PaymentResult.pending) {
@@ -94,13 +96,13 @@ class StripeService implements PaymentService {
         return PaymentResult.canceled;
       }
       if (paymentIntent != null) {
-        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId, purpose: purpose);
       }
       rethrow;
     } catch (e) {
       debugPrint("payment error: $e");
       if (paymentIntent != null) {
-        return await verifyPaymentIntent(paymentIntent.paymentIntentId);
+        return await verifyPaymentIntent(paymentIntent.paymentIntentId, purpose: purpose);
       }
       rethrow;
     } finally {
@@ -149,7 +151,10 @@ class StripeService implements PaymentService {
   }
 
   @protected
-  Future<PaymentResult> verifyPaymentIntent(String paymentIntentId) async {
+  Future<PaymentResult> verifyPaymentIntent(
+    String paymentIntentId, {
+    PaymentPurpose purpose = PaymentPurpose.directMachinePayment,
+  }) async {
     try {
       final response = await edgeFunctionService.runEdgeFunction(
         name: 'paymentIntentStatus',
@@ -159,6 +164,11 @@ class StripeService implements PaymentService {
 
       switch (data == null ? null : data['status']) {
         case 'succeeded':
+          // A paid intent alone does not confirm its wallet credit.
+          if (purpose == PaymentPurpose.walletLoad &&
+              data['walletLoadRecorded'] != true) {
+            return PaymentResult.pending;
+          }
           return PaymentResult.success;
         case 'processing':
           return PaymentResult.pending;

@@ -66,6 +66,7 @@ doc/api/
 /application.backup
 /config/firebase/dev/
 /config/firebase/prod/
+/config/client/*.defines.json
 *.jks
 *.keystore
 *.p12

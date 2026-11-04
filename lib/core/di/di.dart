@@ -1,4 +1,5 @@
 import 'package:clean_stream_laundry_app/core/storage/cortina_pending_store.dart';
+import 'package:clean_stream_laundry_app/core/config/client_configuration.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get_it/get_it.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -60,7 +61,7 @@ MfaVerificationClient createMfaVerificationClient({
 );
 
 Future<void> setupDependencies() async {
-  await dotenv.load(fileName: '.env');
+  await initializeClientConfiguration();
 
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,

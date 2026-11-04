@@ -153,6 +153,16 @@ The callback functions use `verify_jwt = false` because Nayax cannot provide a S
 
 ### Production credential configuration gate
 
+October29 correction: full-thread review found Ali Naaji's October20 6:55AM
+answer in case03401910 to our exact production HTTP Basic and callback-base
+question. He confirms the URL and callbacks are configured for production and
+says test/production username and password should be the same because they are
+configured at payment-method level. This answers the provider clarification;
+do not send the duplicate October26 draft as written. Production secret fields
+were still absent at the last local check. Configure the confirmed existing pair
+securely and verify authentication/routing before any separately authorized
+production payment activation. No secrets or modes changed in this email review.
+
 October26 update: Shachar's October22 reply confirms the endpoint and supplies
 a secure note with `Token` and `Token ID`. With the owner's explicit approval,
 the open note was saved privately. Read-only digest comparison confirms that
@@ -168,9 +178,11 @@ project (October 19 source/byte readback verified). This is not production launc
    succeeded October19 at21:48:36UTC. Both adapters contain the tested Basic and
    Pulse settlement compatibility fixes. Historical unknown sessions remain
    support-review; never retry their Start or infer refunds from a timeout.
-2. Obtain/confirm the production operator's exact HTTP Basic pair and callback base
+2. **Provider confirmation received October20, verified October29:** the existing
+   HTTP Basic pair applies and callbacks are configured for the production base
    `https://dnuuhupoxjtwqzaqylvb.supabase.co/functions/v1/nayax-sale-end` with its
-   three routes above. Cortina support/Maxim's cover handles this, not Lynx/Yael.
+   three routes above. Local configuration and authentication/routing verification
+   remain; no new Lynx/Yael request is needed.
 3. Install both production secret fields together through the approved secret
    manager/CLI, never a client bundle, email body or committed file. Verify
    digests without exposing values; test missing/wrong/partial credentials and

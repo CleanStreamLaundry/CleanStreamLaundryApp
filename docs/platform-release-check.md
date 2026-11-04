@@ -92,3 +92,62 @@ hook with inert Ruby objects (no CocoaPods/SDK), including all plugin build
 configurations, repeated application, preserved flags and untouched other pods. They
 do not inspect a merged binary, certify privacy completeness, invoke an SDK or
 copy environment assets. No dependencies, runtime features or policy copy added.
+
+## Test and production build channels
+
+Use the tracked build entrypoint for future store candidates (Node 24). TestFlight
+and Play internal are always test-payment presets, including release builds:
+
+```sh
+npm run build:testflight -- --build-number 9 --check
+npm run build:play-internal -- --build-number 9 --check
+```
+
+Replace 9 with the next unused store build number. `--check` validates configuration
+and prints the public build commands without running Flutter or Xcode. Remove
+`--check` only when the native build is authorized. Set `FLUTTER_BIN` to the pinned
+Flutter executable and retain the existing `PUB_CACHE`/Android `JAVA_HOME` setup.
+The wrapper retains the verified Flutter heap setting, serial Android resource
+flags, arm64 target, and iOS config-then-signed-archive sequence. App version comes
+from `pubspec.yaml`; iOS archives go to `build/ios/archive/`. Export/upload and
+store-track selection remain separate operations.
+
+Both beta commands automatically select the ignored
+`config/client/test.defines.json`, containing only `SUPABASE_URL`, `ANON_KEY` and
+`STRIPE_PUBLISHABLE_KEY`. It must use the existing development Supabase host, a
+public Supabase key and a `pk_test_` Stripe key; Firebase `dev` is selected
+alongside it. This saved beta configuration was seeded from the current public
+local settings. Copy it securely when setting up another development machine;
+missing configuration fails before building. The wrapper never rewrites `.env`
+and does not use its values for store builds. Conflicting `PAYMENT_ENV`,
+`STRIPE_ENV` or `CORTINA_ENV` shell values fail validation. Keys are not printed.
+
+The wrapper passes the selected file through `--dart-define-from-file` and sets
+`CLIENT_CHANNEL`. Startup requires all three public values with the matching
+Stripe mode and beta backend, then initializes the existing dotenv map from those
+values without reading `.env`. All existing clients therefore share the selected
+backend. Ordinary local Flutter runs without any client defines retain the
+original `.env` loader. Partial explicit defines fail instead of falling back.
+The `.env` asset remains bundled for compatibility and must still contain only
+public configuration; its presence is no longer evidence of the active settings
+in an explicitly configured store build.
+
+Production is explicit: use `build:production-ios` or `build:production-android`
+with `--build-number NUMBER --production-config /absolute/path/release.json`.
+That public JSON must contain `paymentEnvironment: "live"`, `supabaseUrl` set
+to the deliberately selected production backend URL, and the three public fields
+`SUPABASE_URL`, `ANON_KEY`, `STRIPE_PUBLISHABLE_KEY`. `SUPABASE_URL` must match
+`supabaseUrl`, the Stripe key must start with `pk_live_`, and Firebase `prod`
+defines must be configured. Store the file as ignored
+`config/client/production.defines.json` and pass its absolute path explicitly.
+Production settings are not seeded or activated by beta setup.
+Missing/mismatched setup fails before a native build starts.
+Do not put privileged credentials in this JSON or the bundled `.env`.
+
+These are local build guards, not verification or activation of hosted payment
+secrets, machine modes, callbacks or provider routing. Server configuration must
+remain compatible with the chosen channel; a store track cannot automatically
+switch the backend. Do not promote a test artifact to public production: build a
+separate production candidate after its existing release gates are satisfied.
+Direct Flutter/Xcode commands bypass the wrapper. Previously built artifacts
+are unchanged. Focused synthetic validation: `npm run test:release-channels`.

@@ -1,6 +1,6 @@
 # Mobile Store Data-Disclosure Inventory (Draft)
 
-Updated 2026-10-01 for iOS/Android release documentation. Source and vendor-documentation inventory: not approved policy, completed store forms, device/binary acceptance or store readiness. SDK documentation and installed iOS manifests were inspected in stage 3; no new build, device session or provider mutation was performed for this inventory.
+Updated 2026-10-26 for store preparation, including the October5 approved lifecycle release. Source and vendor-documentation inventory: not approved policy, completed store forms, device/binary acceptance or store readiness. SDK documentation and installed iOS manifests were inspected in stage 3; no new build, device session or provider mutation was performed for this inventory.
 
 Scope: active mobile source and its backend; companion website only for relevant support/deletion context. Existing dirty source is input, not a claim that every implementation is deployed. This closes the missing **draft data-flow/category inventory**, not the privacy/store release gate in [platform preflight](../docs/platform-release-check.md#L58).
 
@@ -82,19 +82,32 @@ requirements in the final lifecycle contract. [Firebase retention](https://fireb
 
 ## Retention and Deletion Status
 
-[retention.md](../docs/retention.md#L1) is an **unapproved proposal**, not an effective schedule. Do not copy its periods into store/policy answers as implemented guarantees. Draft-supported permanent-cleanup source is integrated but unapplied and not accepted; financial/provider disposition remains incomplete. Server lifecycle/deletion-request and restoration RPCs do not prove full account/data deletion. Financial history, attachments, tokens, logs, backups and provider copies need approved disposition and verified implementation.
+[Retention](retention.md) records the owner-approved October5 policy and confirmed
+hosted implementation: policy `2026-10-05.2`, 90-day recovery, authenticated
+per-action deletion consent, published Terms/Privacy/Account Deletion pages and
+enabled daily cleanup. Historical local-only/unapproved statements in this
+inventory are superseded. Approval must not be requested again as though missing.
 
-[Email reference](../docs/email.md#L3) records new transactional delivery enabled on October1, with no backfill; newsletters still require the actual postal address. [Companion deletion draft](../../CleanStreamWeb-CortinaQR/src/components/AccountDeletionPage.tsx#L28) leaves post-deadline retention/balance treatment unresolved. Website publication is recorded in operations; functional deletion-path acceptance remains separate. No new rights, retention promises or policy language are established by this inventory.
+The recorded release did not permanently delete a customer account or establish
+complete provider erasure. Per-record holds, retained financial references,
+processor copies and backups still require their documented verification. Store
+answers must distinguish an implemented deletion request/recovery path from proven
+completion of every external cleanup operation. No blanket 90-day erasure promise.
+
+The current public policy is `https://cleanstreamlaundry.com/privacy`; the linked
+public deletion resource is `https://cleanstreamlaundry.com/account-deletion`.
+Both are existing published resources. [Email](email.md) records enabled
+transactional delivery; no new newsletter campaign was enabled in this release work.
 
 ## Remaining Store-Form Decisions
 
 | Owner | Blocking input / deferred decision |
 | --- | --- |
-| Privacy/store owner | Select final per-platform categories, required/optional answers, linkage and purposes for the actual release; assess narrow optional-disclosure exceptions, not blanket omission of optional features. Approve policy URLs/copy and reconcile mobile/companion scope. |
+| Privacy/store owner | Select final per-platform categories, required/optional answers, linkage and purposes for the actual release; assess narrow optional-disclosure exceptions, not blanket omission of optional features. Use the existing approved published policy and reconcile mobile/companion scope; final store classifications still need review. |
 | Mobile/SDK owner | Reconcile the vendor/manifest facts above with the actual signed iOS and resolved Android releases, consent behavior and OAuth scopes. Resolve final diagnostic/location/linkage categories; do not defer obtainable public SDK facts as user input. Binary/device verification remains. |
 | Payments/provider owner | Confirm Stripe billing/fraud fields and retention; Nayax retained identifiers and use; Google Pay scope. Supply processor/controller and onward-use facts for sharing/tracking answers. Do not treat wallet bookkeeping as raw card processing. |
-| Backend/account owner | Identify deployed versus local flows and actual data/log/storage/backup retention; implement approved permanent cleanup and processor disposition. Confirm account request, restoration and public deletion paths when verification is authorized. |
-| Business/privacy owner | Approve retention, financial-record exceptions and remaining-balance policy; settle processor terms and marketing purposes. This draft supplies no legal approval. |
+| Backend/account owner | Identify deployed versus local flows and actual data/log/storage/backup retention; verify the deployed cleanup path and remaining processor disposition. Confirm account request, restoration and public deletion paths when verification is authorized. |
+| Business/privacy owner | Retain the already approved October5 retention/balance policy; settle any remaining processor terms and marketing-purpose classification. Business approval is not proof of legal compliance or provider erasure. |
 | Communications owner | Confirm actual delivery configuration at release, approved newsletter/campaign purposes and Resend retention/suppression handling. Transactional delivery is enabled; newsletters require the postal address. Include manual support mailbox processing. |
 | Release/composer owner | Integrate this draft, assign unresolved answers and defer formal store/provider/security declarations, including encryption-in-transit and tracking/sharing assertions, until supporting evidence is authorized and available. |
 

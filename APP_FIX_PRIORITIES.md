@@ -1,8 +1,85 @@
 # App and Website Fix Priorities
 
-User return-to list for the approved minimal-change campaign. This is not an agent instruction file or automatic work queue. Status, owners, evidence, and blockers live in [operations](docs/operations.md), including the [current remaining work](docs/operations.md#remaining-work); implementation rules live in [AGENTS.md](AGENTS.md).
+Updated **November 4, 2026**. This is the single current list of remaining Clean
+Stream app, website, payment and release work. It consolidates the project chats;
+it does not authorize live charges, production deployments or public releases.
+The dated material below is historical evidence, not a second active queue.
+Implementation instructions remain in [AGENTS.md](AGENTS.md); the current work
+checkpoint and receipts remain in [operations](docs/operations.md).
 
-## Current Work Order
+## Current work list
+
+Work from top to bottom within each priority. **Ready** means agent-actionable;
+**Verify** means implementation exists but the stated acceptance is outstanding;
+**Input** identifies a concrete prerequisite; **Deferred** is intentionally later.
+A passing old test is not a fresh hosted-state check.
+
+| ID / priority | Status | Remaining work / finish condition | Dependency / evidence |
+| --- | --- | --- | --- |
+| M1 / P0 | In progress | Publish current app/web source and preserve outstanding branch/lane work; Mac mini fetches exact published revisions. | November 4 handoff; historical lane branches are archives, not the active integration base. See [Mac setup](docs/mac-development.md). |
+| M2 / P0 | In progress | Mac mini retrieves signing and approved client/Firebase configuration from iCloud, verifies checksums and launches each project. | Owner approved both transfers November 4. Toolchain and locked dependencies installed. iCloud destination arrival and Apple Xcode account/team remain to verify. TestFlight and Play internal stay on test payments. |
+| M3 / P0 | Verify | Confirm whole-site TypeScript and the three affected test files pass on Mac mini. | Nine baseline TypeScript errors found November 4; source corrected in three test files. Original Auth-patch suite and website build passed there. No runtime behavior changed. |
+| L1 / P0 | Verify | Validate Lynx device inventory, location/machine mappings, availability recovery/offline behavior and freshness for each actual production reader. | Existing **production Lynx** token/host and reader0568 GETs returned200 October19; Samsung1→0 on INHIBIT/Refresh confirmed. Provider resumed/backend idle verified; returned app count, offline/recovery and physical site cycle remain unverified. No new permission email or QA token required. Reader0748 was offline/unassigned. |
+| P1 / P0 | Ready | Establish isolated production payment/backend configuration while preserving test payments in all future TestFlight/Play-internal builds. | Mobile beta presets select test keys/dev services. Backend paymentIntent, stripeWebhook and shared Cortina code currently use one STRIPE_SECRET_KEY; swapping it to live would break beta isolation. Prefer a separate production backend, or explicitly implement and verify authoritative server isolation before live use. No production client config currently exists. |
+| P2 / P0 | Ready | Configure the confirmed production Cortina HTTP Basic pair securely, then verify authentication and callback routing with non-vending malformed-body probes. | Ali's October20 reply confirms same pair at payment-method level and the existing callback URL. Separate Start token already matched October22 note. Last October29 check: production callback fields absent. A different production backend URL requires Nayax to register that new URL. Do not send the obsolete credential-question draft. |
+| P3 / P0 | Verify | Verify Clean Stream live Stripe account requirements/payouts, matching live server/client keys, correct live webhook destination/events/signature/deduplication and settlement/refund behavior. | Existing sandbox Stripe flow works; live account/configuration was not freshly accepted November4. Keys stay server-side where privileged. Production setup cannot change beta test payments. |
+| P4 / P0 | Ready | Coordinate deployment and hosted acceptance of reviewed payment status/ownership guards. | October29 audit found paymentIntentStatus v59 and checkPaymentResult v71 behind reviewed local source. Refresh hosted inventory before an approved deployment; do not blanket-push migrations or claim existing hosted parity. |
+| P5 / P0 | Input + Verify | Configure actual washer/dryer terminal/UniQR/location/price/product/pulse mappings; complete site acceptance for payment, cancellation, timeout, duplicate and refund paths. | Only sandbox washer1/reader0568 is established; owner selected existing $8/code1 option. Dryer needs all six amount/time/product mappings. Physical/funded actions require a coordinated test; no replay or compensation of unknown prior attempts. SaleEnd proves provider transaction completion, not physical cycle start. |
+| R1 / P0 | Ready | Upload the iPhone-only test-payment build through **Xcode Organizer** on Mac mini and verify TestFlight processing/availability. | Signed1.0.0(10) archive/export passed October29; upload repeatedly failed connection/checksum transport on source Mac. Google1.0.0(9) is available on internal track. Rebuild/archive via Xcode as needed with a new build number; no CLI-only substitute for owner's requested upload workflow. |
+| R2 / P0 | Verify | Run store-installed iPhone/Android acceptance: sign-in, QR/app links, test card/wallet flow, pending/cancel states, availability Refresh and account deletion entry point. | Use test payments on both beta channels. Reuse existing passing source/native evidence; real-store installation is a distinct remaining check. Owner/device participation needed for physical interactions. |
+| R3 / P0 | Ready | Add verified Google Play App Signing SHA256 to hosted Android association data and accept installed Play link behavior. | October29 audit found production assetlinks missing Play certificate. Debug Samsung verification does not prove Play signing association. Keep existing verified certificates. |
+| R4 / P0 | Ready + Input | Finish privacy/content declarations and reviewer access: usable review account, machine QR/instructions and hardware demo video; verify public support/privacy/deletion links and final signed binary disclosures. | Artwork and descriptions already saved in both store drafts. Apple is iPhone-only; no Watch target. Five approved branded designs are complete. Submit only after these gates and production behavior are coherent; store approval is external. |
+| A1 / P1 | Verify | Complete successful native Apple/Google sign-in, MFA/recovery/expired-session and final password-reset acceptance in the delivered builds. | Native Google chooser/cancellation and recovery-code entry passed; full token exchange/final password submission remain distinct. Apple capability/provisioning/allowed audience/private relay sender and APNs must be checked on the actual Clean Stream team, not inferred from code. |
+| A2 / P1 | Verify | Verify hosted Owner/Manager/Maintenance authorization, scoped private attachments, machine remedies and resolution-email delivery. | October5 role/privacy/remedy code and backend were published; local coverage exists. Current privileged hosted flows still need acceptance. Do not remove staff security based on the older portal mockup request. |
+| A3 / P1 | Verify | Verify actual hosted90-day lifecycle, Auth/Storage erasure and retained financial/audit records with approved QA data. | October5 legal/consent publication and daily cleanup installation supersede old30-day/inactive-cleanup claims. A configured worker is not proof of completed erasure. No customer deletion is authorized by this list. |
+| E1 / P1 | Ready | Rewrite the account welcome content requested by owner and replace misleading newsletter wording with rare informational-update language without silently changing consent. | Prioritize app fixes chat says rejected short welcome text remains. Transactional notices work; promotional campaigns and mailing-address requests remain out of scope. |
+| E2 / P1 | Input | Complete hosted signed bounce/complaint suppression acceptance using the previously proposed two nonprivileged zero-balance QA test recipients. | Y17 explicit test-account approval remains; do not resend customer mail or start marketing. Local mail and duplicate-event checks already pass. |
+| B1 / P1 | Ready | Reconcile requested10% reward/$5-earned payout rule against implemented $5-per-$20-loaded arithmetic; document exact accepted rule before changing money behavior. | Reward arithmetic was explicitly excluded from October5 publication. A legal draft does not establish implementation. Preserve earned balances and historical records. |
+| F1 / P1 | Ready | Finish combined Stripe + direct Nayax reporting using populated direct-reader examples, stable IDs, corrections/refunds/fees and backfill. | Three observed Nayax sales already match app-funded sessions, so they are not new collections. Separate Stripe wallet funding from later spend; correlate before summing. Owner accepts combining the two reporting sources. |
+| F2 / P1 | Ready | Reconcile historical support-required/unknown vend sessions from provider, Stripe, wallet and callback evidence; record supported outcome per session. | Four historical cases were listed. Missing Last Sales and absent callbacks alone cannot justify repeat Start/refund. Preserve existing unknown records until evidence resolves them. |
+| N1 / P1 | Verify | Finish signed-device push registration/token cleanup/delivery/signed-out routing and genuine iPhone offline release controls. | SDK consent/cache and QA in-app-message checks already passed. Cached iOS policy is not network-isolated physical-device proof. APNs/team access and a device are prerequisites. |
+| O1 / P1 | Input | Approve or explicitly defer bounded development new-payment pause/reject/restore rehearsal and record rollback/incident readiness. | Y15 remains. Existing fix is deployed; rehearsal must leave callbacks/settlement unchanged and must not create charges/refunds/vends. |
+| O2 / P1 | Verify | Finish relevant accessibility/performance and hosted CI/release-binary checks; resolve specific failures only. | Reuse accepted dependency, theme, router, concurrency and native tests. New blanket upgrades or whole-project re-audits are not required. |
+| W1 / P2 | Ready + Input | Recover accepted website preview, integrate it into active web repo, remove preview notices and align approved legal copy; verify routes/mobile/zoom. | Redesign Clean Stream website chat remains local-only/unpublished. Its named .campaign-work/website-brand-preview-20261003 directory was not found on this source Mac November4; locate original preview before recreating. Preserve /pay, account and admin flows. |
+| W2 / P2 | Input | Confirm real location info/photos and contact-form versus direct-link choice/monitored inbox before redesigned-site publication. | Keep download claims truthful until apps are available. Contact form needs delivery/validation/spam handling if selected. Owner publication/copy approval remains separate. |
+| O3 / P2 | Input | Confirm business go-live setup: Vercel commercial-plan requirement/activation and Google branding/support-email eligibility, if still pending in the current consoles. | Earlier owner assignments Y10/Y13; do not create a replacement account or activate billing from this list. Apple agreements were accepted and Android signing/OAuth/store records now exist. |
+| D1 / Later | Deferred | Kisi native phone-to-reader tap integration, SDK partner access and hardware acceptance. **No in-app unlock button.** | Sandbox/26 tests and eight-scenario demo committed on kisi_unlock_feature. Reader/controller and SDK partner ID prerequisite; sandbox does not prove NFC/Bluetooth/door operation. Owner deferred this from release work. |
+| D2 / Later | Deferred | Per-location finances, payout splitting/Connect and cross-location loyalty allocation. | Owner explicitly said to ignore location finances for now. This is not a current production API question or release blocker. |
+| X1 / Separate business task | Input | Confirm Nayax remaining-reader invoice/credit, and Grimco delivery/help/clearance/PC readiness in their own business chats. | Reviewed for completeness, not app-release work. Device-price chat could not verify unused credit/tax/shipping. Grimco reply was sent in its chat; supplier follow-up and physical readiness remained. |
+
+## Resolved items that should not be reopened as blockers
+
+- Production Lynx permission/token access and reader0568 lookup: successful October19.
+- Cortina authentication contract: HTTP Basic, same test/production pair confirmed by Ali October20. Installing/verifying production values remains P2.
+- $4/code3 bench rejection: sandbox mapping corrected to the owner's $8/code1 choice; later authenticated sandbox Sale/SaleEnd succeeded.
+- Apple/Google store creation, Android upload key and Play OAuth client: established; destination restoration and final acceptance are separate.
+- Approved five-design artwork and store descriptions: uploaded/saved. Apple search padding was approved; no additional Canva duplicates needed.
+- Automatic test-payment build presets: implemented/checked. Server production isolation remains P1.
+- Published October5 policies,90-day recovery and cleanup installation supersede older draft/30-day/dormant status. Actual erasure remains A3.
+- Home/Wallet refresh, no Supabase Realtime, navigation/splash/layout work and compatible dependency batches have accepted evidence; retain only specific remaining acceptance above.
+
+## Review coverage and evidence boundary
+
+Reviewed latest relevant messages and prior final handoffs in **Find Nayax machine
+availability API**, **Integrate Cortina QR payments**, **Prioritize app fixes**,
+**Redesign Clean Stream website**, **Build Kisi API documentation**, **Check Mac
+mini dev setup**, **Set up dev environment**, **Review admin portal UI**, and
+**Clean branches and merge into dev**. Also checked archived home/wallet/settings,
+nav overflow, dependency, Stripe, Apple sign-in, store-blocker, Supabase/DNS and
+work-log chats, plus the device-balance and Grimco business chats. Their older
+claims were reconciled against later operations/code/provider evidence, not
+copied as fresh blockers. Archived UI branches do not override current accepted
+source. November4 email from André follows up the resolved403; a polite response
+is saved in the existing Lynx thread, **unsent** for owner review.
+
+November4 work includes fresh local source/branch inspection and destination
+installation checks. Hosted payment/service state remains dated to its named
+receipt unless reverified. This checklist is not a claim that production is live.
+
+<details>
+<summary>Historical scope and receipts through October19 (superseded by the current list above)</summary>
+
+
 
 ### October 19 Nayax implementation and verification
 
@@ -650,3 +727,5 @@ Retain the website review below as the detailed checklist; it shares auth, payme
 ## Shared Boundary
 
 This is a combined app and website campaign. Shared backend changes live in the app repository and have one Backend owner. The website owns browser checkout/admin/public pages and association files; Flutter owns mobile UX. Preserve existing local work and use explicit deployment gates rather than publishing the entire dirty workspace.
+
+</details>

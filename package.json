@@ -23,7 +23,12 @@
     "kisi:demo": "node scripts/kisi/demo.ts",
     "test:kisi": "node --test scripts/kisi/kisi.test.ts",
     "supabase:update-functions": "node scripts/update-functions.cjs",
-    "test:coverage": "deno test --reload --coverage=coverage_deno supabase/functions"
+    "test:coverage": "deno test --reload --coverage=coverage_deno supabase/functions",
+    "build:testflight": "node scripts/build_mobile_release.mjs --channel testflight",
+    "build:play-internal": "node scripts/build_mobile_release.mjs --channel play-internal",
+    "build:production-ios": "node scripts/build_mobile_release.mjs --channel production-ios",
+    "build:production-android": "node scripts/build_mobile_release.mjs --channel production-android",
+    "test:release-channels": "node --test scripts/build_mobile_release.test.mjs"
   },
   "dependencies": {
     "supabase": "^2.76.14"
