@@ -55,8 +55,9 @@ export function webhookHandler(
         data.to.length !== 1 || typeof data.to[0] !== "string" ||
         !data.to[0] || data.to[0].length > 320 ||
         (outboxId != null &&
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-            .test(outboxId))
+          (typeof outboxId !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+              .test(outboxId)))
       ) {
         return json({ error: "event_invalid" }, 400);
       }

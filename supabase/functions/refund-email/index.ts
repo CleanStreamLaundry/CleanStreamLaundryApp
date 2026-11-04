@@ -1,85 +1,61 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  databaseRpc,
+  type Env,
+  json,
+  MailError,
+  readBounded,
+  type Rpc,
+} from "../_shared/mail.ts";
 import { handleRefundRequest } from "./logic.ts";
 
-const corsHeaders = {
+const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Max-Age": "86400",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, content-type, x-client-info",
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
-
-  try {
-    let body;
-
+export function refundNoticeHandler(env: Env, rpc: Rpc = databaseRpc(env)) {
+  return async (request: Request): Promise<Response> => {
+    if (request.method === "OPTIONS") return json({}, 200, cors);
+    if (request.method !== "POST") {
+      return json({ error: "method_not_allowed" }, 405, cors);
+    }
+    const bearer = request.headers.get("Authorization") || "";
+    if (!/^Bearer \S+$/i.test(bearer)) {
+      return json({ error: "session_required" }, 401, cors);
+    }
     try {
-      const text = await req.text();
-      body = text ? JSON.parse(text) : {};
-    } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON body" }),
+      const raw = await readBounded(request, 8192);
+      let body: unknown;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return json({ error: "invalid_body" }, 400, cors);
+      }
+      const result = await handleRefundRequest(body, {
+        enqueueNotice: (transactionId) =>
+          rpc("enqueue_refund_request_notice", {
+            target_transaction_id: transactionId,
+          }, bearer),
+      });
+      return json(result.body, result.status, cors);
+    } catch (error) {
+      return json(
         {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        }
+          error: error instanceof MailError
+            ? error.message
+            : "notification_unavailable",
+          notificationWarning:
+            "Notification could not be confirmed. Do not submit another claim to retry notification.",
+        },
+        error instanceof MailError ? error.status : 503,
+        cors,
       );
     }
+  };
+}
 
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-
-    const result = await handleRefundRequest(body, {
-      sendEmail: async ({ subject, html }) => {
-        const response = await fetch(
-          "https://api.resend.com/emails",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${RESEND_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: "refund@updates.cleanstreamlaundry.com",
-              to: "yoder453@gmail.com",
-              subject,
-              html,
-            }),
-          }
-        );
-
-        return response.json();
-      },
-    });
-
-    return new Response(JSON.stringify(result.body), {
-      status: result.status,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
-    });
-  } catch (error: any) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || "Internal server error",
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
-  }
-});
+if (import.meta.main) {
+  Deno.serve(refundNoticeHandler((name) => Deno.env.get(name)));
+}

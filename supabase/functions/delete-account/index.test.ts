@@ -3,8 +3,7 @@ import { handler } from "./index.ts";
 
 Deno.test("actual adapter uses anon key + captured bearer, no target RPC params or hard deletion", async () => {
   const originalFetch = globalThis.fetch;
-  const originalUrl = Deno.env.get("SUPABASE_URL");
-  const originalKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const originalEnv = Deno.env.get;
   const calls: {
     url: string;
     method: string;
@@ -12,8 +11,11 @@ Deno.test("actual adapter uses anon key + captured bearer, no target RPC params 
     key: string | null;
     body: string;
   }[] = [];
-  Deno.env.set("SUPABASE_URL", "https://offline.invalid");
-  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-public-key");
+  const values: Record<string, string> = {
+    SUPABASE_URL: "https://offline.invalid",
+    SUPABASE_ANON_KEY: "synthetic-public-key",
+  };
+  Deno.env.get = (name) => values[name];
   globalThis.fetch = async (input, init) => {
     const req = new Request(input, init);
     calls.push({
@@ -58,14 +60,6 @@ Deno.test("actual adapter uses anon key + captured bearer, no target RPC params 
     assertEquals(calls[1].body, "{}");
   } finally {
     globalThis.fetch = originalFetch;
-    for (
-      const [key, value] of [["SUPABASE_URL", originalUrl], [
-        "SUPABASE_ANON_KEY",
-        originalKey,
-      ]]
-    ) {
-      if (value === undefined) Deno.env.delete(key!);
-      else Deno.env.set(key!, value);
-    }
+    Deno.env.get = originalEnv;
   }
 });

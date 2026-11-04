@@ -134,7 +134,8 @@ export function createCreditDependencies(
   token: string,
   config: PortalConfig,
 ): RefundResolutionDependencies {
-  const portal = createPortalDependencies(token, config);
+  let portal: PortalDependencies | undefined;
+  const getPortal = () => portal ??= createPortalDependencies(token, config);
   const guarded = async <T>(operation: () => Promise<T>): Promise<T> => {
     try {
       return await operation();
@@ -149,10 +150,10 @@ export function createCreditDependencies(
     }
   };
   return {
-    authenticate: () => guarded(() => portal.authenticate(token)),
+    authenticate: () => guarded(() => getPortal().authenticate(token)),
     resolve: ({ refundId, decision, note }) =>
       guarded(async () =>
-        await portal.resolve(
+        await getPortal().resolve(
           token,
           refundId,
           decision,

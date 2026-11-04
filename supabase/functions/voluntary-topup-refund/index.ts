@@ -1,8 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callerPublishableKey } from "../_shared/supabase_keys.ts";
 import {
   CORS_HEADERS,
   createAdminClient,
   createStripeClient,
+  errorResponse,
+  HttpError,
 } from "../_shared/cortina.ts";
 import {
   handleVoluntaryTopupRefund,
@@ -13,20 +16,31 @@ export async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
+  let admin;
+  let caller;
   const bearer = req.headers.get("authorization") ?? "";
-  const caller = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    {
-      global: { headers: { Authorization: bearer } },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
+  try {
+    admin = createAdminClient("voluntary-topup-refund");
+    caller = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      callerPublishableKey(
+        (name) => Deno.env.get(name),
+        "CLEANSTREAM_TOPUP_REFUND_PUBLISHABLE_KEY_NAME",
+      ),
+      {
+        global: { headers: { Authorization: bearer } },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
       },
-    },
-  );
-  const admin = createAdminClient();
+    );
+  } catch (error) {
+    return errorResponse(error instanceof HttpError ? error : new HttpError(
+      503, "Public key configuration unavailable", "key_configuration_unavailable",
+    ));
+  }
   const stripe = createStripeClient();
   const response = await handleVoluntaryTopupRefund(req, {
     authenticate: async () => {

@@ -1,6 +1,7 @@
 import { getPaymentStatusLogic, type PaymentDeps } from "./logic.ts";
 import Stripe from "npm:stripe@^14.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { selectNamedSupabaseKey } from "../_shared/supabase_keys.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,13 @@ const headers = {
 };
 
 function createDeps(): PaymentDeps {
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const name = Deno.env.get("CLEANSTREAM_CHECK_PAYMENT_RESULT_SECRET_KEY_NAME");
+  const key = name === undefined
+    ? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    : selectNamedSupabaseKey(name, Deno.env.get("SUPABASE_SECRET_KEYS"), "secret");
+  if (!key) throw new Error("Payment status unavailable");
+  const restUrl = new URL("rest/v1/", url.endsWith("/") ? url : `${url}/`).href;
   const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
     apiVersion: "2023-10-16",
   });
@@ -21,9 +29,21 @@ function createDeps(): PaymentDeps {
         expand: ["payment_intent"],
       }),
     supabaseAdmin: createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { persistSession: false, autoRefreshToken: false } },
+      url,
+      key,
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        ...(name === undefined ? {} : {
+          global: {
+            fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+              const request = new Request(input, init);
+              // Keep caller Auth bearer; named database keys belong only in apikey.
+              if (request.url.startsWith(restUrl)) request.headers.delete("Authorization");
+              return fetch(request);
+            },
+          },
+        }),
+      },
     ),
   };
 }

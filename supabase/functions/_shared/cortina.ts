@@ -1,5 +1,6 @@
 import Stripe from "npm:stripe@14.25.0";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { selectNamedSupabaseKey } from "./supabase_keys.ts";
 
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": Deno.env.get("CLEAN_STREAM_WEB_ORIGIN") ??
@@ -70,6 +71,7 @@ export interface VendSession {
   nayax_terminal_id: string | null;
   nayax_uniqr: string | null;
   stripe_livemode: boolean | null;
+  nayax_transaction_id?: string | null;
 }
 
 export interface CortinaDeps {
@@ -95,6 +97,19 @@ function numberValue(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+export function hasFrozenVendBinding(session: VendSession): boolean {
+  const code = session.product_code;
+  const line = session.pulse_line_number;
+  const validSelector = code != null
+    ? Number.isInteger(code) && code >= 0 && code <= 32767 && line == null
+    : typeof line === "number" && Number.isInteger(line) && line >= 1 && line <= 6;
+  return ["sandbox", "production"].includes(session.nayax_environment ?? "") &&
+    Boolean(textValue(session.nayax_terminal_id) || textValue(session.nayax_uniqr)) &&
+    session.currency === "USD" && validSelector &&
+    (session.payment_method !== "card" ||
+      session.stripe_livemode === (session.nayax_environment === "production"));
 }
 
 export function centsFromNayaxAmount(value: unknown): number | null {
@@ -343,6 +358,9 @@ export async function createVendSession(
   if (error?.code === "55000") {
     throw new HttpError(409, "This machine is out of service. Choose another machine.", "machine_unavailable");
   }
+  if (error?.code === "40001" || error?.code === "55P03") {
+    throw new HttpError(409, "Machine payment settings changed; request a new quote", "price_changed");
+  }
   if (error?.code !== "23505") {
     throw new HttpError(500, error?.message ?? "Unable to create vend session");
   }
@@ -412,8 +430,21 @@ export async function compensateVend(
   session: VendSession,
   deps: CortinaDeps,
   reason: string,
+  definitiveStartFailure = false,
 ): Promise<void> {
   if (session.status === "refunded") return;
+  // A client wait limit or historical failure label is not proof of a failed
+  // vend. Only this Start attempt's evidence or a validated Void permits creation.
+  // An already-bound card refund remains a read-only reconciliation operation.
+  if (!(session.payment_method === "card" && session.stripe_refund_id) &&
+      session.status !== "voided" && !definitiveStartFailure) {
+    const { error } = await deps.admin.from("cortina_vend_sessions").update({
+      status: "support_required", failure_code: "vend_outcome_unknown",
+      failure_message: "Vend outcome is unconfirmed; support review required",
+    }).eq("id", session.id).eq("status", session.status);
+    if (error) throw new Error(error.message);
+    return;
+  }
   try {
     if (session.payment_method === "wallet") {
       const { error } = await deps.admin.rpc("reverse_cortina_wallet_redemption", {
@@ -425,6 +456,9 @@ export async function compensateVend(
 
     if (!session.stripe_payment_intent_id) {
       throw new Error("Paid card session is missing its PaymentIntent");
+    }
+    if (!hasFrozenVendBinding(session)) {
+      throw new Error("Historical payment routing needs reconciliation");
     }
     const refund = session.stripe_refund_id
       ? await deps.stripe.refunds.retrieve(session.stripe_refund_id)
@@ -476,13 +510,20 @@ export async function startCortinaVend(
   if (!claimed) return;
   const session = claimed as VendSession;
 
-  if (!session.nayax_environment ||
-      (!textValue(session.nayax_terminal_id) && !textValue(session.nayax_uniqr))) {
+  if (!hasFrozenVendBinding(session)) {
     const { error } = await deps.admin.from("cortina_vend_sessions").update({
       status: "support_required",
       failure_message: "Historical payment routing needs reconciliation",
     }).eq("id", session.id).eq("status", "starting");
     if (error) throw new Error(error.message);
+    return;
+  }
+
+  const { data: priorStart, error: priorStartError } = await deps.admin
+    .from("cortina_vend_events").select("id")
+    .eq("event_key", `start-request:${session.id}`).maybeSingle();
+  if (priorStartError || priorStart) {
+    await failStartingVend(session.id, deps, "An earlier Start outcome cannot be excluded", "start_outcome_unknown");
     return;
   }
 
@@ -494,7 +535,7 @@ export async function startCortinaVend(
     .eq("id", session.machine_id)
     .maybeSingle();
   if (machineError || !machine || machine.is_out_of_service) {
-    await compensateVend(session, deps, "Machine is out of service or unavailable");
+    await failStartingVend(session.id, deps, "Machine is out of service or unavailable", "start_not_sent", true);
     return;
   }
 
@@ -504,20 +545,16 @@ export async function startCortinaVend(
     .eq("machine_id", session.machine_id)
     .single();
   if (configError || !config?.is_enabled || config.review_required) {
-    await compensateVend(session, deps, "Machine configuration is unavailable");
+    await failStartingVend(session.id, deps, "Machine configuration is unavailable", "start_not_sent", true);
     return;
   }
 
+  let mayHaveStarted = false;
   try {
-    const settings = nayaxSettings(session.nayax_environment);
+    const settings = nayaxSettings(session.nayax_environment!);
     const selector = session.product_code != null
       ? { Code: session.product_code }
       : { PulseLineNumber: session.pulse_line_number };
-    const value = session.product_code ?? selector.PulseLineNumber;
-    if (!Number.isInteger(value) || value! < (session.product_code != null ? 0 : 1) ||
-        value! > (session.product_code != null ? 32767 : 6)) {
-      throw new Error("Vend session has no valid product selector");
-    }
     const product: Record<string, unknown> = {
       ...selector,
       Price: nayaxPriceFromCents(session.amount_cents),
@@ -536,13 +573,19 @@ export async function startCortinaVend(
 
     const { SecretToken: _secret, ...requestSummary } = payload;
     const endpoint = new URL(settings.startUrl);
-    await recordVendEvent(deps.admin, {
+    const freshRequest = await recordVendEvent(deps.admin, {
       sessionId: session.id,
       source: "clean_stream",
       eventType: "nayax_start_request",
       eventKey: `start-request:${session.id}`,
       payload: { endpoint: `${endpoint.origin}${endpoint.pathname}`, environment: session.nayax_environment, request: requestSummary },
     });
+    if (!freshRequest) {
+      mayHaveStarted = true;
+      await failStartingVend(session.id, deps, "An earlier Start request needs reconciliation", "start_outcome_unknown");
+      return;
+    }
+    mayHaveStarted = true;
     const response = await (deps.fetcher ?? fetch)(settings.startUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -560,11 +603,16 @@ export async function startCortinaVend(
     });
 
     if (!response.ok || verdict !== "approved") {
+      // Documented input/authorization rejections, not timeout (992), system
+      // failure (6), general exception (999), or unknown/missing provider codes.
+      const code = responseBody?.Status?.Code;
+      const definitive = response.ok && verdict === "declined" &&
+        Number.isInteger(code) && [1, 5, 7, 8, 997, 998].includes(code);
       const message = responseBody?.Status?.StatusMessage ??
-        `Nayax Start declined with HTTP ${response.status}`;
+        (definitive ? "Nayax rejected Start" : "Nayax Start outcome is unconfirmed");
       await failStartingVend(
         session.id, deps, message,
-        String(responseBody?.Status?.Code ?? response.status),
+        definitive ? String(code) : "start_outcome_unknown", definitive,
       );
       return;
     }
@@ -575,7 +623,9 @@ export async function startCortinaVend(
     if (error) throw new Error(error.message);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await failStartingVend(session.id, deps, message);
+    await failStartingVend(session.id, deps,
+      mayHaveStarted ? "Nayax Start outcome is unconfirmed; support review required" : message,
+      mayHaveStarted ? "start_outcome_unknown" : "start_not_sent", !mayHaveStarted);
   }
 }
 
@@ -584,16 +634,19 @@ async function failStartingVend(
   deps: CortinaDeps,
   message: string,
   code?: string,
+  definitive = false,
 ): Promise<void> {
   // A callback can finish the vend before the Start HTTP response arrives.
+  // Its atomic audit can also bind the provider ID before its status CAS.
   const { data: failed, error } = await deps.admin.from("cortina_vend_sessions")
-    .update({ status: "failed", failure_code: code ?? null, failure_message: message })
+    .update({ status: definitive ? "failed" : "support_required", failure_code: code ?? null, failure_message: message })
     .eq("id", sessionId)
     .eq("status", "starting")
+    .is("nayax_transaction_id", null)
     .select("*")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (failed) await compensateVend(failed as VendSession, deps, message);
+  if (failed && definitive) await compensateVend(failed as VendSession, deps, message, true);
 }
 
 export async function markCortinaCardPaid(
@@ -613,12 +666,23 @@ export async function markCortinaCardPaid(
     .eq("id", input.sessionId)
     .single();
   if (error || !session) throw new Error(error?.message ?? "Vend session not found");
+  if (!hasFrozenVendBinding(session)) {
+    const { error: supportError } = await deps.admin.from("cortina_vend_sessions").update({
+      status: "support_required",
+      failure_message: "Historical payment routing needs reconciliation",
+    }).eq("id", session.id).in("status", ["payment_pending", "paid", "failed"]);
+    if (supportError) throw new Error(supportError.message);
+    throw new HttpError(409, "Historical payment routing needs reconciliation", "support_required");
+  }
   if (session.amount_cents !== input.amountCents || session.payment_method !== "card" ||
       typeof session.stripe_livemode !== "boolean" || !session.nayax_environment ||
       (session.stripe_payment_intent_id && session.stripe_payment_intent_id !== input.paymentIntentId) ||
-      (input.checkoutSessionId && session.stripe_checkout_session_id !== input.checkoutSessionId) ||
+      (input.checkoutSessionId !== undefined && input.checkoutSessionId !== null &&
+        session.stripe_checkout_session_id !== input.checkoutSessionId) ||
+      (session.channel === "web" && !session.stripe_checkout_session_id) ||
+      (session.channel === "app" && session.stripe_checkout_session_id != null) ||
       (!session.stripe_payment_intent_id && !session.stripe_checkout_session_id)) {
-    throw new Error("Stripe payment does not match the vend session");
+    throw new HttpError(409, "Stripe payment does not match the vend session", "payment_mismatch");
   }
 
   const metadataMatches = (metadata: Stripe.Metadata | null) =>
@@ -629,9 +693,9 @@ export async function markCortinaCardPaid(
   const intent = await deps.stripe.paymentIntents.retrieve(input.paymentIntentId);
   if (intent.id !== input.paymentIntentId || intent.status !== "succeeded" ||
       intent.amount !== session.amount_cents || intent.amount_received !== session.amount_cents ||
-      intent.currency.toUpperCase() !== session.currency ||
+      intent.currency?.toUpperCase() !== session.currency ||
       intent.livemode !== session.stripe_livemode || !metadataMatches(intent.metadata)) {
-    throw new Error("Stripe has not confirmed this exact payment");
+    throw new HttpError(409, "Stripe has not confirmed this exact payment", "payment_not_confirmed");
   }
   if (session.stripe_checkout_session_id) {
     const checkout = await deps.stripe.checkout.sessions.retrieve(session.stripe_checkout_session_id);
@@ -642,13 +706,13 @@ export async function markCortinaCardPaid(
         checkout.payment_status !== "paid" || checkout.amount_total !== session.amount_cents ||
         checkout.currency?.toUpperCase() !== session.currency ||
         checkout.livemode !== session.stripe_livemode || !metadataMatches(checkout.metadata)) {
-      throw new Error("Stripe Checkout does not match the vend session");
+      throw new HttpError(409, "Stripe Checkout does not match the vend session", "payment_mismatch");
     }
   }
   const chargeId = typeof intent.latest_charge === "string"
     ? intent.latest_charge : intent.latest_charge?.id ?? null;
-  if (input.chargeId && input.chargeId !== chargeId) {
-    throw new Error("Stripe charge does not match the vend session");
+  if (!chargeId || (input.chargeId != null && input.chargeId !== chargeId)) {
+    throw new HttpError(409, "Stripe charge does not match the vend session", "payment_mismatch");
   }
   const { error: recordError } = await deps.admin.rpc("record_cortina_card_payment", {
     p_session: session.id, p_event: input.eventId, p_intent: intent.id,
@@ -659,11 +723,34 @@ export async function markCortinaCardPaid(
   await startCortinaVend(input.sessionId, deps);
 }
 
-export function createAdminClient(): SupabaseClient {
+const ADMIN_KEY_SELECTORS = {
+  "cortina-vend": "CLEANSTREAM_CORTINA_VEND_SECRET_KEY_NAME",
+  "stripeWebhook": "CLEANSTREAM_STRIPE_WEBHOOK_SECRET_KEY_NAME",
+  "nayax-production": "CLEANSTREAM_NAYAX_PRODUCTION_SECRET_KEY_NAME",
+  "nayax-sandbox": "CLEANSTREAM_NAYAX_SANDBOX_SECRET_KEY_NAME",
+  "voluntary-topup-refund": "CLEANSTREAM_TOPUP_REFUND_SECRET_KEY_NAME",
+} as const;
+
+export function createAdminClient(
+  component: keyof typeof ADMIN_KEY_SELECTORS,
+  env: (name: string) => string | undefined = (name) => Deno.env.get(name),
+): SupabaseClient {
+  const name = env(ADMIN_KEY_SELECTORS[component]);
+  const key = name === undefined ? env("SUPABASE_SERVICE_ROLE_KEY")
+    : selectNamedSupabaseKey(name, env("SUPABASE_SECRET_KEYS"), "secret");
+  if (!key) throw new HttpError(503, "Database key configuration unavailable", "key_configuration_unavailable");
   return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
+    env("SUPABASE_URL")!,
+    key,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      ...(name === undefined ? {} : { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+        // Remove only the SDK's secret-as-JWT default, never an explicit getUser bearer.
+        if (headers.get("Authorization") === `Bearer ${key}`) headers.delete("Authorization");
+        return fetch(input, { ...init, headers });
+      } } }),
+    },
   );
 }
 

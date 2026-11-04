@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callerPublishableKey } from "../_shared/supabase_keys.ts";
 import { handleMaintenance, type MaintenanceDeps } from "./logic.ts";
 
 const headers = {
@@ -14,7 +15,10 @@ function createDeps(token: string): MaintenanceDeps {
   const storageUrl = Deno.env.get("SUPABASE_URL")!;
   const client = createClient(
     storageUrl,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
+    callerPublishableKey(
+      (name) => Deno.env.get(name),
+      "CLEANSTREAM_MAINTENANCE_PUBLISHABLE_KEY_NAME",
+    ),
     {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${token}` } },

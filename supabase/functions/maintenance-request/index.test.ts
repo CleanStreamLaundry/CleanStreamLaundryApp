@@ -142,6 +142,9 @@ for (
     Deno.env.get = (name) => {
       envReads.push(name);
       if (name === "SUPABASE_URL") return "https://supabase.invalid";
+      if (name === "CLEANSTREAM_MAINTENANCE_PUBLISHABLE_KEY_NAME") {
+        return undefined;
+      }
       if (name === "SUPABASE_ANON_KEY") return "synthetic-public-key";
       throw new Error(`Unexpected environment name ${name}`);
     };
@@ -247,7 +250,11 @@ for (
       });
       const response = await registered(req);
       assertHeaders(response);
-      assertEquals(envReads, ["SUPABASE_URL", "SUPABASE_ANON_KEY"]);
+      assertEquals(envReads, [
+        "SUPABASE_URL",
+        "CLEANSTREAM_MAINTENANCE_PUBLISHABLE_KEY_NAME",
+        "SUPABASE_ANON_KEY",
+      ]);
       if (mode === "success" || mode === "with_image") {
         assertEquals(response.status, 200);
         assertEquals(saved, {

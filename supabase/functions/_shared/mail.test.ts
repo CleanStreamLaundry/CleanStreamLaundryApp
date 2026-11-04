@@ -233,6 +233,15 @@ for (
       kind,
     }, config);
     assert.match(payload.html, /<html lang="en">/);
+    assert.match(payload.html, /name="viewport"/);
+    assert.match(payload.html, /<table role="presentation"/);
+    assert.equal((payload.html.match(/<h1\b/g) || []).length, 1);
+    assert.match(payload.html, /max-width:600px/);
+    assert.match(payload.html, /overflow-wrap:anywhere/);
+    assert.match(payload.html, /background-color:#2073A9;color:#FFFFFF/);
+    assert.match(payload.html, /border-top:4px solid #F3C404/);
+    assert.match(payload.html, /href="mailto:/);
+    assert.doesNotMatch(payload.html, /<script|<img|<link|@import/i);
     assert.ok(payload.text);
     assert.equal(payload.to.length, 1);
     assert.equal(payload.tags[0].value, job.id);
@@ -243,6 +252,10 @@ for (
       assert.equal(confirmHash, null);
       assert.equal(unsubscribeHash, null);
       assert.doesNotMatch(payload.text, /offers|discount|promotion/i);
+      assert.doesNotMatch(
+        payload.html,
+        /Unsubscribe|Confirm newsletter subscription/,
+      );
     } else {
       assert.equal(
         payload.headers["List-Unsubscribe-Post"],
@@ -252,6 +265,12 @@ for (
       assert.ok(payload.text.includes(config.postal));
       assert.match(unsubscribeHash!, /^[0-9a-f]{64}$/);
       assert.equal(Boolean(confirmHash), kind === "newsletter_confirm");
+      assert.match(payload.html, />Unsubscribe from the newsletter<\/a>/);
+      assert.doesNotMatch(payload.html, />https:\/\//);
+      assert.equal(
+        payload.html.includes(">Confirm newsletter subscription</a>"),
+        kind === "newsletter_confirm",
+      );
     }
   });
 }
@@ -262,6 +281,35 @@ Deno.test("template escapes contact/postal HTML", async () => {
   });
   assert.doesNotMatch(payload.html, /<script>/);
   assert.match(payload.html, /&lt;script&gt;/);
+});
+for (
+  const kind of [
+    "account_welcome",
+    "newsletter_confirm",
+    "newsletter_welcome",
+  ] as const
+) {
+  Deno.test(`template ${kind}: retries keep identical payload and token hashes`, async () => {
+    const first = await renderMail({ ...job, kind }, config);
+    const retry = await renderMail(
+      { ...job, kind, lease_id: "new-lease" },
+      config,
+    );
+    assert.deepEqual(retry, first);
+    assert.equal(
+      first.payloadHash,
+      await sha256(JSON.stringify(first.payload)),
+    );
+  });
+}
+Deno.test("template treats URL-like postal content as text, not extra links", async () => {
+  const { payload } = await renderMail(job, {
+    ...config,
+    postal: 'Test address\nhttps://example.test/?x=" onclick="bad',
+  });
+  assert.doesNotMatch(payload.html, /href="https:\/\/example\.test/);
+  assert.match(payload.html, /Test address<br>https:/);
+  assert.doesNotMatch(payload.html, / onclick="bad/);
 });
 for (
   const [status, result] of [
@@ -493,6 +541,68 @@ Deno.test("GET redirects scanner safely to approved frontend; one-click works wi
   assert.equal(post.status, 200);
   assert.equal(f.calls[0].args.p_action, "unsubscribe");
 });
+for (
+  const [action, body] of [
+    ["confirm", "List-Unsubscribe=One-Click"],
+    ["unsubscribe", "List-Unsubscribe=One-Click&action=confirm"],
+    ["confirm", `action=confirm&token=${"e".repeat(64)}`],
+    ["unsubscribe", "List-Unsubscribe=invalid"],
+  ]
+) {
+  Deno.test(`one-click form refuses non-withdrawal contract: ${action}, ${body}`, async () => {
+    const f = fake();
+    const response = await newsletterHandler(env, f.rpc)(
+      new Request(
+        `https://project.example.test/functions/v1/newsletter?action=${action}&token=${
+          "e".repeat(64)
+        }`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        },
+      ),
+    );
+    assert.equal(response.status, 400);
+    assert.equal(f.calls.length, 0);
+  });
+}
+Deno.test("one-click unsubscribe remains available with sending disabled", async () => {
+  const f = fake({ newsletter_token: { state: "unsubscribed" } });
+  const response = await newsletterHandler(
+    (n) => n === "CLEANSTREAM_MAIL_ENABLED" ? "false" : env(n),
+    f.rpc,
+  )(
+    new Request(
+      `${config.publicUrl}?action=unsubscribe&token=${"e".repeat(64)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "List-Unsubscribe=One-Click",
+      },
+    ),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].args.p_action, "unsubscribe");
+});
+for (const endpoint of ["newsletter", "mail-webhook"]) {
+  Deno.test(`${endpoint}: invalid UTF-8 is a client error without a database call`, async () => {
+    const f = fake();
+    const handler = endpoint === "newsletter"
+      ? newsletterHandler(env, f.rpc)
+      : webhookHandler(env, f.rpc);
+    const response = await handler(
+      new Request(`https://project.example.test/functions/v1/${endpoint}`, {
+        method: "POST",
+        body: new Uint8Array([0xc3, 0x28]),
+      }),
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: "invalid_body" });
+    assert.equal(f.calls.length, 0);
+  });
+}
 Deno.test("CORS allowlist and body-size boundary", async () => {
   const f = fake(), handler = newsletterHandler(env, f.rpc);
   assert.equal(
@@ -678,6 +788,35 @@ Deno.test("signed malformed recipients rejected; non-mail events ignored", async
     200,
   );
   assert.equal(f.calls.length, 0);
+});
+Deno.test("signed webhook rejects non-string outbox tags without UUID coercion", async () => {
+  const f = fake(), handler = webhookHandler(env, f.rpc);
+  for (const value of [[job.id], {}, 123]) {
+    for (const tags of [{ outbox_id: value }, [{ name: "outbox_id", value }]]) {
+      const response = await handler(
+        await signedRequest({
+          type: "email.bounced",
+          data: { email_id: "provider-id", to: [job.email], tags },
+        }),
+      );
+      assert.equal(response.status, 400);
+    }
+  }
+  assert.equal(f.calls.length, 0);
+});
+Deno.test("signed webhook preserves array tags and provider-ID-only reconciliation", async () => {
+  const f = fake(), handler = webhookHandler(env, f.rpc);
+  for (const tags of [[{ name: "outbox_id", value: job.id }], undefined]) {
+    const response = await handler(
+      await signedRequest({
+        type: "email.complained",
+        data: { email_id: "provider-id", to: [job.email], tags },
+      }),
+    );
+    assert.equal(response.status, 200);
+  }
+  assert.equal(f.calls[0].args.p_outbox_id, job.id);
+  assert.equal(f.calls[1].args.p_outbox_id, null);
 });
 Deno.test("unmatched reconciliation event returns retryable HTTP failure", async () => {
   const rpc: Rpc = () =>

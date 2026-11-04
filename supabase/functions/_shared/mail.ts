@@ -1,13 +1,23 @@
+import { selectNamedSupabaseKey } from "./supabase_keys.ts";
+
 export type MailKind =
   | "account_welcome"
   | "newsletter_confirm"
-  | "newsletter_welcome";
+  | "newsletter_welcome"
+  | "refund_request";
 export interface MailJob {
   id: string;
   lease_id: string;
   kind: MailKind;
   email: string;
   consent_id: string | null;
+  refund_notice?: {
+    refund_id: string;
+    transaction_id: string;
+    user_id: string;
+    amount: string;
+    description: string;
+  };
 }
 export interface NewsletterStatus {
   subject_id: string;
@@ -159,9 +169,48 @@ export async function renderMail(job: MailJob, config: MailConfig) {
   let subject = "Welcome to Clean Stream";
   let text =
     "Your email address is verified. Welcome to Clean Stream. This account notice does not subscribe you to our newsletter.";
+  const paragraph = (value: string) =>
+    `<p style="margin:0 0 20px;">${escapeHtml(value)}</p>`;
+  const linkHtml = (url: string, label: string) =>
+    `<a href="${
+      escapeHtml(url)
+    }" style="color:#2073A9;text-decoration:underline;">${
+      escapeHtml(label)
+    }</a>`;
+  let content = paragraph(text), footer = "";
   const headers: Record<string, string> = {};
   let confirmHash: string | null = null, unsubscribeHash: string | null = null;
-  if (job.kind !== "account_welcome") {
+  if (job.kind === "refund_request") {
+    const notice = job.refund_notice;
+    if (
+      !notice ||
+      ![notice.refund_id, notice.transaction_id].every((id) =>
+        typeof id === "string" && /^[1-9][0-9]{0,18}$/.test(id)
+      ) ||
+      typeof notice.user_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        notice.user_id,
+      ) ||
+      typeof notice.amount !== "string" ||
+      !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(notice.amount) ||
+      notice.amount.length > 30 || Number(notice.amount) <= 0 ||
+      typeof notice.description !== "string" || notice.description.length > 8000
+    ) throw new Error("Invalid refund notice");
+    const portal = "https://cleanstreamlaundry.com/admin";
+    subject = "New loyalty balance credit request";
+    const lines = [
+      `Claim #${notice.refund_id} for transaction #${notice.transaction_id}.`,
+      `Requested loyalty credit: $${notice.amount}.`,
+      `Customer account: ${notice.user_id}`,
+      `Reason: ${notice.description || "No reason provided."}`,
+      "Review the saved claim in the authenticated staff portal. This alert does not approve a credit or return money.",
+    ];
+    text = lines.join("\n\n") + `\n\nStaff portal: ${portal}`;
+    content = lines.map(paragraph).join("") +
+      `<p style="margin:0 0 20px;">${
+        linkHtml(portal, "Open staff portal")
+      }</p>`;
+  } else if (job.kind !== "account_welcome") {
     if (!job.consent_id) throw new Error("Missing consent");
     const confirm = await token(config.tokenSecret, "confirm", job.consent_id);
     const unsubscribe = await token(
@@ -177,29 +226,49 @@ export async function renderMail(job: MailJob, config: MailConfig) {
     unsubscribeHash = await sha256(unsubscribe);
     if (job.kind === "newsletter_confirm") {
       subject = "Confirm your Clean Stream newsletter request";
-      text =
-        `You requested the Clean Stream newsletter. Confirm your choice using this link within 24 hours of your request:\n${
-          link("confirm", confirm)
-        }\n\nIf you did not request this, ignore this message. You are not subscribed yet.`;
+      const introduction =
+        "You requested the Clean Stream newsletter. Confirm your choice using this link within 24 hours of your request:";
+      const explanation =
+        "If you did not request this, ignore this message. You are not subscribed yet.";
+      text = `${introduction}\n${link("confirm", confirm)}\n\n${explanation}`;
+      content = paragraph(introduction) +
+        `<p style="margin:0 0 20px;">${
+          linkHtml(link("confirm", confirm), "Confirm newsletter subscription")
+        }</p>` + paragraph(explanation);
       confirmHash = await sha256(confirm);
     } else {
       subject = "Welcome to the Clean Stream newsletter";
       text =
         "Your newsletter subscription is confirmed. Thank you for choosing to hear from Clean Stream.";
+      content = paragraph(text);
     }
     text +=
       `\n\nUnsubscribe: ${unsubscribeUrl}\nClean Stream\n${config.postal}`;
+    footer = `<p style="margin:0 0 16px;">${
+      linkHtml(unsubscribeUrl, "Unsubscribe from the newsletter")
+    }</p><p style="margin:0 0 16px;">Clean Stream<br>${
+      escapeHtml(config.postal).replace(/\n/g, "<br>")
+    }</p>`;
     headers["List-Unsubscribe"] = `<${oneClickUrl}>`;
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
   }
   text += `\n\nContact: ${config.replyTo}`;
+  footer += `<p style="margin:0;">Contact: ${
+    linkHtml(`mailto:${config.replyTo}`, config.replyTo)
+  }</p>`;
+  // Inline styles and presentational tables work without remote assets or fonts.
+  // Brand colors reuse docs/theming.md; the plain-text alternative stays intact.
   const html =
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${
       escapeHtml(subject)
-    }</title></head><body><h1>${escapeHtml(subject)}</h1><p>${
-      escapeHtml(text).replace(/https:\/\/[^\s<]+/g, (url) =>
-        `<a href="${url}">${url}</a>`).replace(/\n/g, "<br>")
-    }</p></body></html>`;
+    }</title></head><body style="margin:0;padding:0;background-color:#FFFFFF;color:#212121;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;margin:0 auto;table-layout:fixed;overflow-wrap:anywhere;word-wrap:break-word;">
+<tr><td style="padding:20px 24px;background-color:#2073A9;color:#FFFFFF;border-top:4px solid #F3C404;font-size:22px;font-weight:bold;">Clean Stream</td></tr>
+<tr><td style="padding:28px 24px 8px;"><h1 style="margin:0 0 20px;font-size:24px;line-height:1.3;">${
+      escapeHtml(subject)
+    }</h1>${content}</td></tr>
+<tr><td style="padding:20px 24px;border-top:1px solid #2073A9;font-size:14px;">${footer}</td></tr>
+</table></body></html>`;
   const payload = {
     from: `Clean Stream <${config.from}>`,
     to: [job.email],
@@ -225,7 +294,28 @@ export function databaseRpc(env: Env, transport: typeof fetch = fetch): Rpc {
     bearer?: string,
   ): Promise<T> => {
     const url = env("SUPABASE_URL");
-    const key = env(bearer ? "SUPABASE_ANON_KEY" : "SUPABASE_SERVICE_ROLE_KEY");
+    const secretName = bearer
+      ? undefined
+      : env("CLEANSTREAM_MAIL_SECRET_KEY_NAME");
+    const namedSecret = secretName !== undefined;
+    const publishableName = bearer
+      ? env("CLEANSTREAM_MAIL_PUBLISHABLE_KEY_NAME")
+      : undefined;
+    const key = bearer
+      ? publishableName === undefined
+        ? env("SUPABASE_ANON_KEY")
+        : selectNamedSupabaseKey(
+          publishableName,
+          env("SUPABASE_PUBLISHABLE_KEYS"),
+          "publishable",
+        )
+      : namedSecret
+      ? selectNamedSupabaseKey(
+        secretName,
+        env("SUPABASE_SECRET_KEYS"),
+        "secret",
+      )
+      : env("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key || env("CLEANSTREAM_MAIL_PROJECT_URL") !== url) {
       throw new MailError(503, "mail_unavailable");
     }
@@ -233,7 +323,11 @@ export function databaseRpc(env: Env, transport: typeof fetch = fetch): Rpc {
       method: "POST",
       headers: {
         apikey: key,
-        Authorization: bearer || `Bearer ${key}`,
+        ...(bearer
+          ? { Authorization: bearer }
+          : namedSecret
+          ? {}
+          : { Authorization: `Bearer ${key}` }),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(args),
@@ -334,7 +428,14 @@ export async function readBounded(
     bytes.set(part, offset);
     offset += part.length;
   }
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  try {
+    // Preserve a leading BOM so webhook verification sees the exact wire bytes.
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch {
+    throw new MailError(400, "invalid_body");
+  }
 }
 
 export function json(

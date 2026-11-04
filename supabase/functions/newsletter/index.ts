@@ -71,6 +71,12 @@ export function newsletterHandler(env: Env, rpc: Rpc = databaseRpc(env)) {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return json({ error: "invalid_body" }, 400, cors);
       }
+      // Mailbox-provider forms can withdraw only, never grant consent.
+      if (
+        form && (body["List-Unsubscribe"] !== "One-Click" ||
+          url.searchParams.get("action") !== "unsubscribe" ||
+          Object.keys(body).length !== 1)
+      ) return json({ error: "invalid_body" }, 400, cors);
       const action = form && body["List-Unsubscribe"] === "One-Click"
         ? url.searchParams.get("action")
         : body.action;
