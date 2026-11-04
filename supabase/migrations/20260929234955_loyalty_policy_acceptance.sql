@@ -97,15 +97,23 @@ security invoker
 set search_path = ''
 as $$
 declare
-  -- Immutable REVIEW-ONLY draft: LegalPage.loyaltyCard paragraphs verbatim,
-  -- joined with exactly two LF characters; UTF-8, no trailing newline.
-  required_version constant text := 'review-only-loyalty-872d083ce1cf3470';
-  policy_sha256 constant text := '872d083ce1cf3470071903fa9a28cb3957aea2856ab64367d0ff955f3a881797';
-  policy_text constant text := $policy$Loyalty Card loads are final sale prepaid Clean Stream Laundry credit. Balance is usable only for eligible Clean Stream Laundry services, is not a bank account, does not earn interest, and is not redeemable for cash except where required by law.
+  -- Immutable REVIEW-ONLY draft, rendered by server-fed clients. Paragraphs
+  -- use exactly two LF characters; UTF-8, no trailing newline.
+  required_version constant text := 'review-only-loyalty-d08c2c970e4fb2f7';
+  policy_sha256 constant text := 'd08c2c970e4fb2f7255034ee643f6148454f7aca3c09e595c5eb94d10106e748';
+  policy_text constant text := $policy$Loyalty Card loads are prepaid Clean Stream Laundry credit for eligible services. They are not a bank account and do not earn interest. Refunds are available only under the voluntary wallet-load policy below or as required by law.
 
 Promotional bonus credits have no cash value and may be subject to separate terms. Promotional credit is tracked separately from paid credit and is applied before paid credit when a wallet payment is used.
 
-Deleting your account removes app access. Clean Stream may retain anonymized wallet, ledger, load, redemption, and complaint records for legal, tax, accounting, dispute, fraud-prevention, and compliance purposes. Deleted wallets are not normally restored or reattached.$policy$;
+You may request a voluntary refund of the full paid principal of a wallet load if the server receives your request no later than 48 hours after the payment succeeded, including exactly 48 hours. Eligibility uses server-recorded request and successful-payment times. Any wallet spending after that load disqualifies it, including spending only promotional credit or a failed vend later reversed. Earlier wallet use does not disqualify a later load.
+
+An Owner reviews timely requests and may complete that review after the 48-hour deadline. Approved refunds return the full paid principal to the original payment method; Clean Stream absorbs the original processing fees. No partial voluntary refunds or cash refunds of promotional credit are offered. Bonus credit and reward progress attributable to the refunded load are reversed.
+
+These voluntary wallet-load conditions do not limit statutory rights or replace remedies for machine or payment failures.
+
+A deletion request places your account in pending deletion and restricts ordinary app access. You may explicitly restore the original account and its wallet links after verifying ownership and completing any required multi-factor authentication, before the server-set deadline 30 days after the deletion request. Signing in alone does not restore the account. Restoration does not reset refund deadlines or resubscribe you to newsletters. At or after the deadline, restoration is unavailable even if cleanup has not occurred.
+
+Post-deadline data retention and remaining-balance handling are not yet finalized in this draft. This draft does not represent automatic cleanup or balance forfeiture as active.$policy$;
 begin
   return jsonb_build_object(
     'required_version', required_version, 'policy_text', policy_text,

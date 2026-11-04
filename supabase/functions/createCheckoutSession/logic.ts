@@ -1,10 +1,13 @@
-import Stripe from "npm:stripe@^14.0.0";
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type Stripe from "npm:stripe@^14.0.0";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { type FundingAdmission, requireFundingAdmission } from "../_shared/wallet_funding_admission.ts";
+import { requireNewPayments } from "../_shared/new_payment_control.ts";
 
 export interface CheckoutDeps {
   stripe: Stripe;
   supabase: SupabaseClient;
   supabaseAdmin?: SupabaseClient;
+  fundingAdmission?: FundingAdmission;
 }
 
 export interface CheckoutResult {
@@ -94,16 +97,19 @@ export async function handleCheckout(
     : "directMachinePayment";
 
   const user = await getAuthenticatedUser(deps.supabase);
+  const userId = user.id;
   let walletAccountId: string | undefined;
 
   if (purpose === "walletLoad") {
     if (!deps.supabaseAdmin) {
       throw new Error("Supabase admin client required");
     }
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+    await requireNewPayments(deps.supabaseAdmin);
 
     const { data, error } = await deps.supabaseAdmin.rpc(
       "get_or_create_wallet_account",
-      { target_user_id: user.id },
+      { target_user_id: userId },
     );
 
     if (error || !data) {
@@ -111,12 +117,14 @@ export async function handleCheckout(
     }
 
     walletAccountId = data as string;
+    await requireFundingAdmission(deps.fundingAdmission, userId);
   }
 
+  await requireNewPayments(deps.supabaseAdmin ?? deps.supabase);
   const result = await createCheckoutSession(
     deps.stripe,
     amount,
-    user.id,
+    userId,
     purpose,
     walletAccountId,
     baseUrl

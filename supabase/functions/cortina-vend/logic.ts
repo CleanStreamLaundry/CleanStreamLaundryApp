@@ -1,11 +1,14 @@
 import Stripe from "npm:stripe@14.25.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { callerPublishableKey } from "../_shared/supabase_keys.ts";
+import { requireNewPayments } from "../_shared/new_payment_control.ts";
 import {
   CortinaDeps,
   compensateVend,
   createVendSession,
   functionRoute,
   getOptionalUserId,
+  hasFrozenVendBinding,
   HttpError,
   jsonResponse,
   markCortinaCardPaid,
@@ -15,6 +18,14 @@ import {
   validateVendAmount,
   VendSession,
 } from "../_shared/cortina.ts";
+
+async function requireVendCreation(deps: CortinaDeps): Promise<void> {
+  try {
+    await requireNewPayments(deps.admin);
+  } catch {
+    throw new HttpError(503, "new_payments_unavailable", "new_payments_unavailable");
+  }
+}
 
 function objectBody(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -90,10 +101,21 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
   });
   const metadata = paymentMetadata(
     created.session.id,
-    quote.machineId,
-    amount.amountCents,
-    userId,
+    created.session.machine_id,
+    created.session.amount_cents,
+    created.session.user_id,
   );
+
+  if (!hasFrozenVendBinding(created.session)) {
+    throw new HttpError(409, "Payment routing needs reconciliation", "support_required");
+  }
+  if (created.session.status !== "payment_pending") {
+    return jsonResponse({ sessionId: created.session.id, accessToken: created.accessToken,
+      status: created.session.status });
+  }
+
+  // Outside provider-error compensation: refusal must not fail an existing draft.
+  await requireVendCreation(deps);
 
   try {
     if (channel === "app") {
@@ -164,6 +186,16 @@ export async function handleCard(req: Request, deps: CortinaDeps): Promise<Respo
 
 export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Response> {
   const body = await bodyFrom(req);
+  let publicKey: string;
+  try {
+    publicKey = callerPublishableKey(
+      (name) => Deno.env.get(name),
+      "CLEANSTREAM_VEND_PUBLISHABLE_KEY_NAME",
+    );
+  } catch {
+    throw new HttpError(503, "Public key configuration unavailable", "key_configuration_unavailable");
+  }
+  const authorization = req.headers.get("authorization")!;
   const userId = await getOptionalUserId(req, deps.admin);
   if (!userId) throw new HttpError(401, "Sign in to use your wallet", "unauthorized");
 
@@ -183,6 +215,9 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
     clientRequestId: clientRequestId(body),
   });
 
+  if (!hasFrozenVendBinding(created.session)) {
+    throw new HttpError(409, "Payment routing needs reconciliation", "support_required");
+  }
   if (!created.wasCreated && created.session.status !== "payment_pending") {
     await startCortinaVend(created.session.id, deps);
     return jsonResponse({
@@ -191,10 +226,10 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
     });
   }
 
-  const authorization = req.headers.get("authorization")!;
+  await requireVendCreation(deps);
   const userClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
+    publicKey,
     { global: { headers: { Authorization: authorization } } },
   );
 
@@ -202,6 +237,9 @@ export async function handleWallet(req: Request, deps: CortinaDeps): Promise<Res
     "redeem_wallet_for_cortina",
     { target_session_id: created.session.id },
   );
+  if (redemptionError?.code === "PT503" && redemptionError.message === "new_payments_unavailable") {
+    throw new HttpError(503, "new_payments_unavailable", "new_payments_unavailable");
+  }
   if (redemptionError || !redemption) {
     await deps.admin.from("cortina_vend_sessions").update({
       status: "failed",

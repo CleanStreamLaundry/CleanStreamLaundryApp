@@ -10,6 +10,7 @@ import {
   
   function makeSupabaseMock(user: object | null, error: object | null = null) {
     return {
+      rpc: () => ({ abortSignal: () => Promise.resolve({ data: true, error: null }) }),
       auth: {
         getUser: () => Promise.resolve({ data: { user }, error }),
       },
@@ -141,6 +142,7 @@ import {
   Deno.test("handleCheckout - wallet metadata correlates Session and PaymentIntent", async () => {
     let capturedParams: any;
     const calls: unknown[] = [];
+    const admissionSubjects: string[] = [];
     const stripe = {
       checkout: { sessions: { create: (params: unknown) => {
         capturedParams = params;
@@ -152,7 +154,11 @@ import {
       {
         stripe,
         supabase: makeSupabaseMock({ id: "user-1" }),
+        fundingAdmission: (subject) => { admissionSubjects.push(subject); return Promise.resolve(); },
         supabaseAdmin: { rpc: (name: string, params: unknown) => {
+          if (name === "new_payments_enabled") return {
+            abortSignal: () => Promise.resolve({ data: true, error: null }),
+          };
           calls.push({ name, params });
           return Promise.resolve({ data: "wallet-1", error: null });
         } } as any,
@@ -161,6 +167,7 @@ import {
     );
     assertEquals(await response.json(), { url: "https://checkout.stripe.com/test", session_id: "cs_wallet" });
     assertEquals(calls, [{ name: "get_or_create_wallet_account", params: { target_user_id: "user-1" } }]);
+    assertEquals(admissionSubjects, ["user-1", "user-1"]);
     assertEquals(capturedParams.metadata, {
       user_id: "user-1", purpose: "wallet_load", amount_cents: "2500", wallet_account_id: "wallet-1",
     });

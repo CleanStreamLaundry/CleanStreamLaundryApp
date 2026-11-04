@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "./supabase/functions/admin-portal/logic.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/admin-portal/logic.ts",
+    "./supabase/functions/admin-portal/handler.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/admin-portal/handler.ts",
+    "./supabase/functions/admin-portal/geocoding.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/admin-portal/geocoding.ts",
+    "./supabase/functions/_shared/": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/_shared/",
+    "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/admin-portal/backend.ts": "./supabase/functions/admin-portal/backend.ts"
+  }
+}

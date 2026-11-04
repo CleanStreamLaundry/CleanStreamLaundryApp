@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "./supabase/functions/_shared/": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/_shared/",
+    "./supabase/functions/cortina-vend/card_admission.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/card_admission.ts",
+    "./supabase/functions/cortina-vend/request_limits.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/request_limits.ts",
+    "./supabase/functions/cortina-vend/pending_lookup.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/pending_lookup.ts",
+    "./supabase/functions/cortina-vend/public_controls.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/public_controls.ts",
+    "./supabase/functions/cortina-vend/return_urls.ts": "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/return_urls.ts",
+    "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/cortina-vend/logic.ts": "./supabase/functions/cortina-vend/logic.ts",
+    "file:///Users/jamaki604/CleanStreamProjects/CleanStreamLaundryApp/supabase/functions/delete-account/logic.ts": "./supabase/functions/delete-account/logic.ts"
+  }
+}

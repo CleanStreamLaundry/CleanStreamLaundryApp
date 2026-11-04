@@ -1,9 +1,12 @@
-import Stripe from "npm:stripe";
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type Stripe from "npm:stripe";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { type FundingAdmission, requireFundingAdmission } from "../_shared/wallet_funding_admission.ts";
+import { requireNewPayments } from "../_shared/new_payment_control.ts";
 
 export interface PaymentIntentDeps {
   stripe: Stripe;
   supabaseAdmin?: SupabaseClient;
+  fundingAdmission?: FundingAdmission;
 }
 
 export interface PaymentIntentResult {
@@ -109,9 +112,17 @@ export async function handleCreatePaymentIntent(
   const userId = deps.supabaseAdmin
     ? await getAuthenticatedUserId(req, deps.supabaseAdmin)
     : "test-user";
+  if (purpose === "walletLoad") {
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+    await requireNewPayments(deps.supabaseAdmin);
+  }
   const walletAccountId = purpose === "walletLoad" && deps.supabaseAdmin
     ? await getOrCreateWalletAccount(deps.supabaseAdmin, userId)
     : undefined;
+  if (purpose === "walletLoad") {
+    await requireFundingAdmission(deps.fundingAdmission, userId);
+  }
+  await requireNewPayments(deps.supabaseAdmin);
   const result = await createPaymentIntent(
     deps.stripe,
     amount,

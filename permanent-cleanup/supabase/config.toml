@@ -1,0 +1,2 @@
+# Local migration authoring root only; not a deployment configuration.
+project_id = "permanent-cleanup-authoring"

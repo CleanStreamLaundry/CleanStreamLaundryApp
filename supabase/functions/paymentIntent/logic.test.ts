@@ -31,8 +31,14 @@ import {
     return new Request("http://localhost/create-payment-intent", {
       method: "POST",
       body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: "Bearer synthetic-caller" },
     });
+  }
+  function enabledAdmin() {
+    return {
+      auth: { getUser: () => Promise.resolve({ data: { user: { id: "test-user" } }, error: null }) },
+      rpc: () => ({ abortSignal: () => Promise.resolve({ data: true, error: null }) }),
+    } as any;
   }
   
   Deno.test("validateAmount — accepts a valid positive integer", () => {
@@ -143,7 +149,7 @@ import {
   
   Deno.test("handleCreatePaymentIntent — returns 200 with clientSecret", async () => {
     const req = makeRequest({ amount: 2500 });
-    const res = await handleCreatePaymentIntent(req, { stripe: makeStripeMock() });
+    const res = await handleCreatePaymentIntent(req, { stripe: makeStripeMock(), supabaseAdmin: enabledAdmin() });
     const body = await res.json();
   
     assertEquals(res.status, 200);
@@ -177,6 +183,7 @@ import {
     await assertRejects(
       () => handleCreatePaymentIntent(req, {
         stripe: makeStripeMock({ throwMessage: "Stripe API unavailable" }),
+        supabaseAdmin: enabledAdmin(),
       }),
       Error,
       "Stripe API unavailable"
@@ -185,7 +192,7 @@ import {
   
   Deno.test("handleCreatePaymentIntent — response Content-Type is application/json", async () => {
     const req = makeRequest({ amount: 1000 });
-    const res = await handleCreatePaymentIntent(req, { stripe: makeStripeMock() });
+    const res = await handleCreatePaymentIntent(req, { stripe: makeStripeMock(), supabaseAdmin: enabledAdmin() });
   
     assertEquals(res.headers.get("Content-Type"), "application/json");
   });

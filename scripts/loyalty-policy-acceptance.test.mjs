@@ -12,14 +12,15 @@ const guardPath = process.env.POLICY_TEST_PROFILE_GUARD;
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const migration = await read('../supabase/migrations/20260929234955_loyalty_policy_acceptance.sql');
 const fixture = await read('../supabase/tests/loyalty_policy_acceptance.fixture.sql');
-const legalPage = await read('../lib/features/legal/legal_page.dart');
 assert(guardPath && isAbsolute(guardPath), 'Set POLICY_TEST_PROFILE_GUARD to the reviewed authority migration');
 const authorityGuard = await readFile(guardPath, 'utf8');
 assert.match(authorityGuard, /create function public\.guard_profile_protected_fields\(\)/);
-const version = 'review-only-loyalty-872d083ce1cf3470';
-const sha256 = '872d083ce1cf3470071903fa9a28cb3957aea2856ab64367d0ff955f3a881797';
-const policyText = [...legalPage.split('LegalPageType.loyaltyCard => const [')[1].split('],')[0]
-  .matchAll(/'([^']*)'/g)].map((match) => match[1]).join('\n\n');
+// The SQL descriptor is authoritative; clients render it rather than static copy.
+const [, version, sha256, policyText] = migration.match(
+  /required_version constant text := '(review-only-loyalty-[a-f0-9]{16})';\s+policy_sha256 constant text := '([a-f0-9]{64})';\s+policy_text constant text := \$policy\$([\s\S]*?)\$policy\$;/,
+) ?? [];
+assert.ok(policyText, 'Expected the versioned review-only SQL descriptor');
+assert.equal(version, `review-only-loyalty-${sha256.slice(0, 16)}`);
 const uid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const user = uid(1), other = uid(2);
 const literal = (value) => value === null ? 'null' : `'${value.replaceAll("'", "''")}'`;
@@ -176,7 +177,7 @@ test('review-only policy acceptance on disposable PostgreSQL 17', { timeout: 180
     }
   });
 
-  await fresh('wire descriptor binds the exact LegalPage draft, without acceptance on read', async () => {
+  await fresh('wire descriptor binds the exact server draft, without acceptance on read', async () => {
     const result = await call(user);
     assert.deepEqual(Object.keys(result).sort(), ['required_version','policy_text','policy_sha256',
       'accepted_version','accepted_at','acceptance_required'].sort());
