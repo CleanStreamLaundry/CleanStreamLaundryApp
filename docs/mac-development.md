@@ -39,10 +39,19 @@ TypeScript errors were corrected in the November4 handoff; destination whole-sit
 November4 checkouts are clean.
 
 Owner-authorized iCloud Drive packages are under **Clean Stream / Mac mini
-handoff / Signing-2026-11-04** and **Configuration-2026-11-04**. Verify their
-manifests before restoration. Source copies are verified; the Mac mini currently
-reports an iCloud Drive sync error and has not received them. No Apple Keychain
-identity is in the Android signing package. Xcode account/team setup remains.
+handoff**, in **Signing-2026-11-04**, **Configuration-2026-11-04** and
+**Release-assets-2026-11-04**. On November4 the destination verified all manifest
+checksums and restored all11 client/Firebase files, all3 signing payloads and799
+release files without conflicts. Private files are mode600; signing directory700.
+Both repositories remain clean. Native iCloud sync recovered after FileProvider
+service restart in its dedicated repair chat; no transfer blocker remains.
+
+Artwork, listings, AAB9 and IPA10 retain their `.campaign-work/store-readiness-20261029`
+paths. Xcode archive is `CleanStreamLaundryApp/build/ios/archive/testflight-10.xcarchive`.
+Destination receipt is `.campaign-work/mac-mini-setup-20261104/setup.json` beneath
+CleanStreamProjects. No Apple Keychain identity is in the Android signing package.
+Xcode account/team,26.1 compatibility and native app launch remain to verify.
+No upload, deployment, backend change or production activation occurred.
 
 The single consolidated queue is [APP_FIX_PRIORITIES.md](../APP_FIX_PRIORITIES.md).
 Branches under `codex/archive-*-20261104` preserve older detached worktree source;

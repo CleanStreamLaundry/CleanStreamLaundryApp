@@ -17,11 +17,16 @@ November4 checkouts were fetched and remain clean. Current handoffs, six archive
 branches and outstanding CortinaQR/recovery refs are published and byte-verified. App runtime
 code is unchanged from the accepted October29 beta-build work.
 
-Signing files and separately approved client/Firebase configuration are copied
-and checksum-verified in the owner's iCloud Drive. Destination reports iCloud Drive
-error, so arrival/restoration is not yet complete. Apple Xcode team authentication
-and native launch remain. Existing dirty files and historical lanes are preserved;
-archive branches are not the current integration baseline.
+**Mac mini transfer complete:** all11 approved client/Firebase files, all3 signing
+payloads and both release archives are checksum-verified and restored without
+conflicts;799 extracted release files verified. Artwork/listings/AAB9/IPA10 retain
+the store-readiness evidence paths; archive10 is restored under the app build/ios/archive.
+Private files are mode600, signing directory700. Native iCloud sync is repaired;
+both checkouts remain clean. Destination receipt: workspace
+`.campaign-work/mac-mini-setup-20261104/setup.json`. Apple Xcode team authentication,
+26.1 compatibility and native launch remain; no upload/deployment/production change.
+Existing dirty source files and historical lanes are preserved; archive branches
+are not the current integration baseline.
 
 Latest André email November4 in Lynx case03713828 follows up the obsolete403.
 Existing production Lynx token/host passed physical-reader API checks October19;
