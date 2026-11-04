@@ -33,7 +33,7 @@ On November4, the Mac mini has both sibling repositories under
 isolated Clean Stream tools. Flutter3.38.10/Dart3.10.9, Node24.22.2/npm11.19.1,
 CocoaPods1.16.2, JDK21, SDK36 and NDK28.2 are installed. Locked npm/Pub/Pods
 installation passed; Supabase CLI2.76.14 was checksum-verified separately.
-Xcode is26.1 there versus26.2 on the source Mac; native acceptance is still needed.
+Xcode is26.1 there versus26.2 on the source Mac; iOS26.1 simulator launch now passes.
 The baseline website Auth installer checks and build passed. Its nine test-file
 TypeScript errors were corrected in the November4 handoff; destination whole-site typecheck and all80 affected tests now pass. Both
 November4 checkouts are clean.
@@ -50,7 +50,23 @@ Artwork, listings, AAB9 and IPA10 retain their `.campaign-work/store-readiness-2
 paths. Xcode archive is `CleanStreamLaundryApp/build/ios/archive/testflight-10.xcarchive`.
 Destination receipt is `.campaign-work/mac-mini-setup-20261104/setup.json` beneath
 CleanStreamProjects. No Apple Keychain identity is in the Android signing package.
-Xcode account/team,26.1 compatibility and native app launch remain to verify.
+Local development acceptance is complete: website rendered at127.0.0.1:4173 with
+zero console warnings/errors and was stopped before native work. Existing
+iPhone17Pro/iOS26.1 simulator built in21.6s and reached native Login. Supabase
+initialized; the documented dev command uses Firebase dev defines and the normal
+`.env`, which exactly matches approved test client settings. Packaged `.env` and
+Firebase plist were byte-verified. Flutter exited0; the app process stopped and
+the existing simulator was preserved. An initial invocation mixed beta JSON
+without CLIENT_CHANNEL and correctly rejected startup; it was corrected without
+source changes. Use the documented development command or complete beta preset.
+
+Restored archive10 passes `codesign --verify --deep --strict` with normal macOS
+trust access and remains iPhone-only. The Mac mini has no valid signing identity
+for Clean Stream team3843FZGZ7T. Owner must confirm the appropriate Clean Stream
+account in Xcode Settings > Accounts and obtain identity/provisioning access before
+signed device/release builds. Do not substitute another team. APNs/device push
+acceptance remains separate; the simulator logged an APNs cleanup limitation and
+a native_assets SdkRoot diagnostic, neither established a startup failure.
 No upload, deployment, backend change or production activation occurred.
 
 The single consolidated queue is [APP_FIX_PRIORITIES.md](../APP_FIX_PRIORITIES.md).

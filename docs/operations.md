@@ -23,10 +23,21 @@ conflicts;799 extracted release files verified. Artwork/listings/AAB9/IPA10 reta
 the store-readiness evidence paths; archive10 is restored under the app build/ios/archive.
 Private files are mode600, signing directory700. Native iCloud sync is repaired;
 both checkouts remain clean. Destination receipt: workspace
-`.campaign-work/mac-mini-setup-20261104/setup.json`. Apple Xcode team authentication,
-26.1 compatibility and native launch remain; no upload/deployment/production change.
-Existing dirty source files and historical lanes are preserved; archive branches
-are not the current integration baseline.
+`.campaign-work/mac-mini-setup-20261104/setup.json`.
+
+**Destination development acceptance complete:** website rendered with0 console
+warnings/errors, then stopped. Existing iPhone17Pro/iOS26.1 simulator built21.6s,
+Supabase initialized and native Login was verified with byte-matched test/dev
+configuration. First mixed beta-JSON invocation lacked CLIENT_CHANNEL and correctly
+rejected startup; the documented dev command passed without source changes.
+Flutter exited0/app process stopped; existing simulator preserved. Archive10 also
+passes strict codesign verification and remains iPhone-only. APNs cleanup/push and
+native_assets SdkRoot diagnostics do not establish a startup failure; device push
+acceptance remains. Clean Stream team3843FZGZ7T has no valid signing identity on the
+Mac mini. Owner must confirm Xcode Settings > Accounts/team and provisioning access
+before signed device/release builds. Both checkouts clean; no deployment/upload/live
+payment change. Existing dirty source files and historical lanes are preserved;
+archive branches are not the current integration baseline.
 
 Latest André email November4 in Lynx case03713828 follows up the obsolete403.
 Existing production Lynx token/host passed physical-reader API checks October19;
