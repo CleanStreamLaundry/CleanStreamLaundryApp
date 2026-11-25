@@ -67,6 +67,8 @@ class CortinaPaymentController extends ChangeNotifier {
   StreamSubscription<AuthState>? _authSubscription;
   CortinaPaymentOutcome? restoredOutcome;
   bool restoredWallet = false;
+  int? previousAmountCents;
+  DateTime? previousAttemptAt;
 
   bool get isCurrentScope => !_disposed && !_scopeInvalidated &&
       _initialized && authService.getCurrentUserId == _accountId;
@@ -131,8 +133,12 @@ class CortinaPaymentController extends ChangeNotifier {
       });
     }
     isLoading = true;
+    quote = null;
     errorMessage = null;
     restoredOutcome = null;
+    previousAmountCents = null;
+    previousAttemptAt = null;
+    vendStatus = null;
     _notify();
     try {
       final currentQuote = await vendService.quote(
@@ -153,8 +159,8 @@ class CortinaPaymentController extends ChangeNotifier {
       _ensureCurrent();
       _paymentUnresolved = _pending != null;
       if (_pending != null) {
-        _paymentUnresolved = true;
-        amountCents = _pending!.amountCents;
+        previousAmountCents = _pending!.amountCents;
+        previousAttemptAt = _pending!.createdAt;
         restoredWallet = _pending!.method == 'wallet';
         var reference = _pending!.reference;
         if (reference == null && _accountId != null) {
@@ -168,7 +174,7 @@ class CortinaPaymentController extends ChangeNotifier {
         }
         final outcome = reference == null
             ? _unconfirmed()
-            : await _poll(reference);
+            : await _poll(reference, restoring: true);
         await _settle(outcome);
         _ensureCurrent();
         restoredOutcome = outcome;
@@ -185,8 +191,12 @@ class CortinaPaymentController extends ChangeNotifier {
     } catch (_) {
       _paymentUnresolved = true;
       if (isCurrentScope) {
-        _unconfirmed();
-        if (_pending != null) restoredOutcome = CortinaPaymentOutcome.pending;
+        if (quote == null) {
+          errorMessage = 'Could not load this machine. Please try again.';
+        } else {
+          _unconfirmed();
+          if (previousAmountCents != null) restoredOutcome = CortinaPaymentOutcome.pending;
+        }
       }
     } finally {
       isLoading = false;
@@ -290,6 +300,7 @@ class CortinaPaymentController extends ChangeNotifier {
     _paymentUnresolved = true;
     isProcessing = true;
     errorMessage = null;
+    restoredOutcome = null;
     _notify();
     try {
       _pending = CortinaPendingPayment(
@@ -298,6 +309,7 @@ class CortinaPaymentController extends ChangeNotifier {
             : (_cardRequestId ??= const Uuid().v4()),
         method: method,
         amountCents: amountCents,
+        createdAt: DateTime.now().toUtc(),
       );
       // A timeout cannot prove that the subsequent financial request was unsent.
       await pendingStore.claim(_scope!, _pending!);
@@ -314,12 +326,13 @@ class CortinaPaymentController extends ChangeNotifier {
     }
   }
 
-  Future<CortinaPaymentOutcome> _poll(CortinaVendReference reference) async {
+  Future<CortinaPaymentOutcome> _poll(CortinaVendReference reference, {bool restoring = false}) async {
     for (var attempt = 0; attempt < pollAttempts; attempt++) {
       _ensureCurrent();
       final status = await vendService.status(reference);
       _ensureCurrent();
       vendStatus = status.status;
+      if (restoring && status.createdAt != null) previousAttemptAt = status.createdAt;
       _notify();
       if (status.isSuccessful) {
         return CortinaPaymentOutcome.success;
@@ -328,7 +341,7 @@ class CortinaPaymentController extends ChangeNotifier {
         errorMessage = status.failureMessage;
         return CortinaPaymentOutcome.refunded;
       }
-      if (!const {
+      if (restoring || !const {
         'payment_pending',
         'paid',
         'starting',
@@ -364,7 +377,18 @@ class CortinaPaymentController extends ChangeNotifier {
     _ensureCurrent();
     _pending = null;
     _paymentUnresolved = false;
+    if (outcome != CortinaPaymentOutcome.canceled) {
+      _cardRequestId = null;
+      _walletRequestId = null;
+    }
     paymentCompleted = outcome == CortinaPaymentOutcome.success;
+  }
+
+  void acknowledgePreviousSuccess() {
+    if (!isCurrentScope || restoredOutcome != CortinaPaymentOutcome.success) return;
+    paymentCompleted = false;
+    restoredOutcome = null;
+    _notify();
   }
 
   void _ensureCurrent() {

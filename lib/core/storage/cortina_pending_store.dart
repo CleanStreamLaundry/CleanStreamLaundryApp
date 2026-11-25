@@ -8,12 +8,14 @@ class CortinaPendingPayment {
   final String requestId;
   final String method;
   final int amountCents;
+  final DateTime? createdAt;
   final CortinaVendReference? reference;
 
   const CortinaPendingPayment({
     required this.requestId,
     required this.method,
     required this.amountCents,
+    this.createdAt,
     this.reference,
   });
 
@@ -22,6 +24,7 @@ class CortinaPendingPayment {
     'requestId': requestId,
     'method': method,
     'amountCents': amountCents,
+    if (createdAt != null) 'createdAt': createdAt!.toUtc().toIso8601String(),
     'sessionId': reference?.sessionId,
     'accessToken': reference?.accessToken,
   };
@@ -47,6 +50,7 @@ class CortinaPendingPayment {
       requestId: value['requestId'] as String,
       method: value['method'] as String,
       amountCents: value['amountCents'] as int,
+      createdAt: DateTime.tryParse(value['createdAt']?.toString() ?? ''),
       reference: sessionId == null ? null : CortinaVendReference(
         sessionId: sessionId as String,
         accessToken: accessToken as String,
@@ -127,6 +131,7 @@ class CortinaPendingStore {
       requestId: current.requestId,
       method: current.method,
       amountCents: current.amountCents,
+      createdAt: current.createdAt,
       reference: reference,
     ));
   });

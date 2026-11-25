@@ -136,6 +136,7 @@ void main() {
       final before = await store.read(scope);
       expect(before?.amountCents, 200);
       expect(before?.method, method);
+      expect(before?.createdAt?.isUtc, isTrue);
       first.dispose(); subjects.remove(first);
       calls.clear();
       // A new adapter/controller reads the saved secure platform values.
@@ -144,13 +145,15 @@ void main() {
       expect(calls, ['status']);
       expect(restarted.restoredOutcome, CortinaPaymentOutcome.pending);
       expect(restarted.paymentLocked, isTrue);
-      expect(restarted.amountCents, 200);
-      restarted.setDryerAmount(150);
-      expect(restarted.amountCents, 200);
+      expect(restarted.previousAmountCents, 200);
+      expect(restarted.previousAttemptAt, before!.createdAt);
+      expect(restarted.amountCents, 150);
+      restarted.setDryerAmount(200);
+      expect(restarted.amountCents, 150);
       expect(await restarted.payWithCard(), CortinaPaymentOutcome.pending);
       expect(await restarted.payWithWallet(), CortinaPaymentOutcome.pending);
       expect(calls, ['status']);
-      expect((await store.read(scope))?.requestId, before?.requestId);
+      expect((await store.read(scope))?.requestId, before.requestId);
       final raw = (await const FlutterSecureStorage().read(key: scope))!;
       expect(raw, isNot(contains('not-persisted')));
       expect(raw, isNot(contains('clientSecret')));

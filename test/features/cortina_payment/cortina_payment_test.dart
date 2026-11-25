@@ -235,11 +235,11 @@ void main() {
     ));
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
-    expect(find.text('Machine Started'), findsOneWidget);
+    expect(find.text('Previous payment confirmed'), findsOneWidget);
     when(() => auth.getCurrentUserId).thenReturn('other');
     events.add(AuthState(AuthChangeEvent.signedOut, null));
     await tester.pumpAndSettle();
-    expect(find.text('Machine Started'), findsNothing);
+    expect(find.text('Previous payment confirmed'), findsNothing);
     expect(find.text('Payment Unconfirmed'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsNothing);
     await tester.tap(find.text('Close'));
@@ -262,8 +262,8 @@ void main() {
       when(() => vend.status(any())).thenAnswer((_) async => CortinaVendStatus(status: status));
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
-      expect(find.text(status == 'started' ? 'Machine Started'
-        : status == 'refunded' ? 'Vend Canceled' : 'Payment Unconfirmed'), findsOneWidget);
+      expect(find.text(status == 'started' ? 'Previous payment confirmed'
+        : status == 'refunded' ? 'Previous payment returned' : 'Previous payment'), findsOneWidget);
       expect(find.text('Payment Received'), findsNothing);
       expect(find.byIcon(Icons.check_rounded), status == 'started' ? findsOneWidget : findsNothing);
       verify(() => vend.status(any())).called(1);
@@ -277,16 +277,66 @@ void main() {
       ));
       verifyNever(() => vend.confirmCardPayment(any()));
       expect(await store.read(scope), status == 'support_required' ? isNotNull : isNull);
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      if (status == 'started') {
-        expect(find.text('Wallet page'), findsOneWidget);
+      if (status == 'support_required') {
+        expect(find.text('Check status'), findsOneWidget);
+        expect(find.text(r'Pay $4.00'), findsNothing);
+        expect(find.text(r'Loyalty wallet payment of $4.00'), findsOneWidget);
       } else {
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
         expect(find.text('Machine payment'), findsOneWidget);
+        final pay = tester.widget<FilledButton>(find.ancestor(of: find.text(r'Pay $4.00'),
+            matching: find.byWidgetPredicate((widget) => widget is FilledButton)));
+        expect(pay.onPressed, isNotNull);
       }
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(r'a legacy $4 attempt never becomes the new $8 washer quote', (tester) async {
+    final store = GetIt.instance<CortinaPendingStore>();
+    final scope = store.scope(accountId: 'user', machineId: 1);
+    await store.claim(scope, const CortinaPendingPayment(
+      requestId: 'old-request', method: 'wallet', amountCents: 400,
+      reference: CortinaVendReference(sessionId: 'old-session', accessToken: 'old-access'),
+    ));
+    when(() => vend.quote(machineToken: 'token', terminalId: null, uniQr: null))
+        .thenAnswer((_) async => const CortinaQuote(
+          machineId: 1, machineName: 'Washer 1', machineType: 'washer',
+          washerSizeLabel: '12 kg', amountCents: 800, dryerDefaultCents: 150, dryerOptions: [],
+        ));
+    var state = 'support_required';
+    final previousDate = DateTime.utc(2026, 10, 3, 19, 44);
+    when(() => vend.status(any())).thenAnswer((_) async => CortinaVendStatus.fromJson({
+      'status': state, 'created_at': previousDate.toIso8601String(),
+    }));
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    final date = MaterialLocalizations.of(tester.element(find.byType(Scaffold)))
+        .formatShortDate(previousDate.toLocal());
+    expect(find.text(r'Loyalty wallet payment of $4.00 on ' + date), findsOneWidget);
+    expect(find.text(r'$8.00'), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text(r'Pay $8.00'), findsNothing);
+    await tester.tap(find.text('Check status'));
+    await tester.pumpAndSettle();
+    expect(await store.read(scope), isNotNull);
+    state = 'refunded';
+    await tester.tap(find.text('Check status'));
+    await tester.pumpAndSettle();
+    expect(find.text('Previous payment returned'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.ancestor(of: find.text(r'Pay $8.00'),
+        matching: find.byWidgetPredicate((widget) => widget is FilledButton))).onPressed, isNotNull);
+    expect(await store.read(scope), isNull);
+    verify(() => vend.status(any())).called(3);
+    verifyNever(() => vend.createCardPayment(machineToken: 'token', terminalId: null, uniQr: null,
+      amountCents: any(named: 'amountCents'), clientRequestId: any(named: 'clientRequestId')));
+    verifyNever(() => vend.confirmCardPayment(any()));
+    verifyNever(() => vend.payWithWallet(machineToken: 'token', terminalId: null, uniQr: null,
+      amountCents: any(named: 'amountCents'), clientRequestId: any(named: 'clientRequestId')));
+  });
 
   for (final status in ['support_required', 'timed_out', 'unknown', 'transport_error']) {
     testWidgets('$status shows unconfirmed support copy and leaves checkout disabled', (tester) async {

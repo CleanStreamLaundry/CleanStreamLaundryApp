@@ -3,6 +3,7 @@ import 'package:clean_stream_laundry_app/features/cortina_payment/widgets/dryer_
 import 'package:clean_stream_laundry_app/features/cortina_payment/widgets/washer_cycle_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CortinaPaymentPage extends StatefulWidget {
   final String? machineToken;
@@ -42,9 +43,36 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
     await controller.init();
     if (!mounted || !controller.isCurrentScope) return;
     final restored = controller.restoredOutcome;
-    if (restored != null) {
-      setState(() => _useWallet = controller.restoredWallet);
-      await _showOutcome(restored, _useWallet, recovered: true);
+    if (restored == CortinaPaymentOutcome.success ||
+        restored == CortinaPaymentOutcome.refunded) {
+      final confirmed = restored == CortinaPaymentOutcome.success;
+      await _showResultDialog(
+        title: confirmed ? 'Previous payment confirmed' : 'Previous payment returned',
+        message: '${_previousDetails()}. No new payment was submitted.',
+        success: confirmed,
+      );
+      if (mounted && confirmed) controller.acknowledgePreviousSuccess();
+    }
+  }
+
+  String _previousDetails() {
+    final amount = (controller.previousAmountCents! / 100).toStringAsFixed(2);
+    final method = controller.restoredWallet ? 'Loyalty wallet' : 'Card';
+    final date = controller.previousAttemptAt?.toLocal();
+    final when = date == null ? '' : ' on ${MaterialLocalizations.of(context).formatShortDate(date)}';
+    return '$method payment of \$$amount$when';
+  }
+
+  Future<void> _contactSupport() async {
+    try {
+      if (await launchUrl(Uri.parse('https://cleanstreamlaundry.com/support'))) return;
+    } catch (_) {
+      // Keep the support address available even without a browser.
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contact cleanstreamlaundry.com/support')),
+      );
     }
   }
 
@@ -70,15 +98,12 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
 
   Future<void> _showOutcome(
     CortinaPaymentOutcome outcome,
-    bool wallet, {
-    bool recovered = false,
-  }) async {
+    bool wallet,
+  ) async {
     final (title, message, success) = switch (outcome) {
       CortinaPaymentOutcome.success => (
         'Machine Started',
-        recovered
-            ? 'The server confirmed that the machine started.'
-            : controller.isDryer
+        controller.isDryer
             ? '${controller.dryerMinutes} minutes were added.'
             : 'Select your cycle on the washer.',
         true,
@@ -252,6 +277,8 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
     final walletBalance = controller.walletBalance ?? 0;
     final walletAvailable = walletBalance >= controller.price;
     final useWallet = _useWallet && walletAvailable;
+    final previousPending = controller.isCurrentScope &&
+        controller.restoredOutcome == CortinaPaymentOutcome.pending;
 
     return Column(
       children: [
@@ -272,6 +299,22 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                           : '${quote.washerSizeLabel ?? 'Washer'} flat rate',
                     ),
                     const SizedBox(height: 12),
+                    if (previousPending) ...[
+                      Text('Previous payment', style: Theme.of(context).textTheme.titleMedium),
+                      Text(_previousDetails()),
+                      const SizedBox(height: 6),
+                      Text(controller.vendStatus == 'support_required'
+                          ? 'This payment needs support review. No new payment was submitted.'
+                          : 'The result is still unknown. No new payment was submitted.'),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton.icon(onPressed: _init, icon: const Icon(Icons.refresh),
+                              label: const Text('Check status')),
+                          TextButton(onPressed: _contactSupport, child: const Text('Contact support')),
+                        ],
+                      ),
+                    ] else ...[
                     if (quote.isDryer)
                       IgnorePointer(
                         ignoring: controller.paymentLocked,
@@ -344,6 +387,13 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                           ],
                         ),
                       ),
+                      if (controller.isCurrentScope && controller.paymentLocked &&
+                          !controller.paymentCompleted && !controller.isProcessing)
+                        TextButton.icon(
+                          onPressed: _init,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Check status'),
+                        ),
                     ],
                     const SizedBox(height: 22),
                     Center(
@@ -353,13 +403,14 @@ class _CortinaPaymentPageState extends State<CortinaPaymentPage> {
                         semanticLabel: 'Clean Stream Laundry Solutions',
                       ),
                     ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
         ),
-        _CheckoutBar(
+        if (!previousPending) _CheckoutBar(
           amount: controller.price,
           isProcessing: controller.isProcessing,
           paymentLabel: useWallet ? 'Loyalty wallet' : 'Card',

@@ -89,8 +89,9 @@ class CortinaVendReference {
 class CortinaVendStatus {
   final String status;
   final String? failureMessage;
+  final DateTime? createdAt;
 
-  const CortinaVendStatus({required this.status, this.failureMessage});
+  const CortinaVendStatus({required this.status, this.failureMessage, this.createdAt});
 
   bool get isSuccessful => status == 'started';
   bool get isTerminalFailure => const {
@@ -104,5 +105,6 @@ class CortinaVendStatus {
       CortinaVendStatus(
         status: json['status'] as String,
         failureMessage: json['failure_message'] as String?,
+        createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
       );
 }

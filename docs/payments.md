@@ -192,8 +192,13 @@ preferences. Android excludes only the plugin's data/key files from backup; iOS
 uses device-only Keychain access with no added biometric prompt. Failed readback,
 invalid data or uncertain cleanup keeps checkout locked.
 
-Reopening a machine page resumes bounded status observation, never payment
-creation, confirmation or Start. A lost creation response can use the existing
+Reopening a machine page shows the current quote and checks the previous
+attempt once, without payment creation, confirmation or Start. Its method,
+amount and date (when known) belong to the previous payment, not the new
+quote. An unresolved status leaves both payment methods locked. The customer
+can check again or contact support; age alone never unlocks a checkout. A
+confirmed start or return clears only the matched local record and is shown
+as a historical result, not a new purchase. A lost creation response can use the existing
 status endpoint's read-only owner/request lookup: verified human bearer, exact
 machine/request/owner/hash binding, no guest fallback. A missing row is not proof
 that payment was unsent and does not unlock another attempt. Account changes,
