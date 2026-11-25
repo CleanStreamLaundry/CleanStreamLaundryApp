@@ -1,8 +1,19 @@
 # Campaign Operations
 
-Updated: 2026-11-04. Working record, not proof that planned features exist.
+Updated: 2026-11-25. Working record, not proof that planned features exist.
 
 ## Current Checkpoint
+
+**November 25, Cortina app recovery:** A saved payment could replace a new
+machine quote and present an earlier failure as if scanning had made a payment.
+The mobile checkout now separates the two; an uncertain result never enables a
+second payment. See [local pending recovery](payments.md#local-pending-recovery).
+The checkout suite passed 125 cases, including the October $4 wallet / new $8
+washer regression. Small-phone fixture renders covered unresolved and returned
+payments. Samsung SM-S931U debug build 11 opened Washer 1 at **Pay $8.00**
+from its Clean Stream QR URL. No payment, pulse, balance edit, backend
+deployment or store release was part of this check. This app change does not
+diagnose a physical pulse or resolve an outstanding support case.
 
 
 **November4 production-readiness ownership handoff:** Owner explicitly requests a
