@@ -155,7 +155,7 @@ class _StartPageState extends State<StartPage> {
                 final baseScale = (contentWidth / 340)
                     .clamp(0.94, 1.0)
                     .toDouble();
-                final contentHeight = widget.doorAccessEnabled ? 610.0 : 390.0;
+                final contentHeight = widget.doorAccessEnabled ? 610.0 : 500.0;
                 final baseMetrics = _StartLayoutMetrics(scale: baseScale);
                 final verticalPadding = baseMetrics.gap(4);
                 final canvasHeight = math.max(
@@ -205,11 +205,14 @@ class _StartPageState extends State<StartPage> {
                         child: FittedBox(
                           alignment: Alignment.topCenter,
                           fit: BoxFit.scaleDown,
-                          child: SizedBox(
-                            width: contentWidth,
-                            height: targetHeight,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: contentWidth,
+                              maxWidth: contentWidth,
+                              minHeight: targetHeight,
+                            ),
                             child: Column(
-                              mainAxisSize: MainAxisSize.max,
+                              mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 _StartHeader(metrics: metrics),
@@ -226,13 +229,13 @@ class _StartPageState extends State<StartPage> {
                                 ),
                                 SizedBox(height: metrics.sectionGap(10)),
                                 _HowItWorksSection(metrics: metrics),
+                                SizedBox(height: metrics.sectionGap(10)),
+                                _SectionHeading(
+                                  metrics: metrics,
+                                  icon: Icons.dark_mode_rounded,
+                                  title: 'After Hours',
+                                ),
                                 if (widget.doorAccessEnabled) ...[
-                                  SizedBox(height: metrics.sectionGap(10)),
-                                  _SectionHeading(
-                                    metrics: metrics,
-                                    icon: Icons.dark_mode_rounded,
-                                    title: 'After Hours',
-                                  ),
                                   SizedBox(
                                     height: metrics.compactSectionGap(6),
                                   ),
@@ -244,9 +247,14 @@ class _StartPageState extends State<StartPage> {
                                     description: 'Unlock the facility door.',
                                     onPressed: _onUnlockPressed,
                                   ),
-                                  SizedBox(height: metrics.sectionGap(8)),
-                                  _AfterHoursSteps(metrics: metrics),
                                 ],
+                                SizedBox(height: metrics.compactSectionGap(8)),
+                                const _InstructionRow(
+                                  icon: Icons.contactless_rounded,
+                                  title: 'Tap your phone on the door reader',
+                                  description:
+                                      'At equipped entrances, wait for the reader to confirm access.',
+                                ),
                               ],
                             ),
                           ),
@@ -328,164 +336,6 @@ class _StartHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _AfterHoursSteps extends StatelessWidget {
-  final _StartLayoutMetrics metrics;
-
-  const _AfterHoursSteps({required this.metrics});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _AfterHoursStep(
-            metrics: metrics,
-            number: '1',
-            icon: Icons.account_balance_wallet_outlined,
-            label: r'Load $20 on loyalty card',
-          ),
-        ),
-        _AfterHoursConnector(metrics: metrics),
-        Expanded(
-          child: _AfterHoursStep(
-            metrics: metrics,
-            number: '2',
-            icon: Icons.lock_open_rounded,
-            label: 'Tap Unlock button',
-          ),
-        ),
-        _AfterHoursConnector(metrics: metrics),
-        Expanded(
-          child: _AfterHoursStep(
-            metrics: metrics,
-            number: '3',
-            icon: Icons.contactless_rounded,
-            label: 'Place phone on door lock',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AfterHoursStep extends StatelessWidget {
-  final _StartLayoutMetrics metrics;
-  final String number;
-  final IconData icon;
-  final String label;
-
-  const _AfterHoursStep({
-    required this.metrics,
-    required this.number,
-    required this.icon,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: metrics.size(42),
-          height: metrics.size(37),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  width: metrics.size(32),
-                  height: metrics.size(32),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.09),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    color: colors.primary,
-                    size: metrics.size(18),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: metrics.size(5),
-                top: 0,
-                child: Container(
-                  width: metrics.size(17),
-                  height: metrics.size(17),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    number,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontSize: metrics.font(10),
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: metrics.gap(3)),
-        Text(
-          label,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: colors.fontSecondary,
-            fontSize: metrics.font(11),
-            fontWeight: FontWeight.w900,
-            height: 1.08,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AfterHoursConnector extends StatelessWidget {
-  final _StartLayoutMetrics metrics;
-
-  const _AfterHoursConnector({required this.metrics});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: EdgeInsets.only(top: metrics.gap(18)),
-      child: SizedBox(
-        width: metrics.size(28),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(
-            3,
-            (_) => Container(
-              width: metrics.size(7),
-              height: metrics.size(2),
-              decoration: BoxDecoration(
-                color: colors.outline.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

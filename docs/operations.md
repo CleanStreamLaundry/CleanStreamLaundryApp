@@ -4,6 +4,13 @@ Updated: 2026-11-25. Working record, not proof that planned features exist.
 
 ## Current Checkpoint
 
+**November 25, Start Laundry:** After Hours reader instructions are always
+visible on the customer Start tab, independent of location or wallet balance.
+The in-app unlock button remains off; no door integration or access policy
+changed. All 49 Start tests passed, scoped analysis was clean, and the page
+was reviewed at 360/430 logical pixels in both themes and on Samsung debug
+build 12. This is not a store release or a physical door-access test.
+
 **November 25, Cortina app recovery:** A saved payment could replace a new
 machine quote and present an earlier failure as if scanning had made a payment.
 The mobile checkout now separates the two; an uncertain result never enables a

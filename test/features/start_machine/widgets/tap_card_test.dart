@@ -22,7 +22,7 @@ void main() {
         final data = node.getSemanticsData();
         expect(
           data.label,
-          'Tap to Pay\nPay at the machine reader with your mobile wallet.',
+          'Tap to Pay\nUse your mobile wallet at the reader.',
         );
         expect(data.flagsCollection.isButton, isTrue);
         expect(data.hasAction(SemanticsAction.tap), isTrue);
@@ -69,7 +69,7 @@ void main() {
     testWidgets('displays description text', (tester) async {
       await tester.pumpWidget(buildWidget());
       expect(
-        find.text('Pay at the machine reader with your mobile wallet.'),
+        find.text('Use your mobile wallet at the reader.'),
         findsOneWidget,
       );
     });

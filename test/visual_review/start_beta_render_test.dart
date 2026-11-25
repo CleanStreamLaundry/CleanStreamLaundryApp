@@ -61,6 +61,13 @@ void main() {
         }
         await tester.pumpAndSettle();
         await applyRealFontFallback(tester);
+        expect(find.text('After Hours'), findsOneWidget);
+        final instruction = find.textContaining('At equipped entrances');
+        expect(instruction, findsOneWidget);
+        expect(
+          tester.getBottomLeft(instruction).dy,
+          lessThan(tester.getTopLeft(find.byType(BottomNavigationBar)).dy),
+        );
         expect(find.text('Unlock Door'), findsNothing);
         expect(find.text('Tap to Pay'), findsOneWidget);
         expect(find.text('Scan QR code'), findsOneWidget);

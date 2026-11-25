@@ -69,7 +69,7 @@ void main() {
 
   group('Static UI', () {
     testWidgets(
-      'beta keeps laundry actions without exposing mock door access',
+      'customer Start shows tap instructions without checking balance or unlocking',
       (tester) async {
         await tester.pumpWidget(createWidget(doorAccessEnabled: false));
         await tester.pumpAndSettle();
@@ -77,7 +77,11 @@ void main() {
         expect(find.text('Tap to Pay'), findsOneWidget);
         expect(find.text('Scan QR code'), findsOneWidget);
         expect(find.text('How it works'), findsOneWidget);
-        expect(find.text('After Hours'), findsNothing);
+        expect(find.text('After Hours'), findsOneWidget);
+        final instructions = find.text('Tap your phone on the door reader');
+        expect(instructions, findsOneWidget);
+        await tester.tap(instructions);
+        await tester.pumpAndSettle();
         expect(find.text('Unlock Door'), findsNothing);
         verifyNever(() => mockUnlocker.unlockNearestDoor());
         verifyNever(() => mockProfileService.getUserBalanceById(any()));
@@ -164,9 +168,7 @@ void main() {
       expect(find.text('After Hours'), findsOneWidget);
       expect(find.text('Unlock Door'), findsOneWidget);
       expect(find.text('Unlock the facility door.'), findsOneWidget);
-      expect(find.text(r'Load $20 on loyalty card'), findsOneWidget);
-      expect(find.text('Tap Unlock button'), findsOneWidget);
-      expect(find.text('Place phone on door lock'), findsOneWidget);
+      expect(find.text('Tap your phone on the door reader'), findsOneWidget);
     });
   });
 
